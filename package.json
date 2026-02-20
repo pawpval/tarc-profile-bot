@@ -1,8 +1,9 @@
 {
   "name": "tarc-profile-bot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "TARC Profile Bot",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
