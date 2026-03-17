@@ -122,21 +122,21 @@ function buildEmbed(profile) {
     .setTitle(`🪖 ${profile.username} | TARC PROFILE`)
     .setDescription(
       [
-        `**Rank**`,
+        `**🎖️Rank**`,
         `${profile.mainRankName || "Unknown"}`,
         ``,
-        `**Divisions**`,
+        `**🪖Divisions**`,
         `${divisionsText}`,
         ``,
-        `**Stats**`,
+        `**📊Stats**`,
         `XP: ${profile.xp ?? "N/A"}`,
         `Kills: ${profile.kills ?? "N/A"}`,
         `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
         ``,
-        `**Medals**`,
+        `**🏆Medals**`,
         `${getMedals(profile.userId)}`,
         ``,
-        `**Info**`,
+        `**❗Info**`,
         `First Joined: ${joinedText}`,
         `Last Update: ${updatedText}`
       ].join("\n")
