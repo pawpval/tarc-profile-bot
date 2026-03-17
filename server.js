@@ -11,14 +11,13 @@ import {
 
 const app = express();
 
-// ===== ENV =====
 const PORT = Number(process.env.PORT || 8080);
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "");
 const SHARED_SECRET = String(process.env.SHARED_SECRET || "");
 const CLIENT_ID = String(process.env.CLIENT_ID || "");
 const GUILD_ID = String(process.env.GUILD_ID || "");
 
-// ===== HARD LOGGING / SAFETY =====
+// ---------- crash logging ----------
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] uncaughtException:", err);
 });
@@ -27,6 +26,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[FATAL] unhandledRejection:", reason);
 });
 
+// ---------- request logging ----------
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
@@ -39,13 +39,13 @@ app.use((err, req, res, next) => {
   res.status(400).json({ error: "Bad JSON body" });
 });
 
-// ===== CACHE =====
+// ---------- in-memory cache ----------
 const profileCache = new Map();
 const usernameToUserId = new Map();
 
-// ===== MEDALS =====
+// ---------- medals ----------
 const MedalAssignments = {
-  621243206:  ["Medal Of Honor", "Distinguished Service", "Achivement Of Activity", "Medal Of Stars Honesty", "Leaderships Medal Of Honour", "Invaluted's Bravery"],
+  621243206: ["Medal Of Honor", "Distinguished Service", "Achivement Of Activity", "Medal Of Stars Honesty", "Leaderships Medal Of Honour", "Invaluted's Bravery"],
   2808148032: ["Achivement Of Activity"],
   1439310935: ["Medal Of Honor", "Achivement Of Activity"],
   2411349338: ["Medal Of Stars Honesty"],
@@ -106,11 +106,11 @@ async function resolveRobloxUser(username) {
 function buildEmbed(profile) {
   const divisionsText =
     Array.isArray(profile.divisions) && profile.divisions.length > 0
-      ? profile.divisions.map(d => `🔹 ${d.name}: **${d.role}**`).join("\n")
+      ? profile.divisions.map(d => `• ${d.name} — **${d.role}**`).join("\n")
       : "None";
 
   const joinedText = profile.firstJoinUnix
-    ? `<t:${profile.firstJoinUnix}:D> (<t:${profile.firstJoinUnix}:R>)`
+    ? `<t:${profile.firstJoinUnix}:D>`
     : "N/A";
 
   const updatedText = profile.lastUpdateUnix
@@ -120,24 +120,30 @@ function buildEmbed(profile) {
   return new EmbedBuilder()
     .setColor(0x2b7fff)
     .setTitle(`🪖 ${profile.username} | TARC PROFILE`)
-    .setDescription([
-      `**Users info:**`,
-      ``,
-      `🎖️ **Rank:** ${profile.mainRankName || "Unknown"}`,
-      `🪖 **Division(s):**`,
-      `${divisionsText}`,
-      ``,
-      `⏱️ **Time Played:** ${formatCompactTime(profile.playTimeSeconds)}`,
-      `🎯 **XP:** ${profile.xp ?? "N/A"}`,
-      `💥 **Kills:** ${profile.kills ?? "N/A"}`,
-      `🏅 **Medals:** ${getMedals(profile.userId)}`,
-      ``,
-      `📌 **First joined game:** ${joinedText}`,
-      `🕒 **Last update:** ${updatedText}`
-    ].join("\n"));
+    .setDescription(
+      [
+        `**Rank**`,
+        `${profile.mainRankName || "Unknown"}`,
+        ``,
+        `**Divisions**`,
+        `${divisionsText}`,
+        ``,
+        `**Stats**`,
+        `XP: ${profile.xp ?? "N/A"}`,
+        `Kills: ${profile.kills ?? "N/A"}`,
+        `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
+        ``,
+        `**Medals**`,
+        `${getMedals(profile.userId)}`,
+        ``,
+        `**Info**`,
+        `First Joined: ${joinedText}`,
+        `Last Update: ${updatedText}`
+      ].join("\n")
+    );
 }
 
-// ===== HTTP ROUTES =====
+// ---------- routes ----------
 app.get("/", (req, res) => {
   res.status(200).send("TARC profile bot running");
 });
@@ -165,7 +171,7 @@ app.post("/ingest", (req, res) => {
     }
 
     if (body.loaded !== true) {
-      console.log("[INGEST] Skipped: loaded != true");
+      console.log("[INGEST] Skipped because loaded != true");
       return res.status(200).json({ ok: true, skipped: true, reason: "NotLoaded" });
     }
 
@@ -177,7 +183,6 @@ app.post("/ingest", (req, res) => {
 
     const username = String(body.username || `UserId:${userId}`);
     const nowUnix = Math.floor(Date.now() / 1000);
-
     const existing = profileCache.get(userId);
 
     const profile = {
@@ -205,7 +210,7 @@ app.post("/ingest", (req, res) => {
   }
 });
 
-// ===== DISCORD =====
+// ---------- discord ----------
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -267,8 +272,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply("Player has no set data yet (they may have never joined the game, or the game hasn’t sent data yet).");
     }
 
-    const embed = buildEmbed(profile);
-    return interaction.editReply({ embeds: [embed] });
+    return interaction.editReply({ embeds: [buildEmbed(profile)] });
   } catch (err) {
     console.error("[DISCORD] /profile failed:", err);
     return interaction.editReply("Something went wrong fetching that profile.");
@@ -279,7 +283,7 @@ client.login(DISCORD_TOKEN).catch(err => {
   console.error("[DISCORD] Login failed:", err);
 });
 
-// ===== START =====
+// ---------- start ----------
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[HTTP] Listening on port ${PORT}`);
 });
