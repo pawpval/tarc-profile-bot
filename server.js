@@ -119,7 +119,7 @@ function buildEmbed(profile) {
 
   return new EmbedBuilder()
     .setColor(0x2b7fff)
-    .setTitle(`🪖 ${profile.username} | TARC PROFILE`)
+    .setTitle(`${profile.username} | TARC PROFILE`)
     .setDescription(
       [
         `**🎖️Rank**`,
