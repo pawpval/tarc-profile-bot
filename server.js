@@ -10,29 +10,40 @@ import {
 } from "discord.js";
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
 
-const PORT = Number(process.env.PORT || 3000);
+// ===== ENV =====
+const PORT = Number(process.env.PORT || 8080);
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "");
 const SHARED_SECRET = String(process.env.SHARED_SECRET || "");
 const CLIENT_ID = String(process.env.CLIENT_ID || "");
 const GUILD_ID = String(process.env.GUILD_ID || "");
 
-if (!DISCORD_TOKEN) console.warn("[ENV] Missing DISCORD_TOKEN");
-if (!SHARED_SECRET) console.warn("[ENV] Missing SHARED_SECRET");
-if (!CLIENT_ID) console.warn("[ENV] Missing CLIENT_ID");
-if (!GUILD_ID) console.warn("[ENV] Missing GUILD_ID");
+// ===== HARD LOGGING / SAFETY =====
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] uncaughtException:", err);
+});
 
-// =====================================
-// In-memory profile cache
-// key: userId number
-// =====================================
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] unhandledRejection:", reason);
+});
+
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.url}`);
+  next();
+});
+
+app.use(express.json({ limit: "1mb" }));
+
+app.use((err, req, res, next) => {
+  console.error("[HTTP] JSON parse error:", err);
+  res.status(400).json({ error: "Bad JSON body" });
+});
+
+// ===== CACHE =====
 const profileCache = new Map();
 const usernameToUserId = new Map();
 
-// =====================================
-// Medals (from your Lua medal table)
-// =====================================
+// ===== MEDALS =====
 const MedalAssignments = {
   621243206:  ["Medal Of Honor", "Distinguished Service", "Achivement Of Activity", "Medal Of Stars Honesty", "Leaderships Medal Of Honour", "Invaluted's Bravery"],
   2808148032: ["Achivement Of Activity"],
@@ -126,35 +137,41 @@ function buildEmbed(profile) {
     ].join("\n"));
 }
 
-// =====================================
-// EXPRESS ROUTES
-// =====================================
-
+// ===== HTTP ROUTES =====
 app.get("/", (req, res) => {
-  res.send("TARC profile bot running");
+  res.status(200).send("TARC profile bot running");
 });
 
 app.get("/health", (req, res) => {
-  res.json({
+  res.status(200).json({
     ok: true,
     cacheSize: profileCache.size
   });
 });
 
+app.get("/ingest", (req, res) => {
+  res.status(200).json({ ok: true, route: "ingest-get" });
+});
+
 app.post("/ingest", (req, res) => {
   try {
+    console.log("[INGEST] Body received:", JSON.stringify(req.body));
+
     const body = req.body || {};
 
     if (body.secret !== SHARED_SECRET) {
+      console.warn("[INGEST] Invalid secret");
       return res.status(401).json({ error: "Invalid secret" });
     }
 
     if (body.loaded !== true) {
-      return res.json({ ok: true, skipped: true, reason: "NotLoaded" });
+      console.log("[INGEST] Skipped: loaded != true");
+      return res.status(200).json({ ok: true, skipped: true, reason: "NotLoaded" });
     }
 
     const userId = Number(body.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
+      console.warn("[INGEST] Bad userId:", body.userId);
       return res.status(400).json({ error: "Bad userId" });
     }
 
@@ -181,17 +198,14 @@ app.post("/ingest", (req, res) => {
 
     console.log(`[INGEST] Stored ${username} (${userId}) XP=${profile.xp} Kills=${profile.kills} Time=${profile.playTimeSeconds}`);
 
-    return res.json({ ok: true });
+    return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[INGEST] ERROR:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error", details: String(err?.message || err) });
   }
 });
 
-// =====================================
-// DISCORD BOT
-// =====================================
-
+// ===== DISCORD =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -242,7 +256,6 @@ client.on(Events.InteractionCreate, async interaction => {
 
     let profile = profileCache.get(resolved.userId);
 
-    // fallback: maybe username changed case
     if (!profile) {
       const cachedId = usernameToUserId.get(resolved.username.toLowerCase());
       if (cachedId) {
@@ -266,10 +279,7 @@ client.login(DISCORD_TOKEN).catch(err => {
   console.error("[DISCORD] Login failed:", err);
 });
 
-// =====================================
-// START HTTP SERVER
-// =====================================
-
-app.listen(PORT, () => {
+// ===== START =====
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`[HTTP] Listening on port ${PORT}`);
 });
