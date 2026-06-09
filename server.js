@@ -17,7 +17,6 @@ const SHARED_SECRET = String(process.env.SHARED_SECRET || "");
 const CLIENT_ID = String(process.env.CLIENT_ID || "");
 const GUILD_ID = String(process.env.GUILD_ID || "");
 
-// ---------- crash logging ----------
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] uncaughtException:", err);
 });
@@ -26,7 +25,6 @@ process.on("unhandledRejection", (reason) => {
   console.error("[FATAL] unhandledRejection:", reason);
 });
 
-// ---------- request logging ----------
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
@@ -39,11 +37,9 @@ app.use((err, req, res, next) => {
   res.status(400).json({ error: "Bad JSON body" });
 });
 
-// ---------- in-memory cache ----------
 const profileCache = new Map();
 const usernameToUserId = new Map();
 
-// ---------- medals ----------
 const MedalAssignments = {
   621243206: ["Medal Of Honor", "Distinguished Service", "Achivement Of Activity", "Medal Of Stars Honesty", "Leaderships Medal Of Honour", "Invaluted's Bravery"],
   2808148032: ["Achivement Of Activity"],
@@ -122,28 +118,27 @@ function buildEmbed(profile) {
     .setTitle(`${profile.username} | TARC PROFILE`)
     .setDescription(
       [
-        `**🎖️Rank**`,
+        `**Rank**`,
         `${profile.mainRankName || "Unknown"}`,
         ``,
-        `**🪖Divisions**`,
+        `**Divisions**`,
         `${divisionsText}`,
         ``,
-        `**📊Stats**`,
+        `**Stats**`,
         `XP: ${profile.xp ?? "N/A"}`,
         `Kills: ${profile.kills ?? "N/A"}`,
         `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
         ``,
-        `**🏆Medals**`,
+        `**Medals**`,
         `${getMedals(profile.userId)}`,
         ``,
-        `**❗Info**`,
+        `**Info**`,
         `First Joined: ${joinedText}`,
         `Last Update: ${updatedText}`
       ].join("\n")
     );
 }
 
-// ---------- routes ----------
 app.get("/", (req, res) => {
   res.status(200).send("TARC profile bot running");
 });
@@ -210,13 +205,22 @@ app.post("/ingest", (req, res) => {
   }
 });
 
-// ---------- discord ----------
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
 client.once(Events.ClientReady, async () => {
   console.log(`[DISCORD] Logged in as ${client.user.tag}`);
+
+  client.user.setPresence({
+    activities: [
+      {
+        name: "discord.gg/tarcs 🔥",
+        type: 3
+      }
+    ],
+    status: "online"
+  });
 
   try {
     const commands = [
@@ -283,7 +287,6 @@ client.login(DISCORD_TOKEN).catch(err => {
   console.error("[DISCORD] Login failed:", err);
 });
 
-// ---------- start ----------
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[HTTP] Listening on port ${PORT}`);
 });
