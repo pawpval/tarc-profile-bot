@@ -34,6 +34,83 @@ const REPORTS_APPEALS_LINK = "https://discord.gg/TsvyxSav43";
 const LAWBOOK_LINK = "https://trello.com/b/25mjJPCy/tarc-regulations-punishments";
 const BOT_CMDS_CHANNEL_ID = "1318201600908460089";
 
+const MAIN_GROUP_ID = 35324584;
+const SUB_GROUP_IDS = new Set([35326812]); // Advanced Recon Commandos
+
+const DIVISION_GROUPS = {
+  35324584: "Republic Army",
+  35326817: "91st Reconnaissance Corps",
+  311903349: "501st Legion",
+  35328710: "41st Elite Corps",
+  688102798: "212th Attack Battalion",
+  35326812: "Advanced Recon Commandos",
+  35326815: "Coruscant Guard",
+  35326827: "Red Guards",
+  12658410: "Republic Commandos",
+  35326830: "Republic Intelligence",
+  33943342: "Galactic Senate",
+  16060314: "Senate Guard",
+  16282238: "The Jedi Order"
+};
+
+const DIVISION_ORDER = [
+  35324584, 35326817, 311903349, 35328710, 688102798,
+  35326812, 35326815, 35326827, 12658410, 35326830,
+  33943342, 16060314, 16282238
+];
+
+const MULTI_MAIN_ALLOWED_RANK_NAMES = new Set([
+  "Marshal Commander",
+  "Sector Commander",
+  "Supreme Commander",
+  "Grand Marshal",
+  "Vice Chancellor",
+  "Supreme Chancellor",
+  "Owner",
+  "Group Owner"
+]);
+
+const STAR_WARS_QUOTES = [
+  "May the Force be with you.", "Do. Or do not. There is no try.", "The Force will be with you. Always.",
+  "This is the way.", "I have spoken.", "Never tell me the odds.", "So uncivilized.", "Hello there.",
+  "General Kenobi.", "I find your lack of faith disturbing.", "Fear is the path to the dark side.",
+  "Your focus determines your reality.", "The greatest teacher, failure is.", "Luminous beings are we, not this crude matter.",
+  "No one's ever really gone.", "Rebellions are built on hope.", "I am one with the Force, and the Force is with me.",
+  "There's always a bigger fish.", "The dark side clouds everything.", "Power! Unlimited power!",
+  "You underestimate my power.", "It's over. I have the high ground.", "A surprise, to be sure, but a welcome one.",
+  "Now this is podracing.", "I will do what I must.", "You were the chosen one.", "Always two there are, no more, no less.",
+  "Good soldiers follow orders.", "For the Republic.", "Execute Order 66.",
+  "I'm just a simple man trying to make my way in the universe.", "The mission always comes first.",
+  "We are keepers of the peace, not soldiers.", "Only a Sith deals in absolutes.", "I have a bad feeling about this.",
+  "Stay on target.", "It's a trap!", "The Force is strong with this one.",
+  "Help me, Obi-Wan Kenobi. You're my only hope.", "These aren't the droids you're looking for.",
+  "Let the Wookiee win.", "Strike me down and I shall become more powerful than you can possibly imagine.",
+  "Great, kid. Don't get cocky.", "Laugh it up, fuzzball.", "I know.", "Size matters not.",
+  "Wars not make one great.", "That is why you fail.", "You must unlearn what you have learned.",
+  "Difficult to see. Always in motion is the future.", "Impressive. Most impressive.",
+  "The Emperor is not as forgiving as I am.", "There is good in him. I've felt it.",
+  "I am a Jedi, like my father before me.", "Your overconfidence is your weakness.",
+  "Your faith in your friends is yours.", "Many Bothans died to bring us this information.",
+  "Chewie, we're home.", "That's not how the Force works.", "Escape now, hug later.",
+  "The garbage will do.", "A thousand generations live in you now.",
+  "The belonging you seek is not behind you. It is ahead.", "Let the past die. Kill it if you have to.",
+  "We are what they grow beyond.", "The spark that'll light the fire that'll burn the First Order down.",
+  "I can bring you in warm, or I can bring you in cold.", "Wherever I go, he goes.",
+  "Weapons are part of my religion.", "I like those odds.", "I am all the Jedi.",
+  "A Jedi uses the Force for knowledge and defense.", "Patience you must have, my young Padawan.",
+  "The shroud of the dark side has fallen.", "Begun, the Clone War has.",
+  "One way out.", "Never more than twelve.", "Fight the Empire!",
+  "The Empire is a disease that thrives in darkness.", "Hope is like the sun.",
+  "The ability to speak does not make you intelligent.", "In my experience, there is no such thing as luck.",
+  "Train yourself to let go of everything you fear to lose.", "Attachment is forbidden.",
+  "Compassion is central to a Jedi's life.", "The negotiations were short.",
+  "The circle is now complete.", "Apology accepted, Captain Needa.",
+  "The Force is with you, young Skywalker.", "It's not impossible.", "I don't like sand.",
+  "Wonderful girl. Either I'm going to kill her or I'm beginning to like her.",
+  "The strongest stars have hearts of kyber.", "The axe forgets, but the tree remembers.",
+  "I burn my life to make a sunrise that I know I'll never see.", "We have hope. Rebellions are built on hope."
+];
+
 const XP_RANKS = [
   { xp: 0, name: "Cadet" },
   { xp: 3, name: "Trooper" },
@@ -213,18 +290,106 @@ async function getRobloxUserGroupRoles(userId) {
 }
 
 function getMainGroupRoleFromGroupRoles(groupRoles) {
-  const entry = groupRoles.find((item) => String(item?.group?.id) === String(ROBLOX_GROUP_ID));
+  const entry = groupRoles.find((item) => Number(item?.group?.id) === MAIN_GROUP_ID);
   return entry?.role?.name || "Not in group";
 }
 
+function getMainGroupRankNumber(groupRoles) {
+  const entry = groupRoles.find((item) => Number(item?.group?.id) === MAIN_GROUP_ID);
+  return Number(entry?.role?.rank || 0);
+}
+
 function getDivisionsFromGroupRoles(groupRoles) {
-  return groupRoles
-    .filter((item) => String(item?.group?.id) !== String(ROBLOX_GROUP_ID))
-    .filter((item) => item?.group?.name && item?.role?.name)
-    .map((item) => ({
-      name: String(item.group.name),
-      role: String(item.role.name)
-    }));
+  const byId = new Map();
+
+  for (const item of groupRoles) {
+    const groupId = Number(item?.group?.id);
+    if (!DIVISION_GROUPS[groupId]) continue;
+
+    byId.set(groupId, {
+      id: groupId,
+      name: DIVISION_GROUPS[groupId],
+      role: String(item?.role?.name || "Member"),
+      rank: Number(item?.role?.rank || 0)
+    });
+  }
+
+  return DIVISION_ORDER.filter((id) => byId.has(id)).map((id) => byId.get(id));
+}
+
+function getMainDivisionsOnly(divisions) {
+  return divisions.filter((d) => d.id !== MAIN_GROUP_ID && !SUB_GROUP_IDS.has(d.id));
+}
+
+function getSubDivisionsOnly(divisions) {
+  return divisions.filter((d) => SUB_GROUP_IDS.has(d.id));
+}
+
+function isMultiMainAllowed(mainRankName, mainRankNumber) {
+  const rankName = String(mainRankName || "").trim();
+  if (MULTI_MAIN_ALLOWED_RANK_NAMES.has(rankName)) return true;
+  return Number(mainRankNumber || 0) >= 18;
+}
+
+function getTarcStatus({ userDetails, divisions, mainRankName, mainRankNumber, punishments }) {
+  const reasons = [];
+  let level = "green";
+
+  const created = new Date(userDetails.created);
+  const ageDays = Number.isNaN(created.getTime()) ? 9999 : Math.floor((Date.now() - created.getTime()) / 86400000);
+  const mainDivisions = getMainDivisionsOnly(divisions);
+  const subDivisions = getSubDivisionsOnly(divisions);
+  const allowedMultiMain = isMultiMainAllowed(mainRankName, mainRankNumber);
+
+  if (userDetails.isBanned) {
+    level = "red";
+    reasons.push("Roblox account is banned.");
+  }
+
+  if (Array.isArray(punishments) && punishments.length > 0) {
+    level = level === "red" ? "red" : "orange";
+    reasons.push("Punishment history found.");
+  }
+
+  if (ageDays < 365) {
+    level = level === "red" ? "red" : "orange";
+    reasons.push("Account is under 1 year old.");
+  }
+
+  if (!allowedMultiMain && mainDivisions.length > 1) {
+    level = "red";
+    reasons.push(`In ${mainDivisions.length} main divisions.`);
+  }
+
+  if (subDivisions.length > 1) {
+    level = level === "red" ? "red" : "orange";
+    reasons.push(`In ${subDivisions.length} sub divisions.`);
+  }
+
+  if (level === "red") return { text: "🔴 High risk", reasons };
+  if (level === "orange") return { text: "🟠 Caution", reasons };
+  return { text: "🟢 Very safe", reasons: reasons.length ? reasons : ["No major issues found."] };
+}
+
+function extractPossibleUsernameFromMember(member) {
+  const pieces = [member?.nickname, member?.displayName, member?.user?.username, member?.user?.globalName]
+    .filter(Boolean)
+    .map(String);
+
+  const cachedUsernames = Array.from(usernameToUserId.keys()).sort((a, b) => b.length - a.length);
+  for (const piece of pieces) {
+    const lower = piece.toLowerCase();
+    for (const username of cachedUsernames) {
+      if (username.length >= 3 && lower.includes(username)) return username;
+    }
+  }
+
+  for (const piece of pieces) {
+    const cleaned = piece.replace(/\[[^\]]+\]/g, " ").replace(/[^\w]/g, " ").split(/\s+/).filter((x) => x.length >= 3 && x.length <= 20);
+    if (cleaned.length) return cleaned[cleaned.length - 1];
+  }
+
+  return null;
 }
 
 function getCachedProfileByResolvedUser(resolved) {
@@ -281,21 +446,41 @@ async function buildBGCEmbed(usernameInput) {
   ]);
 
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
-  const mainRank = cachedProfile?.mainRankName || getMainGroupRoleFromGroupRoles(groupRoles);
-  const divisions = cachedProfile?.divisions?.length ? cachedProfile.divisions : getDivisionsFromGroupRoles(groupRoles);
+  const divisions = getDivisionsFromGroupRoles(groupRoles);
 
-  const divisionsText = divisions.length > 0
-    ? divisions.slice(0, 8).map((d) => `• ${d.name} — **${d.role}**`).join("\n")
+  const mainRank = cachedProfile?.mainRankName || getMainGroupRoleFromGroupRoles(groupRoles);
+  const mainRankNumber = getMainGroupRankNumber(groupRoles);
+  const shownDivisions = divisions.filter((d) => d.id !== MAIN_GROUP_ID);
+
+  const divisionsText = shownDivisions.length > 0
+    ? shownDivisions.map((d) => `• ${d.name} — **${d.role}**`).join("\n")
     : "None";
+
+  const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
+  const punishmentText = userDetails.isBanned
+    ? "Roblox account is banned"
+    : punishments.length > 0
+      ? punishments.slice(0, 5).map((p) => `• ${String(p)}`).join("\n")
+      : "None found";
+
+  const status = getTarcStatus({
+    userDetails,
+    divisions,
+    mainRankName: mainRank,
+    mainRankNumber,
+    punishments
+  });
 
   const createdUnix = Math.floor(new Date(userDetails.created).getTime() / 1000);
   const firstSeenText = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:R>` : "No game data";
-  const punishmentText = userDetails.isBanned ? "Roblox account is banned" : "None found";
 
   const embed = new EmbedBuilder()
-    .setColor(userDetails.isBanned ? 0xff3b30 : 0x2b7fff)
+    .setColor(status.text.includes("🔴") ? 0xff3b30 : status.text.includes("🟠") ? 0xff9500 : 0x2b7fff)
     .setTitle(`${resolved.username} | Background Check`)
     .setDescription([
+      `**TARC Status:** ${status.text}`,
+      safeTrim(status.reasons.map((r) => `• ${r}`).join("\n"), 450),
+      ``,
       `**User ID:** ${resolved.userId}`,
       `**Display Name:** ${resolved.displayName}`,
       ``,
@@ -307,10 +492,10 @@ async function buildBGCEmbed(usernameInput) {
       `**TARC**`,
       `Rank: ${mainRank || "Unknown"}`,
       `Divisions:`,
-      safeTrim(divisionsText, 900),
+      safeTrim(divisionsText, 700),
       ``,
       `**Punishments**`,
-      punishmentText
+      safeTrim(punishmentText, 500)
     ].join("\n"));
 
   if (avatarUrl) embed.setThumbnail(avatarUrl);
@@ -394,6 +579,7 @@ app.post("/ingest", (req, res) => {
       cash: body.cash !== undefined ? Number(body.cash) : null,
       mainRankName: String(body.mainRankName || "Unknown"),
       divisions: Array.isArray(body.divisions) ? body.divisions : [],
+      punishments: Array.isArray(body.punishments) ? body.punishments : [],
       firstJoinUnix: existing?.firstJoinUnix || (body.firstJoinUnix ? Number(body.firstJoinUnix) : now),
       lastUpdateUnix: now
     };
@@ -447,8 +633,18 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
+      .setName("viewxp")
+      .setDescription("Show your own cached XP using your Discord nickname")
+      .toJSON(),
+
+    new SlashCommandBuilder()
       .setName("ranks")
       .setDescription("Show TARC XP rank requirements")
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("quote")
+      .setDescription("Generate a random Star Wars quote")
       .toJSON(),
 
     new SlashCommandBuilder()
@@ -602,6 +798,53 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
+  if (interaction.commandName === "viewxp") {
+    try {
+      await interaction.deferReply({ ephemeral: true });
+
+      const possibleUsername = extractPossibleUsernameFromMember(interaction.member);
+      if (!possibleUsername) {
+        return interaction.editReply("I couldn’t detect your Roblox username from your Discord nickname.");
+      }
+
+      const resolved = await resolveRobloxUser(possibleUsername);
+      if (!resolved) {
+        return interaction.editReply("I found a possible name in your nickname, but it was not a valid Roblox username.");
+      }
+
+      const profile = getCachedProfileByResolvedUser(resolved);
+      if (!profile) {
+        return interaction.editReply("I found your Roblox user, but I do not have cached game data for you yet. Join the game first.");
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2b7fff)
+        .setTitle(`${profile.username} | XP`)
+        .setDescription([
+          `**XP:** ${profile.xp ?? "N/A"}`,
+          `**Kills:** ${profile.kills ?? "N/A"}`,
+          `**Playtime:** ${formatCompactTime(profile.playTimeSeconds)}`
+        ].join("\n"));
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /viewxp failed:", err);
+      return interaction.editReply("Something went wrong checking your XP.");
+    }
+  }
+
+  if (interaction.commandName === "quote") {
+    const quote = STAR_WARS_QUOTES[Math.floor(Math.random() * STAR_WARS_QUOTES.length)];
+    const embed = applyCommandImage(
+      new EmbedBuilder()
+        .setColor(0x2b7fff)
+        .setTitle("Star Wars Quote")
+        .setDescription(`“${quote}”`)
+    );
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
   if (interaction.commandName === "ranks") {
     const lines = XP_RANKS.map((rank) => `• **${rank.name}** — ${rank.xp} XP`).join("\n");
     const embed = applyCommandImage(
@@ -668,7 +911,9 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/bgc** — Run a Roblox background check`,
           `**/groupstats** — Show Discord, group, and game stats`,
           `**/xpleaderboard** — Show top cached XP users`,
+          `**/viewxp** — Show your own cached XP`,
           `**/ranks** — Show XP rank requirements`,
+          `**/quote** — Generate a random Star Wars quote`,
           `**/links** — Show useful TARC links`,
           `**/chainofcommand** — Show current high command`,
           `**/verify** — Show RoWifi verification steps`,
