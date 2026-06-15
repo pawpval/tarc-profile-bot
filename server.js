@@ -16,14 +16,11 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "");
 const SHARED_SECRET = String(process.env.SHARED_SECRET || "");
 const CLIENT_ID = String(process.env.CLIENT_ID || "");
 const GUILD_ID = String(process.env.GUILD_ID || "");
+const ROBLOX_GROUP_ID = String(process.env.ROBLOX_GROUP_ID || "35324584");
+const ROBLOX_UNIVERSE_ID = String(process.env.ROBLOX_UNIVERSE_ID || "8990029422");
 
-process.on("uncaughtException", (err) => {
-  console.error("[FATAL] uncaughtException:", err);
-});
-
-process.on("unhandledRejection", (reason) => {
-  console.error("[FATAL] unhandledRejection:", reason);
-});
+process.on("uncaughtException", (err) => console.error("[FATAL] uncaughtException:", err));
+process.on("unhandledRejection", (reason) => console.error("[FATAL] unhandledRejection:", reason));
 
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
@@ -31,7 +28,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: "1mb" }));
-
 app.use((err, req, res, next) => {
   console.error("[HTTP] JSON parse error:", err);
   res.status(400).json({ error: "Bad JSON body" });
@@ -60,9 +56,12 @@ function getMedals(userId) {
   return medals.join(", ");
 }
 
+function formatNumber(num) {
+  return Number(num || 0).toLocaleString("en-US");
+}
+
 function formatCompactTime(seconds) {
   seconds = Math.max(0, Math.floor(Number(seconds) || 0));
-
   const d = Math.floor(seconds / 86400);
   seconds %= 86400;
   const h = Math.floor(seconds / 3600);
@@ -75,7 +74,6 @@ function formatCompactTime(seconds) {
   if (h > 0 || parts.length) parts.push(`${h}h`);
   if (m > 0 || parts.length) parts.push(`${m}m`);
   parts.push(`${s}s`);
-
   return parts.join(" ");
 }
 
@@ -99,49 +97,53 @@ async function resolveRobloxUser(username) {
   };
 }
 
+async function getRobloxGroupStats() {
+  const res = await fetch(`https://groups.roblox.com/v1/groups/${ROBLOX_GROUP_ID}`);
+  if (!res.ok) throw new Error("Failed to fetch Roblox group stats");
+  return await res.json();
+}
+
+async function getRobloxGameStats() {
+  const res = await fetch(`https://games.roblox.com/v1/games?universeIds=${ROBLOX_UNIVERSE_ID}`);
+  if (!res.ok) throw new Error("Failed to fetch Roblox game stats");
+  const data = await res.json();
+  return data?.data?.[0] || null;
+}
+
 function buildEmbed(profile) {
   const divisionsText =
     Array.isArray(profile.divisions) && profile.divisions.length > 0
       ? profile.divisions.map(d => `• ${d.name} — **${d.role}**`).join("\n")
       : "None";
 
-  const joinedText = profile.firstJoinUnix
-    ? `<t:${profile.firstJoinUnix}:D>`
-    : "N/A";
-
-  const updatedText = profile.lastUpdateUnix
-    ? `<t:${profile.lastUpdateUnix}:R>`
-    : "N/A";
+  const joinedText = profile.firstJoinUnix ? `<t:${profile.firstJoinUnix}:D>` : "N/A";
+  const updatedText = profile.lastUpdateUnix ? `<t:${profile.lastUpdateUnix}:R>` : "N/A";
 
   return new EmbedBuilder()
     .setColor(0x2b7fff)
     .setTitle(`${profile.username} | TARC PROFILE`)
-    .setDescription(
-      [
-        `**Rank**`,
-        `${profile.mainRankName || "Unknown"}`,
-        ``,
-        `**Divisions**`,
-        `${divisionsText}`,
-        ``,
-        `**Stats**`,
-        `XP: ${profile.xp ?? "N/A"}`,
-        `Kills: ${profile.kills ?? "N/A"}`,
-        `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
-        ``,
-        `**Medals**`,
-        `${getMedals(profile.userId)}`,
-        ``,
-        `**Info**`,
-        `First Joined: ${joinedText}`,
-        `Last Update: ${updatedText}`
-      ].join("\n")
-    );
+    .setDescription([
+      `**Rank**`,
+      `${profile.mainRankName || "Unknown"}`,
+      ``,
+      `**Divisions**`,
+      `${divisionsText}`,
+      ``,
+      `**Stats**`,
+      `XP: ${profile.xp ?? "N/A"}`,
+      `Kills: ${profile.kills ?? "N/A"}`,
+      `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
+      ``,
+      `**Medals**`,
+      `${getMedals(profile.userId)}`,
+      ``,
+      `**Info**`,
+      `First Joined: ${joinedText}`,
+      `Last Update: ${updatedText}`
+    ].join("\n"));
 }
 
-app.get("/", (req, res) => {
-  res.status(200).send("TARC profile bot running");
-});
+app.get("/", (req, res) => res.status(200).send("TARC profile bot running"));
 
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -156,8 +158,6 @@ app.get("/ingest", (req, res) => {
 
 app.post("/ingest", (req, res) => {
   try {
-    console.log("[INGEST] Body received:", JSON.stringify(req.body));
-
     const body = req.body || {};
 
     if (body.secret !== SHARED_SECRET) {
@@ -166,13 +166,11 @@ app.post("/ingest", (req, res) => {
     }
 
     if (body.loaded !== true) {
-      console.log("[INGEST] Skipped because loaded != true");
       return res.status(200).json({ ok: true, skipped: true, reason: "NotLoaded" });
     }
 
     const userId = Number(body.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
-      console.warn("[INGEST] Bad userId:", body.userId);
       return res.status(400).json({ error: "Bad userId" });
     }
 
@@ -196,7 +194,7 @@ app.post("/ingest", (req, res) => {
     profileCache.set(userId, profile);
     usernameToUserId.set(username.toLowerCase(), userId);
 
-    console.log(`[INGEST] Stored ${username} (${userId}) XP=${profile.xp} Kills=${profile.kills} Time=${profile.playTimeSeconds}`);
+    console.log(`[INGEST] Stored ${username} (${userId})`);
 
     return res.status(200).json({ ok: true });
   } catch (err) {
@@ -209,8 +207,8 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-client.once(Events.ClientReady, async () => {
-  console.log(`[DISCORD] Logged in as ${client.user.tag}`);
+function setBotStatus() {
+  if (!client.user) return;
 
   client.user.setPresence({
     activities: [
@@ -221,6 +219,13 @@ client.once(Events.ClientReady, async () => {
     ],
     status: "online"
   });
+}
+
+client.once(Events.ClientReady, async () => {
+  console.log(`[DISCORD] Logged in as ${client.user.tag}`);
+
+  setBotStatus();
+  setInterval(setBotStatus, 5 * 60 * 1000);
 
   try {
     const commands = [
@@ -233,6 +238,11 @@ client.once(Events.ClientReady, async () => {
             .setDescription("Roblox username")
             .setRequired(true)
         )
+        .toJSON(),
+
+      new SlashCommandBuilder()
+        .setName("groupstats")
+        .setDescription("Show TARC Discord, Roblox group, and game stats")
         .toJSON()
     ];
 
@@ -243,7 +253,7 @@ client.once(Events.ClientReady, async () => {
       { body: commands }
     );
 
-    console.log("[DISCORD] Slash command registered");
+    console.log("[DISCORD] Slash commands registered");
   } catch (err) {
     console.error("[DISCORD] Command registration failed:", err);
   }
@@ -251,35 +261,73 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== "profile") return;
 
-  const usernameInput = interaction.options.getString("username", true);
+  if (interaction.commandName === "profile") {
+    const usernameInput = interaction.options.getString("username", true);
 
-  try {
-    await interaction.deferReply();
+    try {
+      await interaction.deferReply();
 
-    const resolved = await resolveRobloxUser(usernameInput);
-    if (!resolved) {
-      return interaction.editReply("Couldn’t find that Roblox user.");
-    }
-
-    let profile = profileCache.get(resolved.userId);
-
-    if (!profile) {
-      const cachedId = usernameToUserId.get(resolved.username.toLowerCase());
-      if (cachedId) {
-        profile = profileCache.get(cachedId);
+      const resolved = await resolveRobloxUser(usernameInput);
+      if (!resolved) {
+        return interaction.editReply("Couldn’t find that Roblox user.");
       }
-    }
 
-    if (!profile) {
-      return interaction.editReply("Player has no set data yet (they may have never joined the game, or the game hasn’t sent data yet).");
-    }
+      let profile = profileCache.get(resolved.userId);
 
-    return interaction.editReply({ embeds: [buildEmbed(profile)] });
-  } catch (err) {
-    console.error("[DISCORD] /profile failed:", err);
-    return interaction.editReply("Something went wrong fetching that profile.");
+      if (!profile) {
+        const cachedId = usernameToUserId.get(resolved.username.toLowerCase());
+        if (cachedId) profile = profileCache.get(cachedId);
+      }
+
+      if (!profile) {
+        return interaction.editReply("Player has no set data yet (they may have never joined the game, or the game hasn’t sent data yet).");
+      }
+
+      return interaction.editReply({ embeds: [buildEmbed(profile)] });
+    } catch (err) {
+      console.error("[DISCORD] /profile failed:", err);
+      return interaction.editReply("Something went wrong fetching that profile.");
+    }
+  }
+
+  if (interaction.commandName === "groupstats") {
+    try {
+      await interaction.deferReply();
+
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const fullGuild = await guild.fetch();
+
+      const robloxGroup = await getRobloxGroupStats();
+      const gameStats = await getRobloxGameStats();
+
+      const discordMembers = fullGuild.memberCount || 0;
+      const robloxMembers = robloxGroup.memberCount || 0;
+      const currentPlayers = gameStats?.playing || 0;
+      const visits = gameStats?.visits || 0;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2b7fff)
+        .setTitle("TARC Group Stats")
+        .setDescription([
+          `**Discord**`,
+          `Members: ${formatNumber(discordMembers)}`,
+          ``,
+          `**Roblox Group**`,
+          `Members: ${formatNumber(robloxMembers)}`,
+          ``,
+          `**Game**`,
+          `Current Players: ${formatNumber(currentPlayers)}`,
+          `Visits: ${formatNumber(visits)}`,
+          ``,
+          `Last Updated: <t:${Math.floor(Date.now() / 1000)}:R>`
+        ].join("\n"));
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /groupstats failed:", err);
+      return interaction.editReply("Something went wrong fetching group stats.");
+    }
   }
 });
 
