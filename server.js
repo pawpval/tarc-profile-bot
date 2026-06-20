@@ -17,6 +17,10 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "");
 const SHARED_SECRET = String(process.env.SHARED_SECRET || "");
 const CLIENT_ID = String(process.env.CLIENT_ID || "");
 const GUILD_ID = String(process.env.GUILD_ID || "");
+const GUILD_IDS = String(process.env.GUILD_IDS || GUILD_ID || "")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
 const ROBLOX_GROUP_ID = String(process.env.ROBLOX_GROUP_ID || "35324584");
 const ROBLOX_UNIVERSE_ID = String(process.env.ROBLOX_UNIVERSE_ID || "8990029422");
 
@@ -687,8 +691,20 @@ client.once(Events.ClientReady, async () => {
 
     // Global commands allow the bot to work in division servers too.
     // These can take some time to appear.
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log("[DISCORD] Global slash commands registered");
+        // DUPLICATE COMMAND FIX:
+    // Clear GLOBAL commands and register GUILD commands only.
+    // This stops Discord from showing 2 copies of every command.
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+    console.log("[DISCORD] Global slash commands cleared");
+
+    for (const guildId of GUILD_IDS) {
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
+      console.log(`[DISCORD] Guild slash commands registered for ${guildId}`);
+    }
+
+    if (!GUILD_IDS.length) {
+      console.warn("[DISCORD] No GUILD_ID or GUILD_IDS set, so no slash commands were registered.");
+    }
   } catch (err) {
     console.error("[DISCORD] Command registration failed:", err);
   }
