@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import express from "express";
 import {
   Client,
@@ -23,6 +24,19 @@ const GUILD_IDS = String(process.env.GUILD_IDS || GUILD_ID || "")
   .filter(Boolean);
 const ROBLOX_GROUP_ID = String(process.env.ROBLOX_GROUP_ID || "35324584");
 const ROBLOX_UNIVERSE_ID = String(process.env.ROBLOX_UNIVERSE_ID || "8990029422");
+
+// Discord management command permissions
+const OFFICER_PERMISSION_ROLE_ID = "1318210870207320146";
+const CONTENT_CREATOR_MANAGER_ROLE_ID = "1485725468799008969";
+const MAX_XP_PER_TARGET = 2;
+const MAX_TARGETS_PER_COMMAND = 20;
+const ACTION_TTL_MS = 24 * 60 * 60 * 1000;
+const ACTION_CLAIM_MS = 60 * 1000;
+const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
+
+// Railway memory queue. Roblox claims and completes these actions.
+const discordActionQueue = new Map();
+
 
 // Optional image for non-BGC command embeds. Must be a real https:// image URL.
 // file:///C:/Users/... will NOT work on Railway/Discord.
@@ -406,6 +420,115 @@ function getCachedProfileByResolvedUser(resolved) {
 }
 
 // ==================== EMBEDS ====================
+function memberHasRole(interaction, roleId) {
+  const roles = interaction.member?.roles;
+  if (!roles) return false;
+
+  if (roles.cache?.has) return roles.cache.has(roleId);
+  if (Array.isArray(roles)) return roles.includes(roleId);
+  return false;
+}
+
+function parseUsernameList(raw) {
+  const seen = new Set();
+  return String(raw || "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .filter((name) => {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function resolveRobloxUsers(usernames) {
+  const data = await fetchJson("https://users.roblox.com/v1/usernames/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      usernames,
+      excludeBannedUsers: false
+    })
+  });
+
+  const foundByInput = new Map();
+  for (const user of data?.data || []) {
+    foundByInput.set(String(user.requestedUsername || user.name).toLowerCase(), {
+      userId: Number(user.id),
+      username: String(user.name),
+      displayName: String(user.displayName || user.name)
+    });
+  }
+
+  return usernames.map((input) => ({
+    input,
+    resolved: foundByInput.get(input.toLowerCase()) || null
+  }));
+}
+
+function queueDiscordAction({ type, operation, target, amount = null, reason, interaction }) {
+  const id = randomUUID();
+  const now = Date.now();
+
+  const action = {
+    id,
+    type,
+    operation,
+    userId: target.userId,
+    username: target.username,
+    amount,
+    reason,
+    requestedByDiscordId: interaction.user.id,
+    requestedByTag: interaction.user.tag || interaction.user.username,
+    guildId: interaction.guildId,
+    createdAt: now,
+    expiresAt: now + ACTION_TTL_MS,
+    status: "queued",
+    claimedUntil: 0,
+    result: null
+  };
+
+  discordActionQueue.set(id, action);
+  return action;
+}
+
+async function sendActionAudit(interaction, title, description, color = 0x2b7fff) {
+  if (!ACTION_LOG_CHANNEL_ID) return;
+
+  try {
+    const channel = await client.channels.fetch(ACTION_LOG_CHANNEL_ID);
+    if (!channel?.isTextBased()) return;
+
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(color)
+          .setTitle(title)
+          .setDescription(description)
+          .setTimestamp()
+      ]
+    });
+  } catch (err) {
+    console.error("[AUDIT] Failed to send action log:", err);
+  }
+}
+
+function cleanExpiredActions() {
+  const now = Date.now();
+  for (const [id, action] of discordActionQueue) {
+    if (action.expiresAt <= now || (action.status === "completed" && now - action.completedAt > 60 * 60 * 1000)) {
+      discordActionQueue.delete(id);
+    } else if (action.status === "claimed" && action.claimedUntil <= now) {
+      action.status = "queued";
+      action.claimedUntil = 0;
+    }
+  }
+}
+
+setInterval(cleanExpiredActions, 5 * 60 * 1000).unref();
+
 function buildProfileEmbed(profile) {
   const divisionsText =
     Array.isArray(profile.divisions) && profile.divisions.length > 0
@@ -667,6 +790,70 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
+      .setName("xp")
+      .setDescription("Add or remove up to 2 XP from Roblox users")
+      .addStringOption(option =>
+        option
+          .setName("action")
+          .setDescription("Whether to add or remove XP")
+          .setRequired(true)
+          .addChoices(
+            { name: "Add", value: "add" },
+            { name: "Remove", value: "remove" }
+          )
+      )
+      .addStringOption(option =>
+        option
+          .setName("usernames")
+          .setDescription("Roblox usernames separated by commas")
+          .setRequired(true)
+      )
+      .addIntegerOption(option =>
+        option
+          .setName("amount")
+          .setDescription("XP per user (maximum 2)")
+          .setRequired(true)
+          .setMinValue(1)
+          .setMaxValue(MAX_XP_PER_TARGET)
+      )
+      .addStringOption(option =>
+        option
+          .setName("reason")
+          .setDescription("Reason for this XP change")
+          .setRequired(true)
+          .setMaxLength(300)
+      )
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("starcreator")
+      .setDescription("Give or remove the permanent Star Creator tag")
+      .addStringOption(option =>
+        option
+          .setName("action")
+          .setDescription("Whether to give or remove the tag")
+          .setRequired(true)
+          .addChoices(
+            { name: "Give", value: "give" },
+            { name: "Remove", value: "remove" }
+          )
+      )
+      .addStringOption(option =>
+        option
+          .setName("usernames")
+          .setDescription("Roblox usernames separated by commas")
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName("reason")
+          .setDescription("Reason for this change")
+          .setRequired(true)
+          .setMaxLength(300)
+      )
+      .toJSON(),
+
+    new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
       .toJSON()
@@ -683,17 +870,7 @@ client.once(Events.ClientReady, async () => {
     const commands = getSlashCommands();
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-    // Main server commands update fast.
-    if (GUILD_ID) {
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-      console.log("[DISCORD] Guild slash commands registered");
-    }
-
-    // Global commands allow the bot to work in division servers too.
-    // These can take some time to appear.
-        // DUPLICATE COMMAND FIX:
-    // Clear GLOBAL commands and register GUILD commands only.
-    // This stops Discord from showing 2 copies of every command.
+    // Clear global commands to prevent duplicates, then register only to listed guilds.
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
     console.log("[DISCORD] Global slash commands cleared");
 
@@ -703,7 +880,7 @@ client.once(Events.ClientReady, async () => {
     }
 
     if (!GUILD_IDS.length) {
-      console.warn("[DISCORD] No GUILD_ID or GUILD_IDS set, so no slash commands were registered.");
+      console.warn("[DISCORD] No GUILD_ID or GUILD_IDS configured.");
     }
   } catch (err) {
     console.error("[DISCORD] Command registration failed:", err);
@@ -712,6 +889,150 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "xp") {
+    try {
+      if (!memberHasRole(interaction, OFFICER_PERMISSION_ROLE_ID)) {
+        return interaction.reply({
+          content: "You need the **Officer Permission** role to use this command.",
+          ephemeral: true
+        });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const operation = interaction.options.getString("action", true);
+      const amount = interaction.options.getInteger("amount", true);
+      const reason = interaction.options.getString("reason", true).trim();
+      const usernames = parseUsernameList(interaction.options.getString("usernames", true));
+
+      if (amount < 1 || amount > MAX_XP_PER_TARGET) {
+        return interaction.editReply(`Amount must be between 1 and ${MAX_XP_PER_TARGET} XP.`);
+      }
+      if (!reason) return interaction.editReply("A reason is required.");
+      if (!usernames.length) return interaction.editReply("Enter at least one Roblox username.");
+      if (usernames.length > MAX_TARGETS_PER_COMMAND) {
+        return interaction.editReply(`You can target a maximum of ${MAX_TARGETS_PER_COMMAND} users at once.`);
+      }
+
+      const results = await resolveRobloxUsers(usernames);
+      const lines = [];
+      const queued = [];
+
+      for (const result of results) {
+        if (!result.resolved) {
+          lines.push(`❌ **${result.input}** — Roblox user not found`);
+          continue;
+        }
+
+        const action = queueDiscordAction({
+          type: "xp",
+          operation,
+          target: result.resolved,
+          amount,
+          reason,
+          interaction
+        });
+
+        queued.push(action);
+        lines.push(`✅ **${result.resolved.username}** — queued ${operation === "add" ? "+" : "-"}${amount} XP`);
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(queued.length ? 0x2b7fff : 0xff3b30)
+        .setTitle("XP Management")
+        .setDescription([
+          ...lines,
+          "",
+          `**Reason:** ${reason}`,
+          `**Requested by:** <@${interaction.user.id}>`,
+          "**Delivery:** Roblox servers normally apply queued changes within several seconds."
+        ].join("\n"))
+        .setTimestamp();
+
+      await sendActionAudit(
+        interaction,
+        "XP Management Request",
+        [`**Action:** ${operation}`, `**Amount:** ${amount}`, `**Targets:** ${queued.map(a => a.username).join(", ") || "None"}`, `**Reason:** ${reason}`, `**Staff:** <@${interaction.user.id}>`].join("\n")
+      );
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /xp failed:", err);
+      const message = "Something went wrong while queueing the XP action.";
+      return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
+
+  if (interaction.commandName === "starcreator") {
+    try {
+      if (!memberHasRole(interaction, CONTENT_CREATOR_MANAGER_ROLE_ID)) {
+        return interaction.reply({
+          content: "You need the **Content Creator Manager** role to use this command.",
+          ephemeral: true
+        });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const operation = interaction.options.getString("action", true);
+      const reason = interaction.options.getString("reason", true).trim();
+      const usernames = parseUsernameList(interaction.options.getString("usernames", true));
+
+      if (!reason) return interaction.editReply("A reason is required.");
+      if (!usernames.length) return interaction.editReply("Enter at least one Roblox username.");
+      if (usernames.length > MAX_TARGETS_PER_COMMAND) {
+        return interaction.editReply(`You can target a maximum of ${MAX_TARGETS_PER_COMMAND} users at once.`);
+      }
+
+      const results = await resolveRobloxUsers(usernames);
+      const lines = [];
+      const queued = [];
+
+      for (const result of results) {
+        if (!result.resolved) {
+          lines.push(`❌ **${result.input}** — Roblox user not found`);
+          continue;
+        }
+
+        const action = queueDiscordAction({
+          type: "starcreator",
+          operation,
+          target: result.resolved,
+          reason,
+          interaction
+        });
+
+        queued.push(action);
+        lines.push(`✅ **${result.resolved.username}** — queued Star Creator ${operation}`);
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(queued.length ? 0xffcc00 : 0xff3b30)
+        .setTitle("Star Creator Management")
+        .setDescription([
+          ...lines,
+          "",
+          `**Reason:** ${reason}`,
+          `**Requested by:** <@${interaction.user.id}>`,
+          "**Delivery:** Online users update immediately after Roblox applies it; offline users update on their next join."
+        ].join("\n"))
+        .setTimestamp();
+
+      await sendActionAudit(
+        interaction,
+        "Star Creator Request",
+        [`**Action:** ${operation}`, `**Targets:** ${queued.map(a => a.username).join(", ") || "None"}`, `**Reason:** ${reason}`, `**Staff:** <@${interaction.user.id}>`].join("\n"),
+        0xffcc00
+      );
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /starcreator failed:", err);
+      const message = "Something went wrong while queueing the Star Creator action.";
+      return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
 
   if (interaction.commandName === "profile") {
     const usernameInput = interaction.options.getString("username", true);
@@ -933,6 +1254,8 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/links** — Show useful TARC links`,
           `**/chainofcommand** — Show current high command`,
           `**/verify** — Show RoWifi verification steps`,
+          `**/xp** — Add or remove up to 2 XP (Officer Permission)`,
+          `**/starcreator** — Give or remove the creator tag (Content Creator Manager)`,
           `**/help** — Show this command list`
         ].join("\n"))
     );
