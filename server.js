@@ -722,6 +722,128 @@ app.post("/ingest", (req, res) => {
   }
 });
 
+
+// ==================== ROBLOX ACTION API ====================
+// Roblox polls these routes to claim Discord-created XP / Star Creator actions.
+app.get("/roblox-actions/health", (req, res) => {
+  cleanExpiredActions();
+
+  let queued = 0;
+  let claimed = 0;
+  let completed = 0;
+
+  for (const action of discordActionQueue.values()) {
+    if (action.status === "queued") queued += 1;
+    else if (action.status === "claimed") claimed += 1;
+    else if (action.status === "completed") completed += 1;
+  }
+
+  res.status(200).json({ ok: true, queued, claimed, completed });
+});
+
+app.post("/roblox-actions/poll", (req, res) => {
+  try {
+    const body = req.body || {};
+
+    if (body.secret !== SHARED_SECRET) {
+      return res.status(401).json({ error: "Invalid secret" });
+    }
+
+    cleanExpiredActions();
+
+    const now = Date.now();
+    const limit = Math.max(1, Math.min(20, Number(body.limit) || 10));
+    const jobId = String(body.jobId || "unknown");
+    const actions = [];
+
+    for (const action of discordActionQueue.values()) {
+      if (actions.length >= limit) break;
+      if (action.status !== "queued") continue;
+      if (action.expiresAt <= now) continue;
+
+      action.status = "claimed";
+      action.claimedUntil = now + ACTION_CLAIM_MS;
+      action.claimedByJobId = jobId;
+      action.claimedAt = now;
+
+      actions.push({
+        id: action.id,
+        type: action.type,
+        operation: action.operation,
+        userId: action.userId,
+        username: action.username,
+        amount: action.amount,
+        reason: action.reason
+      });
+    }
+
+    return res.status(200).json({ ok: true, actions });
+  } catch (err) {
+    console.error("[ROBLOX ACTIONS] Poll failed:", err);
+    return res.status(500).json({ error: "Poll failed" });
+  }
+});
+
+app.post("/roblox-actions/complete", async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    if (body.secret !== SHARED_SECRET) {
+      return res.status(401).json({ error: "Invalid secret" });
+    }
+
+    const actionId = String(body.actionId || "");
+    const action = discordActionQueue.get(actionId);
+
+    if (!action) {
+      return res.status(404).json({ error: "Action not found or expired" });
+    }
+
+    // Ignore duplicate completion reports safely.
+    if (action.status === "completed") {
+      return res.status(200).json({ ok: true, duplicate: true });
+    }
+
+    const reportingJobId = String(body.jobId || "unknown");
+    if (action.claimedByJobId && action.claimedByJobId !== reportingJobId) {
+      return res.status(409).json({ error: "Action was claimed by another server" });
+    }
+
+    action.status = "completed";
+    action.completedAt = Date.now();
+    action.result = {
+      success: body.success === true,
+      message: String(body.message || ""),
+      oldValue: body.oldValue ?? null,
+      newValue: body.newValue ?? null,
+      jobId: reportingJobId
+    };
+
+    const resultColor = action.result.success ? 0x31c48d : 0xff3b30;
+    await sendActionAudit(
+      { user: { id: action.requestedByDiscordId } },
+      `${action.type === "xp" ? "XP" : "Star Creator"} Action Completed`,
+      [
+        `**Target:** ${action.username} (${action.userId})`,
+        `**Action:** ${action.operation}`,
+        action.amount != null ? `**Amount:** ${action.amount}` : null,
+        `**Success:** ${action.result.success ? "Yes" : "No"}`,
+        action.result.oldValue != null ? `**Old value:** ${action.result.oldValue}` : null,
+        action.result.newValue != null ? `**New value:** ${action.result.newValue}` : null,
+        `**Message:** ${action.result.message || "No message"}`,
+        `**Reason:** ${action.reason}`,
+        `**Requested by:** <@${action.requestedByDiscordId}>`
+      ].filter(Boolean).join("\n"),
+      resultColor
+    );
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("[ROBLOX ACTIONS] Completion failed:", err);
+    return res.status(500).json({ error: "Completion failed" });
+  }
+});
+
 // ==================== DISCORD ====================
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
