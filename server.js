@@ -7,10 +7,7 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
-  Events,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+  Events
 } from "discord.js";
 
 const app = express();
@@ -46,23 +43,6 @@ const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
 // Administrator can use every management command, including /rmpall.
 const MARSHAL_COMMANDER_ROLE_ID = "1318201599365091408";
 const ADMINISTRATOR_ROLE_ID = "1433858724426158256";
-
-// Self-assignable notification roles.
-const EVENT_PING_ROLE_ID = "1529855788271669459";
-const RECRUITMENT_PING_ROLE_ID = "1529855870475964538";
-const DEVELOPMENT_PING_ROLE_ID = "1529855904336449706";
-const PING_ROLE_IDS = [
-  EVENT_PING_ROLE_ID,
-  RECRUITMENT_PING_ROLE_ID,
-  DEVELOPMENT_PING_ROLE_ID
-];
-const PING_ROLES_IMAGE_URL = "https://tr.rbxcdn.com/180DAY-f64a49813d873fe3c8953921da9f71dc/150/150/Image/Webp/noFilter";
-
-const PING_ROLE_BUTTONS = {
-  "ping-role:event": { roleId: EVENT_PING_ROLE_ID, label: "Event Pings" },
-  "ping-role:recruitment": { roleId: RECRUITMENT_PING_ROLE_ID, label: "Recruitment Pings" },
-  "ping-role:development": { roleId: DEVELOPMENT_PING_ROLE_ID, label: "Development Pings" }
-};
 
 // Consolidated enlisted Discord role setup.
 const RMP_ROLE_ID = "1434174197738766396";
@@ -613,100 +593,6 @@ async function applyRmpDiscordRoles(member) {
   }
 
   return { removed: removable.length, addedRmp: !hadRmp };
-}
-
-function buildPingRolesMessage() {
-  const embed = new EmbedBuilder()
-    .setColor(0x2b7fff)
-    .setTitle("Notification Roles")
-    .setDescription([
-      "Choose which updates you want to receive.",
-      "",
-      "🎉 **Event Pings** — community events and activities",
-      "📣 **Recruitment Pings** — recruitment and tryout notices",
-      "🛠️ **Development Pings** — game and development updates",
-      "",
-      "Press a role again to remove it, or use **Remove All**."
-    ].join("\n"))
-    .setThumbnail(PING_ROLES_IMAGE_URL)
-    .setFooter({ text: "TARC • Notification Roles" });
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("ping-role:event")
-      .setLabel("Event Pings")
-      .setEmoji("🎉")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId("ping-role:recruitment")
-      .setLabel("Recruitment Pings")
-      .setEmoji("📣")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId("ping-role:development")
-      .setLabel("Development Pings")
-      .setEmoji("🛠️")
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId("ping-role:remove-all")
-      .setLabel("Remove All")
-      .setEmoji("✖️")
-      .setStyle(ButtonStyle.Danger)
-  );
-
-  return { embeds: [embed], components: [row] };
-}
-
-async function handlePingRoleButton(interaction) {
-  if (!interaction.inGuild() || !interaction.guild) {
-    return interaction.reply({ content: "This button only works inside the server.", ephemeral: true });
-  }
-
-  try {
-    const member = await interaction.guild.members.fetch(interaction.user.id);
-
-    if (interaction.customId === "ping-role:remove-all") {
-      const removable = PING_ROLE_IDS.filter((roleId) => member.roles.cache.has(roleId));
-
-      if (!removable.length) {
-        return interaction.reply({
-          content: "You do not currently have any notification roles.",
-          ephemeral: true
-        });
-      }
-
-      await member.roles.remove(removable, "Member removed all notification roles");
-      return interaction.reply({
-        content: "Removed all notification roles.",
-        ephemeral: true
-      });
-    }
-
-    const config = PING_ROLE_BUTTONS[interaction.customId];
-    if (!config) return;
-
-    if (member.roles.cache.has(config.roleId)) {
-      await member.roles.remove(config.roleId, `Member toggled off ${config.label}`);
-      return interaction.reply({
-        content: `Removed **${config.label}**.`,
-        ephemeral: true
-      });
-    }
-
-    await member.roles.add(config.roleId, `Member toggled on ${config.label}`);
-    return interaction.reply({
-      content: `Added **${config.label}**.`,
-      ephemeral: true
-    });
-  } catch (err) {
-    console.error(`[DISCORD] Ping-role button ${interaction.customId} failed:`, err);
-    const message = "I could not update that role. Make sure the TARC Bot role is above the notification roles.";
-
-    if (interaction.replied || interaction.deferred) {
-      return interaction.followUp({ content: message, ephemeral: true });
-    }
-    return interaction.reply({ content: message, ephemeral: true });
-  }
 }
 
 // ==================== EMBEDS ====================
@@ -1292,11 +1178,6 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
-      .setName("setup-ping-roles")
-      .setDescription("Post the notification role selector in this channel")
-      .toJSON(),
-
-    new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
       .toJSON()
@@ -1331,39 +1212,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (interaction.isButton() && interaction.customId.startsWith("ping-role:")) {
-    return handlePingRoleButton(interaction);
-  }
-
   if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === "setup-ping-roles") {
-    try {
-      if (!(await hasAdministratorAccess(interaction))) {
-        return interaction.reply({
-          content: "You need the **Administrator** role to use this command.",
-          ephemeral: true
-        });
-      }
-
-      if (!interaction.channel?.isTextBased()) {
-        return interaction.reply({
-          content: "This command must be used in a text channel.",
-          ephemeral: true
-        });
-      }
-
-      await interaction.deferReply({ ephemeral: true });
-      await interaction.channel.send(buildPingRolesMessage());
-      return interaction.deleteReply();
-    } catch (err) {
-      console.error("[DISCORD] /setup-ping-roles failed:", err);
-      const message = "I could not post the notification role message. Check my channel and role permissions.";
-      return interaction.deferred
-        ? interaction.editReply(message)
-        : interaction.reply({ content: message, ephemeral: true });
-    }
-  }
 
   if (interaction.commandName === "xp") {
     try {
@@ -1861,8 +1710,7 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/promote** — Promote a Roblox user to an exact rank name (Marshal Commander+)`,
           `**/demote** — Demote a Roblox user to an exact rank name (Marshal Commander+)`,
           `**/rmp** — Clean one member’s enlisted Discord roles (Marshal Commander+)`,
-          `**/rmpall** — Clean all enlisted Discord roles into RMP (Administrator)`,
-          `**/setup-ping-roles** — Post the notification-role selector (Administrator)`,
+          `**/rmpall** — Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
           `**/help** — Show this command list`
         ].join("\n"))
     );
