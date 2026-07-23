@@ -34,6 +34,29 @@ const ACTION_TTL_MS = 24 * 60 * 60 * 1000;
 const ACTION_CLAIM_MS = 60 * 1000;
 const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
 
+// Roblox Open Cloud group ranking.
+const ROBLOX_API_KEY = String(process.env.ROBLOX_API_KEY || "");
+const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
+
+// Discord permissions for Roblox ranking and RMP cleanup.
+// Marshal Commander can use /promote, /demote, and /rmp.
+// Administrator can use every management command, including /rmpall.
+const MARSHAL_COMMANDER_ROLE_ID = "1318201599365091408";
+const ADMINISTRATOR_ROLE_ID = "1433858724426158256";
+
+// Consolidated enlisted Discord role setup.
+const RMP_ROLE_ID = "1434174197738766396";
+const OLD_ENLISTED_ROLE_IDS = [
+  "1318201599327338524", // Warrant Officer
+  "1318201599327338523", // Sergeant Major
+  "1318201599327338522", // Master Sergeant
+  "1318201599327338521", // Staff Sergeant
+  "1318201599327338520", // Sergeant
+  "1318201599327338519", // Corporal
+  "1318201599327338518", // Specialist
+  "1318201599327338517"  // Trooper
+];
+
 // Railway memory queue. Roblox claims and completes these actions.
 const discordActionQueue = new Map();
 
@@ -417,6 +440,159 @@ function getCachedProfileByResolvedUser(resolved) {
     if (cachedId) profile = profileCache.get(cachedId);
   }
   return profile || null;
+}
+
+async function robloxOpenCloudRequest(path, options = {}) {
+  if (!ROBLOX_API_KEY) {
+    throw new Error("ROBLOX_API_KEY is missing from the Railway environment variables.");
+  }
+
+  const response = await fetch(`${ROBLOX_OPEN_CLOUD_BASE}${path}`, {
+    ...options,
+    headers: {
+      "x-api-key": ROBLOX_API_KEY,
+      ...(options.body ? { "content-type": "application/json" } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  const text = await response.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = text; }
+
+  if (!response.ok) {
+    const details = typeof data === "string" ? data : JSON.stringify(data);
+    throw new Error(`Roblox Open Cloud HTTP ${response.status}: ${details || response.statusText}`);
+  }
+
+  return data;
+}
+
+async function getAllOpenCloudGroupRoles() {
+  const roles = [];
+  let pageToken = "";
+
+  do {
+    const params = new URLSearchParams({ maxPageSize: "100" });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const data = await robloxOpenCloudRequest(
+      `/groups/${ROBLOX_GROUP_ID}/roles?${params.toString()}`
+    );
+
+    roles.push(...(data.groupRoles || []));
+    pageToken = data.nextPageToken || "";
+  } while (pageToken);
+
+  return roles;
+}
+
+async function getOpenCloudMembershipForUser(userId) {
+  const params = new URLSearchParams({
+    maxPageSize: "10",
+    filter: `user == 'users/${userId}'`
+  });
+
+  const data = await robloxOpenCloudRequest(
+    `/groups/${ROBLOX_GROUP_ID}/memberships?${params.toString()}`
+  );
+
+  return (data.groupMemberships || [])[0] || null;
+}
+
+async function setRobloxGroupRoleByExactName(usernameInput, targetRoleName, direction) {
+  const resolved = await resolveRobloxUser(usernameInput);
+  if (!resolved) throw new Error("That Roblox username was not found.");
+
+  const [roles, membership] = await Promise.all([
+    getAllOpenCloudGroupRoles(),
+    getOpenCloudMembershipForUser(resolved.userId)
+  ]);
+
+  if (!membership) {
+    throw new Error(`${resolved.username} is not a member of the TARC Roblox group.`);
+  }
+
+  const wanted = String(targetRoleName || "").trim().toLocaleLowerCase();
+  const targetRole = roles.find((role) =>
+    String(role.displayName || "").trim().toLocaleLowerCase() === wanted
+  );
+
+  if (!targetRole) {
+    throw new Error(`No Roblox group rank exactly matches “${targetRoleName}”.`);
+  }
+
+  const currentRolePath = String(membership.role || "");
+  const currentRole = roles.find((role) => String(role.path) === currentRolePath);
+  const currentRank = Number(currentRole?.rank || 0);
+  const targetRank = Number(targetRole.rank || 0);
+
+  if (targetRank >= 255) throw new Error("The group owner rank cannot be assigned by this command.");
+  if (targetRank <= 0) throw new Error("That target rank is not assignable.");
+  if (String(currentRole?.path || "") === String(targetRole.path)) {
+    throw new Error(`${resolved.username} is already ${targetRole.displayName}.`);
+  }
+  if (direction === "promote" && targetRank <= currentRank) {
+    throw new Error(`/promote requires a rank above ${currentRole?.displayName || "the current rank"}.`);
+  }
+  if (direction === "demote" && targetRank >= currentRank) {
+    throw new Error(`/demote requires a rank below ${currentRole?.displayName || "the current rank"}.`);
+  }
+
+  const membershipId = String(membership.path || "").split("/").pop();
+  if (!membershipId) throw new Error("Roblox returned a membership without an ID.");
+
+  await robloxOpenCloudRequest(
+    `/groups/${ROBLOX_GROUP_ID}/memberships/${membershipId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ role: targetRole.path })
+    }
+  );
+
+  return {
+    resolved,
+    oldRole: currentRole?.displayName || "Unknown",
+    newRole: targetRole.displayName,
+    oldRank: currentRank,
+    newRank: targetRank
+  };
+}
+
+async function getCommandMember(interaction) {
+  if (!interaction.inGuild() || !interaction.guild) return null;
+  return interaction.guild.members.fetch(interaction.user.id);
+}
+
+async function hasAdministratorAccess(interaction) {
+  if (!interaction.inGuild() || !interaction.guild) return false;
+  if (interaction.guild.ownerId === interaction.user.id) return true;
+  const member = await getCommandMember(interaction);
+  return Boolean(member?.roles.cache.has(ADMINISTRATOR_ROLE_ID));
+}
+
+async function hasRankManagementAccess(interaction) {
+  if (!interaction.inGuild() || !interaction.guild) return false;
+  if (interaction.guild.ownerId === interaction.user.id) return true;
+  const member = await getCommandMember(interaction);
+  return Boolean(
+    member?.roles.cache.has(ADMINISTRATOR_ROLE_ID) ||
+    member?.roles.cache.has(MARSHAL_COMMANDER_ROLE_ID)
+  );
+}
+
+async function applyRmpDiscordRoles(member) {
+  const removable = OLD_ENLISTED_ROLE_IDS.filter((roleId) => member.roles.cache.has(roleId));
+  const hadRmp = member.roles.cache.has(RMP_ROLE_ID);
+
+  if (removable.length) {
+    await member.roles.remove(removable, "TARC enlisted roles consolidated into RMP");
+  }
+  if (!hadRmp) {
+    await member.roles.add(RMP_ROLE_ID, "TARC enlisted roles consolidated into RMP");
+  }
+
+  return { removed: removable.length, addedRmp: !hadRmp };
 }
 
 // ==================== EMBEDS ====================
@@ -846,7 +1022,7 @@ app.post("/roblox-actions/complete", async (req, res) => {
 
 // ==================== DISCORD ====================
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
 function setBotStatus() {
@@ -973,6 +1149,32 @@ function getSlashCommands() {
           .setRequired(true)
           .setMaxLength(300)
       )
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("promote")
+      .setDescription("Promote a Roblox user to an exact TARC group rank name")
+      .addStringOption(option => option.setName("username").setDescription("Exact Roblox username").setRequired(true))
+      .addStringOption(option => option.setName("rank").setDescription("Exact Roblox group rank name").setRequired(true))
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("demote")
+      .setDescription("Demote a Roblox user to an exact TARC group rank name")
+      .addStringOption(option => option.setName("username").setDescription("Exact Roblox username").setRequired(true))
+      .addStringOption(option => option.setName("rank").setDescription("Exact Roblox group rank name").setRequired(true))
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("rmp")
+      .setDescription("Give one Discord member RMP and remove old enlisted roles")
+      .addUserOption(option => option.setName("member").setDescription("Discord member to update").setRequired(true))
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("rmpall")
+      .setDescription("Consolidate all old enlisted Discord roles into RMP")
+      .addStringOption(option => option.setName("confirmation").setDescription("Type CONFIRM to run the server-wide update").setRequired(true))
       .toJSON(),
 
     new SlashCommandBuilder()
@@ -1152,6 +1354,133 @@ client.on(Events.InteractionCreate, async interaction => {
     } catch (err) {
       console.error("[DISCORD] /starcreator failed:", err);
       const message = "Something went wrong while queueing the Star Creator action.";
+      return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
+
+  if (interaction.commandName === "promote" || interaction.commandName === "demote") {
+    const direction = interaction.commandName;
+    try {
+      if (!(await hasRankManagementAccess(interaction))) {
+        return interaction.reply({
+          content: "You must be **Marshal Commander or higher** to use this command.",
+          ephemeral: true
+        });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      const username = interaction.options.getString("username", true).trim();
+      const rankName = interaction.options.getString("rank", true).trim();
+      const result = await setRobloxGroupRoleByExactName(username, rankName, direction);
+
+      await sendActionAudit(
+        interaction,
+        `Roblox ${direction === "promote" ? "Promotion" : "Demotion"}`,
+        [
+          `**User:** ${result.resolved.username} (${result.resolved.userId})`,
+          `**Old rank:** ${result.oldRole} (${result.oldRank})`,
+          `**New rank:** ${result.newRole} (${result.newRank})`,
+          `**Staff:** <@${interaction.user.id}>`
+        ].join("\n"),
+        direction === "promote" ? 0x31c48d : 0xff9500
+      );
+
+      return interaction.editReply(
+        `✅ **${result.resolved.username}** was ${direction === "promote" ? "promoted" : "demoted"} from **${result.oldRole}** to **${result.newRole}**.`
+      );
+    } catch (err) {
+      console.error(`[DISCORD] /${direction} failed:`, err);
+      const message = `❌ ${err.message || "The Roblox rank change failed."}`;
+      return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
+
+  if (interaction.commandName === "rmp") {
+    try {
+      if (!(await hasRankManagementAccess(interaction))) {
+        return interaction.reply({ content: "You must be **Marshal Commander or higher** to use this command.", ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      const user = interaction.options.getUser("member", true);
+      const member = await interaction.guild.members.fetch(user.id);
+      const result = await applyRmpDiscordRoles(member);
+
+      if (!result.removed && !result.addedRmp) {
+        return interaction.editReply(`ℹ️ ${member} already has RMP and has no old enlisted roles.`);
+      }
+
+      return interaction.editReply(
+        `✅ Updated ${member}: ${result.addedRmp ? "added RMP" : "kept RMP"}; removed ${result.removed} old enlisted role(s).`
+      );
+    } catch (err) {
+      console.error("[DISCORD] /rmp failed:", err);
+      const message = `❌ ${err.message || "The Discord role update failed."}`;
+      return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
+
+  if (interaction.commandName === "rmpall") {
+    try {
+      if (!(await hasAdministratorAccess(interaction))) {
+        return interaction.reply({ content: "You need the **Administrator** role to use the mass RMP command.", ephemeral: true });
+      }
+
+      const confirmation = interaction.options.getString("confirmation", true).trim();
+      if (confirmation !== "CONFIRM") {
+        return interaction.reply({ content: "Cancelled. Enter **CONFIRM** exactly to run the server-wide role cleanup.", ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      await interaction.guild.members.fetch();
+
+      const candidates = interaction.guild.members.cache.filter((member) =>
+        !member.user.bot && (
+          member.roles.cache.has(RMP_ROLE_ID) ||
+          OLD_ENLISTED_ROLE_IDS.some((roleId) => member.roles.cache.has(roleId))
+        )
+      );
+
+      let changed = 0;
+      let unchanged = 0;
+      let failed = 0;
+      let processed = 0;
+
+      for (const member of candidates.values()) {
+        try {
+          const result = await applyRmpDiscordRoles(member);
+          if (result.removed || result.addedRmp) changed += 1;
+          else unchanged += 1;
+        } catch (err) {
+          failed += 1;
+          console.error(`[RMPALL] Failed for ${member.user.tag} (${member.id}):`, err);
+        }
+
+        processed += 1;
+        if (processed % 25 === 0) {
+          await interaction.editReply(`Processing RMP cleanup… ${processed}/${candidates.size}`);
+        }
+      }
+
+      await sendActionAudit(
+        interaction,
+        "Discord RMP Bulk Cleanup",
+        [
+          `**Candidates:** ${candidates.size}`,
+          `**Changed:** ${changed}`,
+          `**Already clean:** ${unchanged}`,
+          `**Failed:** ${failed}`,
+          `**Staff:** <@${interaction.user.id}>`
+        ].join("\n"),
+        failed ? 0xff9500 : 0x31c48d
+      );
+
+      return interaction.editReply(
+        `✅ RMP cleanup complete. **Candidates:** ${candidates.size} | **Changed:** ${changed} | **Already clean:** ${unchanged} | **Failed:** ${failed}`
+      );
+    } catch (err) {
+      console.error("[DISCORD] /rmpall failed:", err);
+      const message = `❌ ${err.message || "The bulk Discord role update failed."}`;
       return interaction.deferred ? interaction.editReply(message) : interaction.reply({ content: message, ephemeral: true });
     }
   }
@@ -1378,6 +1707,10 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/verify** — Show RoWifi verification steps`,
           `**/xp** — Add or remove up to 2 XP (Officer Permission)`,
           `**/starcreator** — Give or remove the creator tag (Content Creator Manager)`,
+          `**/promote** — Promote a Roblox user to an exact rank name (Marshal Commander+)`,
+          `**/demote** — Demote a Roblox user to an exact rank name (Marshal Commander+)`,
+          `**/rmp** — Clean one member’s enlisted Discord roles (Marshal Commander+)`,
+          `**/rmpall** — Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
           `**/help** — Show this command list`
         ].join("\n"))
     );
