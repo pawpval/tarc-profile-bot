@@ -1,3 +1,4 @@
+import { buildExternalGroupContext, findRelevantExternalGroups } from "./externalGroups.js";
 import {
   TARC_KNOWLEDGE,
   CONTENT_CREATOR_MANAGER_ROLE_ID,
@@ -320,6 +321,48 @@ async function buildRobloxUserSnapshot(question) {
   return `Possible username(s) detected (${candidates.join(", ")}), but none could be confidently resolved. Ask for the exact Roblox username if identity matters.`;
 }
 
+function questionNeedsExternalGroupLiveCheck(question, groups) {
+  if (!groups.length) return false;
+  const q = normalize(question);
+  return [
+    "owner", "owns", "current owner", "leader", "leadership", "who runs",
+    "member count", "members", "how big", "group size", "current status"
+  ].some((term) => q.includes(term));
+}
+
+async function getExternalGroupLiveSnapshot(group, question) {
+  if (!group?.groupId) return `No live Roblox group ID is stored for ${group?.name || "that group"}.`;
+
+  try {
+    const data = await fetchJson(`${ROBLOX_GROUPS_BASE}/${group.groupId}`);
+    const lines = [
+      `External Roblox group live snapshot: ${group.name} (${group.groupId})`,
+      data?.name ? `Current Roblox group name: ${data.name}` : null,
+      Number.isFinite(Number(data?.memberCount)) ? `Current member count: ${Number(data.memberCount)}` : null,
+      data?.owner?.username ? `Current Roblox group owner: ${data.owner.username}` : null,
+      data?.owner?.userId ? `Owner user ID: ${data.owner.userId}` : null,
+      data?.isLocked === true ? "Group is currently locked." : null
+    ].filter(Boolean);
+
+    return lines.join("\n");
+  } catch (err) {
+    return `Live external Roblox lookup failed for ${group.name}: ${String(err?.message || err)}`;
+  }
+}
+
+async function buildExternalLiveContext(question) {
+  const groups = findRelevantExternalGroups(question, 3);
+  if (!questionNeedsExternalGroupLiveCheck(question, groups)) {
+    return "No external-group live lookup was required.";
+  }
+
+  const snapshots = [];
+  for (const group of groups) {
+    snapshots.push(await getExternalGroupLiveSnapshot(group, question));
+  }
+  return snapshots.join("\n\n");
+}
+
 async function buildLiveContext(question, client) {
   const groups = findRelevantGroups(question);
   const groupSnapshots = [];
@@ -327,15 +370,17 @@ async function buildLiveContext(question, client) {
     groupSnapshots.push(await getGroupLeadershipSnapshot(group, question));
   }
 
-  const [discordRoles, robloxUser] = await Promise.all([
+  const [discordRoles, robloxUser, externalLive] = await Promise.all([
     buildDiscordRoleSnapshot(question, client),
-    buildRobloxUserSnapshot(question)
+    buildRobloxUserSnapshot(question),
+    buildExternalLiveContext(question)
   ]);
 
   return [
     groupSnapshots.length ? groupSnapshots.join("\n\n") : "No Roblox group leadership lookup was required.",
     `\nDISCORD LIVE ROLE CONTEXT\n${discordRoles}`,
-    `\nROBLOX USER-SPECIFIC CONTEXT\n${robloxUser}`
+    `\nROBLOX USER-SPECIFIC CONTEXT\n${robloxUser}`,
+    `\nEXTERNAL GROUP LIVE CONTEXT\n${externalLive}`
   ].join("\n");
 }
 
@@ -353,7 +398,7 @@ function extractGeminiResponseText(data) {
   return parts.join("\n").trim();
 }
 
-async function callGemini({ question, callerContext, liveContext, history }) {
+async function callGemini({ question, callerContext, liveContext, externalGroupContext, history }) {
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured in Railway.");
   }
@@ -392,6 +437,11 @@ TRUTH / REASONING
 - Understand aliases, shorthand, misspellings and conversational wording when the intended TARC term is reasonably clear. Do not require exact official names.
 - For announcement/channel questions, choose the channel by purpose rather than by keywords alone. Distinguish Development Updates, Development Showcases/Sneak Peeks, Military Announcements, Public Announcements, Community Updates, Chain of Command, and the Information Billboard.
 - Treat the Information Billboard as a standing reference/information hub, NOT as a regularly updated announcement feed.
+- External Star Wars group knowledge is secondary contextual knowledge supplied by the TARC owner. It is not authoritative over TARC and must never overwrite TARC facts.
+- Clearly distinguish stored external-group notes from live/current facts. If a live Roblox snapshot conflicts with an old stored member count, owner, or name, prefer the live snapshot for that specific current fact.
+- Do not present subjective group rankings, praise, criticism, rumours, ownership disputes, scam allegations, or personal controversy as objective fact. Attribute uncertain/historical material carefully, e.g. "the stored notes describe..." or "based on the current knowledge snapshot...".
+- When comparing groups, compare only on supported dimensions and acknowledge missing information rather than inventing a winner.
+- Do not become hostile toward rival Star Wars groups. Competitive comparisons should remain factual and respectful.
 - If there genuinely is not enough trustworthy information, say what is unknown and give the best official route to verify it.
 
 SAFETY / CONFIDENTIALITY
@@ -415,6 +465,9 @@ ${callerContext}
 
 LIVE CONTEXT (fresh lookups when relevant)
 ${liveContext}
+
+EXTERNAL STAR WARS GROUP KNOWLEDGE (retrieved only when relevant)
+${externalGroupContext}
 
 RECENT CONVERSATION WITH THIS USER
 ${history}
@@ -504,8 +557,15 @@ export async function askTarcAssistant({ question, interaction, client }) {
     buildLiveContext(cleanQuestion, client)
   ]);
 
+  const externalGroupContext = buildExternalGroupContext(cleanQuestion, 4);
   const history = getConversationContext(interaction.user.id);
-  const answer = await callGemini({ question: cleanQuestion, callerContext, liveContext, history });
+  const answer = await callGemini({
+    question: cleanQuestion,
+    callerContext,
+    liveContext,
+    externalGroupContext,
+    history
+  });
   const safeAnswer = answer.length > 1950 ? `${answer.slice(0, 1947)}...` : answer;
   saveConversationTurn(interaction.user.id, cleanQuestion, safeAnswer);
   return safeAnswer;
