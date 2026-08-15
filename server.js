@@ -154,23 +154,20 @@ const STAR_WARS_QUOTES = [
 
 const XP_RANKS = [
   { xp: 0, name: "Cadet" },
-  { xp: 2, name: "Private" },
-  { xp: 4, name: "Private Second Class" },
-  { xp: 6, name: "Private First Class" },
-  { xp: 10, name: "Trooper" },
-  { xp: 18, name: "Specialist" },
-  { xp: 28, name: "Corporal" },
-  { xp: 35, name: "Sergeant" },
-  { xp: 50, name: "Staff Sergeant" },
-  { xp: 75, name: "Master Sergeant" },
-  { xp: 100, name: "Sergeant Major" },
-  { xp: 125, name: "Warrant Officer" },
-  { xp: 200, name: "Upper Warrant Officer" },
-  { xp: 235, name: "Command Warrant Officer" },
-  { xp: 275, name: "Chief Warrant Officer" },
+  { xp: 3, name: "Trooper" },
+  { xp: 6, name: "Specialist" },
+  { xp: 12, name: "Corporal" },
+  { xp: 18, name: "Sergeant" },
+  { xp: 28, name: "Staff Sergeant" },
+  { xp: 35, name: "Master Sergeant" },
+  { xp: 50, name: "Sergeant Major" },
+  { xp: 75, name: "Warrant Officer" },
+  { xp: 100, name: "Upper Warrant Officer" },
+  { xp: 125, name: "Command Warrant Officer" },
+  { xp: 200, name: "Chief Warrant Officer" },
   { xp: 300, name: "Elite Recruit" },
-  { xp: 325, name: "Elite Sergeant" },
-  { xp: 360, name: "Elite Lieutenant" },
+  { xp: 335, name: "Elite Sergeant" },
+  { xp: 380, name: "Elite Lieutenant" },
   { xp: 500, name: "Elite Commander" }
 ];
 
@@ -728,6 +725,7 @@ function buildProfileEmbed(profile) {
       `${divisionsText}`,
       ``,
       `**Stats**`,
+      `XP: ${profile.xp ?? "N/A"}`,
       `Kills: ${profile.kills ?? "N/A"}`,
       `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
       ``,
@@ -1055,6 +1053,16 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
+      .setName("xpleaderboard")
+      .setDescription("Show top 10 cached XP users")
+      .toJSON(),
+
+    new SlashCommandBuilder()
+      .setName("viewxp")
+      .setDescription("Show your own cached XP using your Discord nickname")
+      .toJSON(),
+
+    new SlashCommandBuilder()
       .setName("ranks")
       .setDescription("Show TARC XP rank requirements")
       .toJSON(),
@@ -1081,7 +1089,7 @@ function getSlashCommands() {
 
     new SlashCommandBuilder()
       .setName("xp")
-      .setDescription("Add or remove up to 2 XP in one random XP progression")
+      .setDescription("Add or remove up to 2 XP from Roblox users")
       .addStringOption(option =>
         option
           .setName("action")
@@ -1262,7 +1270,7 @@ client.on(Events.InteractionCreate, async interaction => {
           "",
           `**Reason:** ${reason}`,
           `**Requested by:** <@${interaction.user.id}>`,
-          "**Delivery:** Roblox randomly selects one XP progression for each target, then applies the queued change within several seconds."
+          "**Delivery:** Roblox servers normally apply queued changes within several seconds."
         ].join("\n"))
         .setTimestamp();
 
@@ -1551,6 +1559,68 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
+  if (interaction.commandName === "xpleaderboard") {
+    try {
+      await interaction.deferReply();
+      const top = Array.from(profileCache.values())
+        .filter((p) => typeof p.xp === "number" && !Number.isNaN(p.xp))
+        .sort((a, b) => b.xp - a.xp)
+        .slice(0, 10);
+
+      const lines = top.length
+        ? top.map((p, i) => `**${i + 1}.** ${p.username} — ${formatNumber(p.xp)} XP`).join("\n")
+        : "No cached XP data yet. Players need to join the game first.";
+
+      const embed = applyCommandImage(
+        new EmbedBuilder()
+          .setColor(0x2b7fff)
+          .setTitle("TARC XP Leaderboard")
+          .setDescription(lines)
+          .setFooter({ text: "Cached data resets if the Railway service restarts." })
+      );
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /xpleaderboard failed:", err);
+      return interaction.editReply("Something went wrong fetching the XP leaderboard.");
+    }
+  }
+
+  if (interaction.commandName === "viewxp") {
+    try {
+      await interaction.deferReply({ ephemeral: true });
+
+      const possibleUsername = extractPossibleUsernameFromMember(interaction.member);
+      if (!possibleUsername) {
+        return interaction.editReply("I couldn’t detect your Roblox username from your Discord nickname.");
+      }
+
+      const resolved = await resolveRobloxUser(possibleUsername);
+      if (!resolved) {
+        return interaction.editReply("I found a possible name in your nickname, but it was not a valid Roblox username.");
+      }
+
+      const profile = getCachedProfileByResolvedUser(resolved);
+      if (!profile) {
+        return interaction.editReply("I found your Roblox user, but I do not have cached game data for you yet. Join the game first.");
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2b7fff)
+        .setTitle(`${profile.username} | XP`)
+        .setDescription([
+          `**XP:** ${profile.xp ?? "N/A"}`,
+          `**Kills:** ${profile.kills ?? "N/A"}`,
+          `**Playtime:** ${formatCompactTime(profile.playTimeSeconds)}`
+        ].join("\n"));
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[DISCORD] /viewxp failed:", err);
+      return interaction.editReply("Something went wrong checking your XP.");
+    }
+  }
+
   if (interaction.commandName === "quote") {
     const quote = STAR_WARS_QUOTES[Math.floor(Math.random() * STAR_WARS_QUOTES.length)];
     const embed = applyCommandImage(
@@ -1628,12 +1698,14 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/profile** — Show a player's TARC profile from game data`,
           `**/bgc** — Run a Roblox background check`,
           `**/groupstats** — Show Discord, group, and game stats`,
+          `**/xpleaderboard** — Show top cached XP users`,
+          `**/viewxp** — Show your own cached XP`,
           `**/ranks** — Show XP rank requirements`,
           `**/quote** — Generate a random Star Wars quote`,
           `**/links** — Show useful TARC links`,
           `**/chainofcommand** — Show current high command`,
           `**/verify** — Show RoWifi verification steps`,
-          `**/xp** — Add or remove up to 2 XP in one random progression (Officer Permission)`,
+          `**/xp** — Add or remove up to 2 XP (Officer Permission)`,
           `**/starcreator** — Give or remove the creator tag (Content Creator Manager)`,
           `**/promote** — Promote a Roblox user to an exact rank name (Marshal Commander+)`,
           `**/demote** — Demote a Roblox user to an exact rank name (Marshal Commander+)`,
