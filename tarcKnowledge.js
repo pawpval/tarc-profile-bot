@@ -23,7 +23,14 @@ export const TARC_KNOWLEDGE = {
     contentPosts: "1402808980148981843",
     divisionalRecruitment: "1366895817482305586",
     tryoutPosts: "1318202577212543118",
-    eventChecks: "1318201600652738664"
+    eventChecks: "1318201600652738664",
+
+    developmentUpdates: "1318201600216666241",
+    developmentShowcases: "1380293289177251971",
+    militaryAnnouncements: "1318201965871628360",
+    chainOfCommand: "1474991452051345408",
+    publicAnnouncements: "1318201600216666240",
+    communityUpdates: "1516871720731152475"
   },
 
   groups: {
@@ -65,7 +72,34 @@ export const TARC_KNOWLEDGE = {
     KZ: "Killzone.",
     BL: "Blacklist.",
     CC: "Content Creator programme when used in that context.",
-    CS: "TARC uses CS as a programme/team abbreviation, but the provided material does not define its expanded name. Do not invent the expansion; direct users to the CS information channel when necessary."
+    CS: "TARC uses CS as a programme/team abbreviation, but the provided material does not define its expanded name. Do not invent the expansion; direct users to the CS information channel when necessary.",
+    Dev: "Development / developer-related content.",
+    QA: "Quality Assurance.",
+    OA: "Officer Academy / Officer Corps context. If the exact meaning matters, infer from context or ask briefly rather than inventing.",
+    OOT: "Officer On Trial.",
+    OOTC: "Office of the Chancellor / OoTC when used in TARC leadership context.",
+    AO: "Administrative Officer.",
+    XO: "Executive Officer.",
+    CO: "Commanding Officer.",
+    CC_RANK: "Company Commander when used as a divisional rank/leadership abbreviation; do not confuse it with Content Creator.",
+    LR: "Low Rank / lower-rank member in divisional hierarchy context.",
+    MR: "Mid Rank / middle-rank member in divisional hierarchy context.",
+    HR: "High Rank / higher-rank member in divisional hierarchy context.",
+    C1: "Battalion Commander tier in the main TARC High Command structure.",
+    C2: "Regimental Commander tier in the main TARC High Command structure.",
+    C3: "Marshal Commander / Sector Commander tier in the main TARC High Command structure.",
+    MP: "Military Police when used in Coruscant Guard / law-enforcement context.",
+    VIP: "Very Important Person; commonly used for protected leadership/personnel.",
+    KOS: "Kill on Sight, if used in a rule/guarding context. Do not assume authorization without context.",
+    AOS: "Arrest on Sight, if used in a law-enforcement context. Do not assume authorization without context.",
+    academy: "A divisional or programme recruitment/training intake. Opening dates must come from public announcements or live context, never be invented.",
+    tryout: "A recruitment event used by divisions to assess applicants. Passing/attendance does not automatically guarantee admission.",
+    eventCheck: "A pre-event interest/attendance check. Tryout hosts may use one but do not always have to.",
+    divisionless: "A member who is not currently in any tracked TARC division group.",
+    transfer: "A divisional transfer request using proof of equivalent membership from another group, handled through the divisional-transfer process.",
+    sector: "A larger command grouping such as RIF, RSF, RIDC or SOB.",
+    mainDivision: "A standard division which counts toward the one-main-division limit.",
+    subDivision: "A division which can be held in addition to one main division; currently ARC and RC are treated as sub-divisions in the provided rules."
   },
 
   rules: [
@@ -170,10 +204,20 @@ export const TARC_KNOWLEDGE = {
     bugs: "Submit game/development bug reports in the bug-report channel. Quality Assurance or Developers can review them.",
     rankIssues: "Follow the Chain of Command. Contact the nearest appropriate HICOM; divisional members should generally go through their divisional CoC.",
     moderation: "Use the main TARC Discord/reporting routes for moderation or in-game violations. Serious matters can be escalated through the CoC and to Republic Intelligence when appropriate.",
-    appeals: "Use the TARC Reports & Appeals server for reports/appeals and the Information Billboard for current relevant links.",
+    appeals: "Use the TARC Reports & Appeals server for reports/appeals. The Information Billboard is a reference/information channel containing useful links and standing information; it is not a regularly updated announcement feed and normally changes only when new information needs to be added.",
     privateCases: "Do not discuss private evidence, classified investigations or sensitive moderation cases through the assistant. Direct the user to the appropriate staff/reporting route.",
     partnerships: "For a partnership or sponsorship enquiry, contact an appropriate Partnership Officer or Staff Team member. Do not spam-ping Leadership.",
     advertising: "DM advertising is not permitted. Do not post unsolicited external Discord/server links."
+  },
+
+  announcements: {
+    developmentUpdates: "Use the Development Updates channel for released development changes, bot updates, game/system updates, fixes and other development news.",
+    developmentShowcases: "Use the Development Showcases / Sneak Peeks channel for developer showcases, previews, work-in-progress media and sneak peeks.",
+    militaryAnnouncements: "Use the Military Announcements channel for notices specifically affecting Republic Military Personnel, divisions, military operations, promotions/structure or military policy.",
+    chainOfCommand: "The Chain of Command channel contains/announces CoC-related structure and leadership information. For current holders, prefer live Roblox/Discord lookup when available.",
+    publicAnnouncements: "Use Public Announcements for major TARC-wide announcements that should reach the broad public/community.",
+    communityUpdates: "Use Community Updates for community-facing changes, programmes, initiatives and general updates that are broader than development but not necessarily major public announcements.",
+    informationBillboard: "The Information Billboard is a standing reference hub for useful links and information. It is not an announcement channel and should not be described as frequently or regularly updated."
   },
 
   programmes: {
@@ -210,7 +254,9 @@ export const TARC_KNOWLEDGE = {
     "If a guarding division is alleged to have team-killed someone, do not automatically call it abuse: guarding divisions may enforce authorised VIP killzones after applicable warnings. Recommend evidence-based reporting if the user believes the force was improper.",
     "For OOS violations, direct the matter through the relevant divisional CoC/HICOM or formal reporting route; do not publicly litigate the case.",
     "If a person is already in a main division and attends another main division tryout, explain the one-main-division rule and that attempting to join another without proper discharge can create disciplinary/blacklist issues.",
-    "If someone is in a division Discord but not the Roblox division group, advise them to contact that division's appropriate HICOM/CO through the CoC rather than pinging unrelated Leadership."
+    "If someone is in a division Discord but not the Roblox division group, advise them to contact that division's appropriate HICOM/CO through the CoC rather than pinging unrelated Leadership.",
+    "When asked where an announcement/update belongs, distinguish the channels by purpose: development releases -> Development Updates; previews/sneak peeks -> Development Showcases; military-only notices -> Military Announcements; major TARC-wide notices -> Public Announcements; general community initiatives/changes -> Community Updates; CoC-specific information -> Chain of Command.",
+    "Never describe the Information Billboard as a regularly updated news or announcement channel. Treat it as a standing reference/information hub that is updated only when its reference material needs changing."
   ]
 };
 
