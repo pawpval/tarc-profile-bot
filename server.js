@@ -158,15 +158,75 @@ const COMMAND_IMAGE_URL = String(process.env.COMMAND_IMAGE_URL || "");
 // NOTE: Discord bot accounts can only set the standard Gateway activity fields
 // (name/state/type/url). Full Rich Presence artwork and custom URL buttons are
 // not available to normal bot users through setPresence().
-const BOT_STATUS_NAME = "TARC Hub";
-const BOT_STATUS_STATE = "🔵 UPDATE LIVE RN 🔵 • /ask for TARC support";
-const BOT_STATUS_TYPE = 0; // 0 = Playing
+const BOT_STATUS_NAME = "discord.gg/tarcs 🔥";
+const BOT_STATUS_TYPE = 3; // 3 = Watching
 
 const TARC_GROUP_LINK = `https://www.roblox.com/groups/${ROBLOX_GROUP_ID}/TARC`;
 const TARC_GAME_LINK = "https://www.roblox.com/games/79834733161236";
 const REPORTS_APPEALS_LINK = "https://discord.gg/TsvyxSav43";
 const LAWBOOK_LINK = "https://trello.com/b/25mjJPCy/tarc-regulations-punishments";
 const BOT_CMDS_CHANNEL_ID = "1318201600908460089";
+
+const CHAT_REVIVE_CHANNEL_ID = "1380623761778151485";
+const CHAT_REVIVE_INTERVAL_MS = 6 * 60 * 60 * 1000; // check every 6 hours
+const CHAT_REVIVE_MIN_IDLE_MS = 60 * 60 * 1000; // only post if chat has been quiet for 1 hour
+const CHAT_REVIVE_MIN_REPEAT_GAP = 8; // avoid repeating one of the last 8 prompts
+
+// Owner-controlled external broadcast endpoint.
+// Set OWNER_BROADCAST_SECRET in Railway to a strong random secret.
+// POST /owner-broadcast with JSON:
+// {
+//   "secret": "...",
+//   "channelId": "1380623761778151485",
+//   "content": "your message",
+//   "embed": {
+//      "title": "Optional",
+//      "description": "Optional",
+//      "color": 5793266
+//   }
+// }
+const OWNER_BROADCAST_SECRET = String(process.env.OWNER_BROADCAST_SECRET || "");
+const OWNER_BROADCAST_COOLDOWN_MS = 10 * 60 * 1000;
+const OWNER_BROADCAST_ALLOWED_CHANNELS = new Set([
+  "1380623761778151485" // public chat
+]);
+let lastOwnerBroadcastAt = 0;
+
+const CHAT_REVIVE_PROMPTS = [
+  "What’s everyone up to today?",
+  "Quick check-in: how’s everyone doing?",
+  "What’s been your favourite TARC event recently?",
+  "If you could add one quality-of-life feature to TARC, what would it be?",
+  "Which division do you think has the cleanest uniforms?",
+  "What’s one TARC feature more people should use?",
+  "Favourite Clone Wars character? Keep it civil.",
+  "What’s the best event type in your opinion?",
+  "If you could attend any one event right now, what would you pick?",
+  "What’s one thing you’re looking forward to in TARC?",
+  "Which map area do you spend the most time around?",
+  "What’s your favourite division to watch at events?",
+  "What’s one TARC update you’ve liked recently?",
+  "If you had to recommend one division to a new member, which would you pick?",
+  "What’s your favourite part of being in the community?",
+  "Any goals you’re working towards in TARC right now?",
+  "What’s the best Star Wars era in your opinion?",
+  "Favourite clone battalion outside of TARC?",
+  "What kind of event should be hosted more often?",
+  "What’s one thing new members should know?",
+  "Which TARC system do you think is underrated?",
+  "What’s your favourite in-game progression rank name?",
+  "What’s one division you’d like to learn more about?",
+  "What’s your favourite part of the current rank progression?",
+  "What’s one event you’d like to see return?",
+  "Who’s actually online right now?",
+  "What’s been the best moment from this week so far?",
+  "What’s one thing you’d tell someone thinking about joining TARC?",
+  "What’s your favourite Star Wars planet?",
+  "What should the next community discussion be about?"
+];
+
+const recentChatReviveIndexes = [];
+
 
 const MAIN_GROUP_ID = 35324584;
 const SUB_GROUP_IDS = new Set([35326812]); // Advanced Recon Commandos
@@ -932,6 +992,67 @@ async function buildChainOfCommandEmbed() {
   );
 }
 
+
+function chooseChatRevivePrompt() {
+  const available = CHAT_REVIVE_PROMPTS
+    .map((prompt, index) => ({ prompt, index }))
+    .filter(({ index }) => !recentChatReviveIndexes.includes(index));
+
+  const pool = available.length ? available : CHAT_REVIVE_PROMPTS.map((prompt, index) => ({ prompt, index }));
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+
+  recentChatReviveIndexes.push(chosen.index);
+  while (recentChatReviveIndexes.length > CHAT_REVIVE_MIN_REPEAT_GAP) {
+    recentChatReviveIndexes.shift();
+  }
+
+  return chosen.prompt;
+}
+
+async function maybeSendChatRevive() {
+  try {
+    const channel = await client.channels.fetch(CHAT_REVIVE_CHANNEL_ID);
+    if (!channel?.isTextBased?.() || !channel.messages?.fetch) return;
+
+    const recent = await channel.messages.fetch({ limit: 1 });
+    const lastMessage = recent.first();
+
+    if (lastMessage && Date.now() - lastMessage.createdTimestamp < CHAT_REVIVE_MIN_IDLE_MS) {
+      console.log("[CHAT REVIVE] Skipped because chat is active.");
+      return;
+    }
+
+    const prompt = chooseChatRevivePrompt();
+    await channel.send({
+      content: prompt,
+      allowedMentions: { parse: [] }
+    });
+
+    console.log("[CHAT REVIVE] Sent:", prompt);
+  } catch (err) {
+    console.error("[CHAT REVIVE] Failed:", err);
+  }
+}
+
+function normalizeBroadcastEmbed(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const embed = new EmbedBuilder();
+
+  if (raw.title) embed.setTitle(String(raw.title).slice(0, 256));
+  if (raw.description) embed.setDescription(String(raw.description).slice(0, 4000));
+  if (raw.color != null && Number.isFinite(Number(raw.color))) {
+    embed.setColor(Math.max(0, Math.min(0xffffff, Number(raw.color))));
+  }
+  if (raw.footer) embed.setFooter({ text: String(raw.footer).slice(0, 2048) });
+  if (raw.thumbnail && String(raw.thumbnail).startsWith("https://")) embed.setThumbnail(String(raw.thumbnail));
+  if (raw.image && String(raw.image).startsWith("https://")) embed.setImage(String(raw.image));
+
+  const json = embed.toJSON();
+  const hasContent = Boolean(json.title || json.description || json.footer || json.thumbnail || json.image);
+  return hasContent ? embed : null;
+}
+
 // ==================== ROUTES ====================
 app.get("/", (req, res) => res.status(200).send("TARC profile bot running"));
 
@@ -1059,6 +1180,64 @@ app.get("/privacy", (req, res) => {
   });
 
   res.type("html").status(200).send(html);
+});
+
+
+app.post("/owner-broadcast", async (req, res) => {
+  try {
+    if (!OWNER_BROADCAST_SECRET) {
+      return res.status(503).json({ error: "OWNER_BROADCAST_SECRET is not configured." });
+    }
+
+    const body = req.body || {};
+    if (String(body.secret || "") !== OWNER_BROADCAST_SECRET) {
+      return res.status(401).json({ error: "Invalid secret." });
+    }
+
+    const now = Date.now();
+    if (now - lastOwnerBroadcastAt < OWNER_BROADCAST_COOLDOWN_MS) {
+      const retryAfterMs = OWNER_BROADCAST_COOLDOWN_MS - (now - lastOwnerBroadcastAt);
+      return res.status(429).json({
+        error: "Broadcast cooldown active.",
+        retryAfterSeconds: Math.ceil(retryAfterMs / 1000)
+      });
+    }
+
+    const channelId = String(body.channelId || "");
+    if (!OWNER_BROADCAST_ALLOWED_CHANNELS.has(channelId)) {
+      return res.status(403).json({ error: "That channel is not allowed for owner broadcasts." });
+    }
+
+    const content = String(body.content || "").trim().slice(0, 2000);
+    const embed = normalizeBroadcastEmbed(body.embed);
+
+    if (!content && !embed) {
+      return res.status(400).json({ error: "Provide content and/or a valid embed." });
+    }
+
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased?.()) {
+      return res.status(404).json({ error: "Channel not found or not text-based." });
+    }
+
+    const message = await channel.send({
+      content: content || undefined,
+      embeds: embed ? [embed] : undefined,
+      allowedMentions: { parse: [] }
+    });
+
+    lastOwnerBroadcastAt = now;
+
+    console.log(`[OWNER BROADCAST] Sent message ${message.id} to ${channelId}`);
+    return res.status(200).json({
+      ok: true,
+      messageId: message.id,
+      channelId
+    });
+  } catch (err) {
+    console.error("[OWNER BROADCAST] Failed:", err);
+    return res.status(500).json({ error: "Broadcast failed." });
+  }
 });
 
 app.get("/ingest", (req, res) => {
@@ -1246,7 +1425,6 @@ function setBotStatus() {
     activities: [
       {
         name: BOT_STATUS_NAME,
-        state: BOT_STATUS_STATE,
         type: BOT_STATUS_TYPE
       }
     ],
@@ -1454,6 +1632,12 @@ client.once(Events.ClientReady, async () => {
 
   setBotStatus();
   setInterval(setBotStatus, 5 * 60 * 1000);
+
+  // Chat revive checks run every 6 hours and only post when the channel has been quiet.
+  setTimeout(() => {
+    maybeSendChatRevive();
+    setInterval(maybeSendChatRevive, CHAT_REVIVE_INTERVAL_MS);
+  }, 60 * 1000);
 
   try {
     const commands = getSlashCommands();
