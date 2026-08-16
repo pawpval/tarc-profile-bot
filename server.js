@@ -13,6 +13,93 @@ import {
 
 const app = express();
 
+const LEGAL_EFFECTIVE_DATE = "16 August 2026";
+
+function renderLegalPage({ title, subtitle, sections }) {
+  const sectionHtml = sections
+    .map(({ heading, body }) => `
+      <section>
+        <h2>${heading}</h2>
+        ${body}
+      </section>
+    `)
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>${title} | TARC Bot</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1117;
+      --panel: #171a22;
+      --text: #eef1f7;
+      --muted: #aeb6c5;
+      --line: #2a2f3a;
+      --accent: #5da8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 48px auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    h1 { margin: 0 0 6px; font-size: clamp(2rem, 5vw, 3rem); }
+    h2 { margin: 30px 0 8px; font-size: 1.25rem; }
+    p, li { color: var(--muted); }
+    strong { color: var(--text); }
+    a { color: var(--accent); }
+    .meta {
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 22px;
+      margin-bottom: 22px;
+    }
+    ul { padding-left: 22px; }
+    code {
+      background: #0c0e13;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    footer {
+      border-top: 1px solid var(--line);
+      margin-top: 36px;
+      padding-top: 18px;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${title}</h1>
+    <div class="meta">${subtitle}<br />Effective: ${LEGAL_EFFECTIVE_DATE}</div>
+    ${sectionHtml}
+    <footer>
+      TARC Bot is operated for The Grand Republic Clone Army (TARC).
+      These pages apply to the TARC Bot Discord application.
+    </footer>
+  </main>
+</body>
+</html>`;
+}
+
+
 // ==================== ENV ====================
 const PORT = Number(process.env.PORT || 8080);
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "");
@@ -853,6 +940,125 @@ app.get("/health", (req, res) => {
     ok: true,
     cacheSize: profileCache.size
   });
+});
+
+
+app.get("/terms", (req, res) => {
+  const html = renderLegalPage({
+    title: "TARC Bot Terms of Service",
+    subtitle: "Terms governing use of the TARC Bot Discord application.",
+    sections: [
+      {
+        heading: "1. Acceptance",
+        body: `<p>By installing, accessing, or using TARC Bot, you agree to these Terms and to comply with Discord's applicable terms and policies. If you do not agree, do not use the bot.</p>`
+      },
+      {
+        heading: "2. Purpose",
+        body: `<p>TARC Bot provides community and management features for The Grand Republic Clone Army, including TARC information, Roblox lookups, profiles, background checks, rank-management tools for authorised staff, role-management tools, links, statistics, and the <code>/ask</code> assistant.</p>`
+      },
+      {
+        heading: "3. Eligibility and permissions",
+        body: `<p>You must be permitted to use Discord and the server or account context in which you use TARC Bot. Staff-only commands may only be used by members who hold the required Discord roles or permissions. Attempting to bypass command restrictions, impersonate authorised staff, or misuse management features is prohibited.</p>`
+      },
+      {
+        heading: "4. AI assistant",
+        body: `<p>The <code>/ask</code> assistant is an informational feature. It may summarise TARC knowledge, official announcement content, and live Roblox/Discord context. AI-generated responses can be incomplete or incorrect. Official TARC rules, announcements, and authorised staff decisions take priority over an AI response.</p>
+        <p>The assistant must not be treated as authorisation to promote, demote, punish, ban, rank, assign roles, award XP, or perform another management action. Dedicated commands and normal staff permissions remain required.</p>`
+      },
+      {
+        heading: "5. Acceptable use",
+        body: `<p>You may not use TARC Bot to harass others, obtain or disclose private/classified material, evade moderation, exploit Discord or Roblox, interfere with the service, automate abusive requests, or violate Discord, Roblox, or applicable law.</p>`
+      },
+      {
+        heading: "6. Availability and changes",
+        body: `<p>TARC Bot is provided on an as-available basis. Features may be changed, suspended, rate-limited, or removed. External services such as Discord, Roblox, Google Gemini, and Railway may affect availability.</p>`
+      },
+      {
+        heading: "7. Enforcement",
+        body: `<p>Access to TARC Bot or particular commands may be limited or revoked where necessary to protect the service, users, TARC, or comply with platform rules.</p>`
+      },
+      {
+        heading: "8. Third-party services",
+        body: `<p>TARC Bot interacts with Discord and Roblox and may use Google Gemini to generate <code>/ask</code> responses. Those services are governed by their own terms and policies.</p>`
+      },
+      {
+        heading: "9. Contact",
+        body: `<p>Questions about these Terms can be raised with TARC leadership through the main TARC Discord server: <a href="https://discord.gg/reeYBQDwHm">discord.gg/reeYBQDwHm</a>.</p>`
+      }
+    ]
+  });
+
+  res.type("html").status(200).send(html);
+});
+
+app.get("/privacy", (req, res) => {
+  const html = renderLegalPage({
+    title: "TARC Bot Privacy Policy",
+    subtitle: "How TARC Bot accesses, uses, stores, and shares data.",
+    sections: [
+      {
+        heading: "1. Information TARC Bot may process",
+        body: `<p>Depending on the feature you use, TARC Bot may process:</p>
+        <ul>
+          <li>Discord user IDs, usernames, display names, server membership, and role information.</li>
+          <li>Slash-command inputs and questions submitted through <code>/ask</code>.</li>
+          <li>Recent message content, embeds, and attachment names from selected official TARC announcement, Chain of Command, and divisional recruitment channels when needed to answer a relevant question.</li>
+          <li>Roblox usernames, user IDs, group memberships, group roles, and public Roblox group information.</li>
+          <li>Game/profile information submitted by TARC game servers, such as kills, playtime, cash, rank, divisions, and related profile data used by bot features.</li>
+          <li>Owner-approved knowledge added through the owner-only <code>/teach</code> feature and anonymous/aggregate-style question-topic trends used to improve answer relevance.</li>
+        </ul>`
+      },
+      {
+        heading: "2. How information is used",
+        body: `<p>Information is used only to operate TARC Bot features, answer questions, verify relevant TARC/Roblox context, display profiles/statistics, perform authorised commands, improve response relevance, protect the service, and diagnose errors.</p>`
+      },
+      {
+        heading: "3. AI processing",
+        body: `<p>When you use <code>/ask</code>, your question and relevant contextual information may be sent to Google's Gemini API so that a response can be generated. Context can include your TARC display name/roles, relevant TARC knowledge, selected official announcement content, and relevant public Roblox information. TARC Bot is designed to send only context that is useful for the question.</p>`
+      },
+      {
+        heading: "4. Storage and retention",
+        body: `<ul>
+          <li>Short conversational context for <code>/ask</code> is kept temporarily in memory so follow-up questions can make sense.</li>
+          <li>Recent official Discord messages fetched for question answering are cached briefly to reduce repeated API requests.</li>
+          <li>Game/profile cache data may be held in memory and can reset when the hosting service restarts.</li>
+          <li>Question trend data and owner-approved <code>/teach</code> entries may be stored in the bot's assistant-state storage. Trend data is used to identify commonly discussed topics, not to create authoritative facts from ordinary user messages.</li>
+          <li>Operational logs may temporarily contain technical request/error information needed to maintain the service.</li>
+        </ul>
+        <p>Data is retained only for as long as reasonably needed for the feature, security, troubleshooting, or applicable legal/platform requirements.</p>`
+      },
+      {
+        heading: "5. Sharing and service providers",
+        body: `<p>TARC Bot does not sell personal data. Data may be processed by service providers required to run the bot, including Discord, Railway (hosting), Google Gemini (AI responses), and Roblox/public Roblox APIs. Information may also be disclosed where required by law or necessary to protect users or the service.</p>`
+      },
+      {
+        heading: "6. Message content",
+        body: `<p>TARC Bot uses Discord message-content access for selected official TARC channels so it can answer questions about recent announcements, updates, Chain of Command information, and current-week recruitment. The bot is not intended to continuously ingest ordinary private conversations or general chat for AI training.</p>`
+      },
+      {
+        heading: "7. User corrections and learning",
+        body: `<p>Ordinary <code>/ask</code> messages do not automatically become official TARC facts. Normal users cannot permanently teach the assistant through conversation. Permanent approved knowledge can only be added through restricted owner-controlled functionality.</p>`
+      },
+      {
+        heading: "8. Data requests and deletion",
+        body: `<p>You may request access, correction, or deletion of data associated with your use of TARC Bot by contacting TARC leadership through the main TARC Discord server at <a href="https://discord.gg/reeYBQDwHm">discord.gg/reeYBQDwHm</a>. Include enough information to identify the relevant Discord or Roblox account and the data you are asking about. Requests will be handled subject to applicable law, platform requirements, and legitimate security needs.</p>`
+      },
+      {
+        heading: "9. Security",
+        body: `<p>Reasonable technical measures are used to limit access to secrets and management functions, including environment variables, role/owner restrictions, and restricted command handling. No online service can guarantee absolute security.</p>`
+      },
+      {
+        heading: "10. Changes to this policy",
+        body: `<p>This policy may be updated as TARC Bot features or data practices change. The effective date shown at the top will be updated when material changes are made.</p>`
+      },
+      {
+        heading: "11. Contact",
+        body: `<p>Privacy questions or requests can be raised with TARC leadership through <a href="https://discord.gg/reeYBQDwHm">the main TARC Discord server</a>.</p>`
+      }
+    ]
+  });
+
+  res.type("html").status(200).send(html);
 });
 
 app.get("/ingest", (req, res) => {
