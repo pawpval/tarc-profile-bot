@@ -1,4 +1,4 @@
-import { askTarcAssistant } from "./tarcAssistant.js";
+import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import {
@@ -1025,7 +1025,7 @@ app.post("/roblox-actions/complete", async (req, res) => {
 
 // ==================== DISCORD ====================
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent]
 });
 
 function setBotStatus() {
@@ -1194,6 +1194,36 @@ function getSlashCommands() {
       .addStringOption(option => option.setName("confirmation").setDescription("Type CONFIRM to run the server-wide update").setRequired(true))
       .toJSON(),
 
+
+    new SlashCommandBuilder()
+      .setName("teach")
+      .setDescription("Owner-only: teach the TARC Assistant an approved fact")
+      .addStringOption(option =>
+        option
+          .setName("information")
+          .setDescription("The approved information the assistant should know")
+          .setRequired(true)
+          .setMaxLength(1500)
+      )
+      .addStringOption(option =>
+        option
+          .setName("topic")
+          .setDescription("Short topic/category for this information")
+          .setRequired(false)
+          .setMaxLength(80)
+      )
+      .addStringOption(option =>
+        option
+          .setName("visibility")
+          .setDescription("Whether /ask may use this information")
+          .setRequired(false)
+          .addChoices(
+            { name: "Public / usable by ask", value: "public" },
+            { name: "Private note / never exposed by ask", value: "private" }
+          )
+      )
+      .toJSON(),
+
     new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
@@ -1266,6 +1296,46 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
+
+
+  if (interaction.commandName === "teach") {
+    try {
+      if (!interaction.inGuild() || !interaction.guild) {
+        return interaction.reply({ content: "This command can only be used in the main TARC server.", ephemeral: true });
+      }
+
+      if (interaction.guild.ownerId !== interaction.user.id) {
+        return interaction.reply({ content: "Only the server owner can teach the TARC Assistant.", ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const information = interaction.options.getString("information", true).trim();
+      const topic = interaction.options.getString("topic")?.trim() || "general";
+      const visibility = interaction.options.getString("visibility") || "public";
+
+      const entry = await teachTarcAssistant({
+        information,
+        topic,
+        visibility,
+        interaction
+      });
+
+      return interaction.editReply(
+        `✅ Taught the assistant under **${entry.topic}** (${entry.visibility}).\n` +
+        `ID: \`${entry.id}\`\n\n` +
+        `${entry.visibility === "public"
+          ? "This information can now be used by /ask."
+          : "This was saved as a private note and will not be exposed through /ask."}`
+      );
+    } catch (err) {
+      console.error("[DISCORD] /teach failed:", err);
+      const message = `❌ ${err.message || "The teaching could not be saved."}`;
+      return interaction.deferred
+        ? interaction.editReply(message)
+        : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
 
   if (interaction.commandName === "xp") {
     try {
@@ -1701,6 +1771,7 @@ client.on(Events.InteractionCreate, async interaction => {
           `**/rmp** — Clean one member’s enlisted Discord roles (Marshal Commander+)`,
           `**/rmpall** — Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
           `**/ask** — Ask the TARC Assistant (also available through user install / DMs)`,
+          `**/teach** — Owner-only: add approved assistant knowledge`,
           `**/help** — Show this command list`
         ].join("\n"))
     );
