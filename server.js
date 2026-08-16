@@ -1183,6 +1183,272 @@ app.get("/privacy", (req, res) => {
 });
 
 
+
+app.get("/control", (req, res) => {
+  res.type("html").status(200).send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>TARC Bot Control</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1017;
+      --panel: #161a24;
+      --panel2: #10141c;
+      --text: #f3f6fb;
+      --muted: #9da8ba;
+      --line: #2a3140;
+      --accent: #4f9cff;
+      --good: #48c78e;
+      --bad: #ff6464;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #172033 0%, var(--bg) 42%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap {
+      width: min(760px, calc(100% - 28px));
+      margin: 48px auto;
+    }
+    .card {
+      background: rgba(22, 26, 36, .96);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 26px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.28);
+    }
+    h1 { margin: 0; font-size: 1.8rem; }
+    .sub { color: var(--muted); margin: 6px 0 24px; }
+    label { display: block; font-weight: 700; margin: 18px 0 8px; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+    }
+    textarea { min-height: 125px; resize: vertical; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .hidden { display: none; }
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 13px 16px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    .notice {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--muted);
+      background: var(--panel2);
+      display: none;
+      white-space: pre-wrap;
+    }
+    .notice.good {
+      display: block;
+      color: var(--good);
+      border-color: rgba(72,199,142,.4);
+    }
+    .notice.bad {
+      display: block;
+      color: var(--bad);
+      border-color: rgba(255,100,100,.4);
+    }
+    .tiny { margin-top: 14px; color: var(--muted); font-size: .88rem; }
+    code {
+      background: #0a0d13;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+      .card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>TARC Bot Control</h1>
+      <p class="sub">Private owner broadcast panel for public chat.</p>
+
+      <label for="secret">Owner Broadcast Secret</label>
+      <input id="secret" type="password" autocomplete="off" placeholder="Enter your Railway secret" />
+
+      <label for="mode">Message Type</label>
+      <select id="mode">
+        <option value="message">Normal Message</option>
+        <option value="embed">Embed</option>
+      </select>
+
+      <div id="normalFields">
+        <label for="message">Message</label>
+        <textarea id="message" maxlength="2000" placeholder="Type what you want TARC Assistant to send..."></textarea>
+      </div>
+
+      <div id="embedFields" class="hidden">
+        <label for="embedTitle">Embed Title</label>
+        <input id="embedTitle" maxlength="256" placeholder="Optional title" />
+
+        <label for="embedDescription">Embed Description</label>
+        <textarea id="embedDescription" maxlength="4000" placeholder="Embed text"></textarea>
+
+        <div class="row">
+          <div>
+            <label for="embedColor">Embed Color</label>
+            <input id="embedColor" value="#2b7fff" placeholder="#2b7fff" />
+          </div>
+          <div>
+            <label for="embedFooter">Footer</label>
+            <input id="embedFooter" maxlength="2048" placeholder="Optional footer" />
+          </div>
+        </div>
+
+        <label for="embedImage">Image URL</label>
+        <input id="embedImage" type="url" placeholder="https://..." />
+
+        <label for="embedThumbnail">Thumbnail URL</label>
+        <input id="embedThumbnail" type="url" placeholder="https://..." />
+
+        <label for="embedContent">Text Above Embed</label>
+        <input id="embedContent" maxlength="2000" placeholder="Optional normal text above the embed" />
+      </div>
+
+      <button id="sendButton">Send to Public Chat</button>
+      <div id="result" class="notice"></div>
+
+      <p class="tiny">
+        Posts only to <code>1380623761778151485</code>. A 10-minute server-side cooldown applies.
+        Mentions are disabled.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const mode = document.getElementById("mode");
+    const normalFields = document.getElementById("normalFields");
+    const embedFields = document.getElementById("embedFields");
+    const button = document.getElementById("sendButton");
+    const result = document.getElementById("result");
+
+    mode.addEventListener("change", function () {
+      const isEmbed = mode.value === "embed";
+      normalFields.classList.toggle("hidden", isEmbed);
+      embedFields.classList.toggle("hidden", !isEmbed);
+      result.className = "notice";
+      result.textContent = "";
+    });
+
+    function parseHexColor(value) {
+      const cleaned = String(value || "").trim().replace(/^#/, "");
+      if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return null;
+      return parseInt(cleaned, 16);
+    }
+
+    button.addEventListener("click", async function () {
+      result.className = "notice";
+      result.textContent = "";
+
+      const secret = document.getElementById("secret").value.trim();
+      if (!secret) {
+        result.className = "notice bad";
+        result.textContent = "Enter your OWNER_BROADCAST_SECRET first.";
+        return;
+      }
+
+      const payload = {
+        secret: secret,
+        channelId: "1380623761778151485"
+      };
+
+      if (mode.value === "message") {
+        const content = document.getElementById("message").value.trim();
+        if (!content) {
+          result.className = "notice bad";
+          result.textContent = "Type a message first.";
+          return;
+        }
+        payload.content = content;
+      } else {
+        const description = document.getElementById("embedDescription").value.trim();
+        const title = document.getElementById("embedTitle").value.trim();
+        const content = document.getElementById("embedContent").value.trim();
+        const footer = document.getElementById("embedFooter").value.trim();
+        const image = document.getElementById("embedImage").value.trim();
+        const thumbnail = document.getElementById("embedThumbnail").value.trim();
+        const color = parseHexColor(document.getElementById("embedColor").value);
+
+        if (!description && !title && !content && !image && !thumbnail) {
+          result.className = "notice bad";
+          result.textContent = "Add some embed content first.";
+          return;
+        }
+
+        payload.content = content;
+        payload.embed = {};
+        if (title) payload.embed.title = title;
+        if (description) payload.embed.description = description;
+        if (footer) payload.embed.footer = footer;
+        if (image) payload.embed.image = image;
+        if (thumbnail) payload.embed.thumbnail = thumbnail;
+        if (color !== null) payload.embed.color = color;
+      }
+
+      button.disabled = true;
+      button.textContent = "Sending...";
+
+      try {
+        const response = await fetch("/owner-broadcast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch (_) {}
+
+        if (!response.ok) {
+          throw new Error(data.error || ("HTTP " + response.status));
+        }
+
+        result.className = "notice good";
+        result.textContent = "Sent successfully. Message ID: " + data.messageId;
+      } catch (err) {
+        result.className = "notice bad";
+        result.textContent = String(err.message || err);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Send to Public Chat";
+      }
+    });
+  </script>
+</body>
+</html>`);
+});
+
 app.post("/owner-broadcast", async (req, res) => {
   try {
     if (!OWNER_BROADCAST_SECRET) {
