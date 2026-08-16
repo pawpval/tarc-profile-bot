@@ -75,7 +75,7 @@ export const EXTERNAL_STAR_WARS_GROUPS = [
       "THE GALACTIC ARMY"
     ],
     "statusScale": "Former group/server that has effectively been absorbed into ATGA.",
-    "known": "- SOA used to own it. - SOA attempted to sell it. - There was an attempt to buy it during that period. - Atlas later bought/acquired its server. - It was subsequently merged into ATGA. - The current game situation is less clear than the server/community history.",
+    "known": "- Crimson owned the TGA project referenced in the current TARC knowledge. - Crimson sold it to Frederick. - Frederick later sold it to another owner. - The project/group was subsequently renamed/reworked into Shadows of the Republic. - This history is separate from ATGA and should not be described as ATGA originating from TGA.",
     "notes": "Historically relevant to ATGA because it became part of Atlas’s wider project rather than remaining an independent competitor. - TGA has been brought up as one of the clearer examples of a recognizable group that actually shut down. - Despite shutting down, people can still remember the group for what it was. Useful when discussing legacy",
     "sourceUpdated": "2026-08-15"
   },
@@ -329,7 +329,7 @@ export const EXTERNAL_STAR_WARS_GROUPS = [
       "Atlas's group"
     ],
     "statusScale": "Current relevant competitor/project.",
-    "known": "- Atlas is closely associated with ATGA. - Atlas acquired the former TGA server/community and merged it into ATGA. - ATGA has recently been active enough to compete with or beat TARC at inspections. - Atlas has discussed advertising. - The relationship is competitive but not framed as hostile; both groups can thrive independently.",
+    "known": "- Atlas is closely associated with ATGA. - ATGA is a separate project from the TGA -> Shadows of the Republic lineage. - ATGA has recently been active enough to compete with or beat TARC at inspections. - Atlas has discussed advertising. - The relationship is competitive but not framed as hostile; both groups can thrive independently.",
     "notes": "A current-activity comparison with TARC is more meaningful than simply comparing raw historical member counts.",
     "sourceUpdated": "2026-08-15"
   },
