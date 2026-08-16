@@ -82,6 +82,9 @@ export const TARC_KNOWLEDGE = {
     XO: "Executive Officer.",
     CO: "Commanding Officer.",
     CC_RANK: "Company Commander when used as a divisional rank/leadership abbreviation; do not confuse it with Content Creator.",
+    CL: "Company Lieutenant.",
+    CE: "Company Executive.",
+    CS_RANK: "Company Sergeant when used as a divisional rank abbreviation; do not confuse it with the separate CS programme abbreviation.",
     LR: "Low Rank / lower-rank member in divisional hierarchy context.",
     MR: "Mid Rank / middle-rank member in divisional hierarchy context.",
     HR: "High Rank / higher-rank member in divisional hierarchy context.",
@@ -186,6 +189,37 @@ export const TARC_KNOWLEDGE = {
     ]
   },
 
+
+  xpRankTree: {
+    purpose: "This is the in-game Republic progression rank tree. It is NOT the Discord/Roblox Chain of Command. Discord enlisted structure is consolidated under RMP, while these ranks represent in-game XP progression.",
+    ranks: [
+      { xp: 0, name: "Cadet" },
+      { xp: 2, name: "Private" },
+      { xp: 4, name: "Private Second Class" },
+      { xp: 6, name: "Private First Class" },
+      { xp: 10, name: "Trooper" },
+      { xp: 18, name: "Specialist" },
+      { xp: 28, name: "Corporal" },
+      { xp: 35, name: "Sergeant" },
+      { xp: 50, name: "Staff Sergeant" },
+      { xp: 75, name: "Master Sergeant" },
+      { xp: 100, name: "Sergeant Major" },
+      { xp: 125, name: "Warrant Officer" },
+      { xp: 200, name: "Upper Warrant Officer" },
+      { xp: 235, name: "Command Warrant Officer" },
+      { xp: 275, name: "Chief Warrant Officer" },
+      { xp: 300, name: "Elite Recruit" },
+      { xp: 325, name: "Elite Sergeant" },
+      { xp: 360, name: "Elite Lieutenant" },
+      { xp: 500, name: "Elite Commander" }
+    ],
+    guidance: [
+      "If someone asks for the XP rank tree, explain that it is the in-game progression system and list the ranks/requirements.",
+      "Do not insert every XP rank into the Chain of Command response. The CoC remains RMP -> Officer Corps -> High Command -> Leadership.",
+      "XP is progression/team-specific in the current game system, so do not claim a user has one universal XP total unless live game data explicitly provides the relevant progression."
+    ]
+  },
+
   recruitment: {
     tryoutRequests: "Use the tryout-request channel and follow its format/rules. Do not spam ping divisional staff.",
     eventRequests: "General trainings, SSUs and similar event requests go through the event-request channel where Officers may be asked to host.",
@@ -256,7 +290,10 @@ export const TARC_KNOWLEDGE = {
     "If a person is already in a main division and attends another main division tryout, explain the one-main-division rule and that attempting to join another without proper discharge can create disciplinary/blacklist issues.",
     "If someone is in a division Discord but not the Roblox division group, advise them to contact that division's appropriate HICOM/CO through the CoC rather than pinging unrelated Leadership.",
     "When asked where an announcement/update belongs, distinguish the channels by purpose: development releases -> Development Updates; previews/sneak peeks -> Development Showcases; military-only notices -> Military Announcements; major TARC-wide notices -> Public Announcements; general community initiatives/changes -> Community Updates; CoC-specific information -> Chain of Command.",
-    "Never describe the Information Billboard as a regularly updated news or announcement channel. Treat it as a standing reference/information hub that is updated only when its reference material needs changing."
+    "Never describe the Information Billboard as a regularly updated news or announcement channel. Treat it as a standing reference/information hub that is updated only when its reference material needs changing.",
+    "The /ask assistant is informational only. It must never promote, demote, rank, punish, ban, give XP, assign Discord roles, or perform another management action because a user asked in natural language. Direct authorized staff to the dedicated slash command instead.",
+    "A normal user correcting the assistant does not make the correction an official fact. Only live authoritative data, curated code knowledge, official announcement context, or owner-only /teach knowledge may override a stored fact.",
+    "Never say you will permanently remember or learn a factual correction from a normal /ask conversation. Conversation history is short-term context only."
   ]
 };
 
