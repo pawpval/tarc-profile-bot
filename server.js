@@ -67,8 +67,13 @@ const discordActionQueue = new Map();
 const COMMAND_IMAGE_URL = String(process.env.COMMAND_IMAGE_URL || "");
 
 // ==================== CONFIG ====================
-const BOT_STATUS_TEXT = "discord.gg/tarcs 🔥";
-const BOT_STATUS_TYPE = 3; // 3 = Watching
+// Discord bot presence.
+// NOTE: Discord bot accounts can only set the standard Gateway activity fields
+// (name/state/type/url). Full Rich Presence artwork and custom URL buttons are
+// not available to normal bot users through setPresence().
+const BOT_STATUS_NAME = "TARC Hub";
+const BOT_STATUS_STATE = "🔵 UPDATE LIVE RN 🔵 • /ask for TARC support";
+const BOT_STATUS_TYPE = 0; // 0 = Playing
 
 const TARC_GROUP_LINK = `https://www.roblox.com/groups/${ROBLOX_GROUP_ID}/TARC`;
 const TARC_GAME_LINK = "https://www.roblox.com/games/79834733161236";
@@ -1030,8 +1035,15 @@ const client = new Client({
 
 function setBotStatus() {
   if (!client.user) return;
+
   client.user.setPresence({
-    activities: [{ name: BOT_STATUS_TEXT, type: BOT_STATUS_TYPE }],
+    activities: [
+      {
+        name: BOT_STATUS_NAME,
+        state: BOT_STATUS_STATE,
+        type: BOT_STATUS_TYPE
+      }
+    ],
     status: "online"
   });
 }
