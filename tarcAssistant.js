@@ -81,6 +81,8 @@ function inferTopic(question) {
   const topics = [
     ["division", ["division", "tryout", "academy", "transfer", "212", "41st", "501", "cg", "rg", "sg", "ri", "arc", "rc"]],
     ["chain_of_command", ["chancellor", "commander", "marshal", "coc", "chain of command", "hicom", "co", "xo", "ao"]],
+    ["rank_progression", ["xp rank", "rank tree", "rank progression", "progression tree", "in-game rank", "in game rank", "xp requirement", "what rank comes after", "what rank comes before"]],
+    ["cis", ["cis", "separatist", "separatists", "count dooku", "general grievous", "darth sidious", "cis personnel", "tactical major", "tactical colonel", "brigadier general", "senior general", "bx commandos", "death watch"]],
     ["support", ["report", "appeal", "help", "support", "question", "bug", "ticket"]],
     ["rules", ["rule", "lawbook", "advertis", "ping", "oos", "tk", "blacklist", "punish"]],
     ["programme", ["investor", "content creator", "cc", "cs", "partnership", "sponsor"]],
@@ -228,6 +230,16 @@ function findRelevantGroups(question) {
 
   if (["chancellor", "grand marshal", "supreme commander", "marshal commander", "ootc", "rmp", "main rank", "chain of command"].some((x) => q.includes(x))) {
     if (!groups.some((g) => g.id === TARC_KNOWLEDGE.groups.main.id)) groups.push(TARC_KNOWLEDGE.groups.main);
+  }
+
+  if ([
+    "cis", "separatist", "separatists", "count dooku", "general grievous", "darth sidious",
+    "cis personnel", "tactical major", "tactical colonel", "brigadier general",
+    "senior general", "bx commandos", "death watch"
+  ].some((x) => q.includes(x))) {
+    if (TARC_KNOWLEDGE.groups.cis && !groups.some((g) => g.id === TARC_KNOWLEDGE.groups.cis.id)) {
+      groups.push(TARC_KNOWLEDGE.groups.cis);
+    }
   }
 
   if (["archived studios", "chief executive", "studio director", "quality assurance", "lead developer", "staff team"].some((x) => q.includes(x))) {
@@ -568,7 +580,15 @@ const EXACT_ROLE_QUERIES = [
   "regimental commander",
   "battalion commander",
   "chief of staff",
-  "office of the chancellor"
+  "office of the chancellor",
+  "general grievous",
+  "count dooku",
+  "darth sidious",
+  "separatist council",
+  "senior general",
+  "brigadier general",
+  "tactical colonel",
+  "tactical major"
 ];
 
 async function getExactRoleHolderSnapshot(question) {
@@ -576,7 +596,11 @@ async function getExactRoleHolderSnapshot(question) {
   const terms = EXACT_ROLE_QUERIES.filter((term) => q.includes(term));
   if (!terms.length) return "No exact-role authoritative lookup was required.";
 
-  const groups = [TARC_KNOWLEDGE.groups.main, TARC_KNOWLEDGE.groups.archivedStudios];
+  const groups = [
+    TARC_KNOWLEDGE.groups.main,
+    TARC_KNOWLEDGE.groups.archivedStudios,
+    ...(TARC_KNOWLEDGE.groups.cis ? [TARC_KNOWLEDGE.groups.cis] : [])
+  ];
   const lines = [];
 
   for (const group of groups) {
@@ -628,7 +652,11 @@ function buildDeterministicFallback(question, {
 }) {
   const q = normalize(question);
 
-  if (q.includes("xp rank") || q.includes("rank tree") || q.includes("xp tree") || q.includes("in game rank")) {
+  if ([
+    "xp rank", "rank tree", "xp tree", "in game rank", "in-game rank",
+    "rank progression", "progression tree", "xp progression", "progression ranks",
+    "promotion requirements", "xp requirements", "enlisted progression"
+  ].some((term) => q.includes(term))) {
     const ranks = TARC_KNOWLEDGE.xpRankTree?.ranks || [];
     if (ranks.length) {
       return [
@@ -737,6 +765,11 @@ TRUTH / REASONING
 - Official announcement context is authoritative for what was publicly announced recently. Do not apply announcement material to unrelated questions just because it exists.
 - Divisional Recruitment context is intentionally limited to the current week. Never imply an application is definitely still open unless the message itself clearly says so and its stated window has not passed.
 - The in-game XP rank tree is separate from the TARC Chain of Command. Do not append the full XP tree when someone merely asks for the CoC.
+- Understand the bot's own slash commands from TARC_KNOWLEDGE.botCommands. Recommend the relevant command when useful, especially /ranks for a formatted XP-rank list and /help for the full command list, but still answer the user's question directly when the knowledge is already available.
+- Treat phrases such as "rank progression", "progression tree", "in-game ranks", "XP ranks", "what rank is after X", and "how much XP for X" as references to the Republic in-game XP rank tree unless context clearly indicates a different rank structure.
+- TARC CIS is an official internal faction, not an unrelated external Star Wars group. Keep Republic and CIS rank structures separate.
+- For CIS rank-holder questions, prefer live Roblox data from the TARC CIS group (811639697) when available. Do not invent private BX/Death Watch links or restricted CIS information.
+- CIS officer ranks are O1 Sergeant through O5 Tactical Colonel; CIS HICOM is X1 Brigadier General through X3 Senior General; Count Dooku and General Grievous are CIS Leadership roles. Darth Sidious is a top leadership/ceremonial role associated with the Supreme Chancellor-level holder.
 - Do not claim you permanently learned a new TARC fact from a random user's statement.
 - If a question can be answered by combining multiple known TARC rules, do that rather than saying "I don't know".
 - Understand aliases, shorthand, misspellings and conversational wording when the intended TARC term is reasonably clear. Do not require exact official names.
@@ -759,6 +792,8 @@ SAFETY / CONFIDENTIALITY
 SCOPE
 - Answer TARC/community-related questions and directly related Star Wars group questions.
 - For unrelated general questions, briefly say you are TARC's assistant and keep the answer within TARC scope.
+- When the user asks about a TARC bot feature or command, speak as if you know your own command set. Never claim that /ranks, /help, /profile, /bgc, or other configured commands do not exist when they are present in curated knowledge.
+- If the user asks for a rank/progression list, do not require them to say the exact phrase "XP rank tree". Infer their intent from normal community wording and give the relevant progression directly.
 `.trim();
 
   const prompt = `
