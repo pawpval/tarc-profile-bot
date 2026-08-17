@@ -46,7 +46,12 @@ export const TARC_KNOWLEDGE = {
     rg: { id: 35326827, name: "Red Guard", aliases: ["rg", "red guard", "red guards"] },
     rc: { id: 12658410, name: "Republic Commandos", aliases: ["rc", "republic commandos", "republic commando"] },
     ri: { id: 35326830, name: "Republic Intelligence", aliases: ["ri", "republic intelligence"] },
-    sg: { id: 16060314, name: "Senate Guard", aliases: ["sg", "senate guard"] }
+    sg: { id: 16060314, name: "Senate Guard", aliases: ["sg", "senate guard"] },
+    cis: {
+      id: 811639697,
+      name: "TARC Confederacy of Independent Systems",
+      aliases: ["cis", "confederacy", "confederacy of independent systems", "separatists", "separatist", "tarc cis"]
+    }
   },
 
   terminology: {
@@ -102,7 +107,45 @@ export const TARC_KNOWLEDGE = {
     transfer: "A divisional transfer request using proof of equivalent membership from another group, handled through the divisional-transfer process.",
     sector: "A larger command grouping such as RIF, RSF, RIDC or SOB.",
     mainDivision: "A standard division which counts toward the one-main-division limit.",
-    subDivision: "A division which can be held in addition to one main division; currently ARC and RC are treated as sub-divisions in the provided rules."
+    subDivision: "A division which can be held in addition to one main division; currently ARC and RC are treated as sub-divisions in the provided rules.",
+    CIS: "TARC Confederacy of Independent Systems; the official TARC Separatist/CIS faction.",
+    Separatists: "Another way members may refer to TARC's Confederacy of Independent Systems.",
+    BX: "BX Commandos when used in TARC/CIS context. BX is a CIS-side unit/faction; do not expose or invent private group links.",
+    DeathWatch: "Death Watch when used in TARC/CIS context. Death Watch is a CIS-side unit/faction; do not expose or invent private group links."
+  },
+
+
+  cis: {
+    identity: {
+      name: "TARC Confederacy of Independent Systems",
+      robloxGroupId: 811639697,
+      robloxGroup: "https://www.roblox.com/communities/811639697/TARC-Confederacy-of-Independent-Systems#!/about",
+      relationship: "An official TARC faction on the Separatist/CIS side. Republic and CIS rank structures are separate."
+    },
+    rankStructure: {
+      base: ["CIS Personnel"],
+      officers: ["[O1] Sergeant", "[O2] Lieutenant", "[O3] Captain", "[O4] Tactical Major", "[O5] Tactical Colonel"],
+      highCommand: ["[X1] Brigadier General", "[X2] General", "[X3] Senior General"],
+      leadership: ["Separatist Council", "General Grievous", "Count Dooku", "Darth Sidious"],
+      notes: [
+        "Sergeant through Tactical Colonel are CIS officer ranks.",
+        "X1 through X3 are CIS High Command ranks.",
+        "Count Dooku and General Grievous are CIS Leadership roles.",
+        "Darth Sidious is a top ceremonial/leadership role associated with the Supreme Chancellor-level holder in TARC.",
+        "The Republic Chain of Command and CIS Chain of Command must not be merged together.",
+        "A person's Republic rank does not automatically grant the same authority in CIS, and vice versa."
+      ]
+    },
+    units: {
+      bxCommandos: "BX Commandos are a CIS-side unit/faction. Do not provide private BX group links unless the owner explicitly adds them to public knowledge.",
+      deathWatch: "Death Watch is a CIS-side unit/faction. Do not provide private Death Watch group links unless the owner explicitly adds them to public knowledge."
+    },
+    guidance: [
+      "If someone asks their CIS rank, who leads CIS, or who currently holds a CIS role, prefer a live lookup against Roblox group 811639697.",
+      "If someone asks how to join BX Commandos or Death Watch, explain that they are CIS-side opportunities and direct them toward current public CIS recruitment/official announcements if available; do not invent a private group link.",
+      "If a question says CIS, Separatists, BX, General Grievous, Count Dooku, or a CIS rank, interpret it as TARC CIS context unless the user clearly means general Star Wars lore.",
+      "Never mix CIS O/X ranks into the Republic XP rank progression or Republic Chain of Command."
+    ]
   },
 
   rules: [
@@ -190,6 +233,33 @@ export const TARC_KNOWLEDGE = {
   },
 
 
+
+  botCommands: {
+    ask: { command: "/ask", purpose: "Ask the TARC Assistant a TARC/community-related question. Informational only; it cannot execute management actions." },
+    help: { command: "/help", purpose: "Show the bot's command list and what each command does." },
+    profile: { command: "/profile", purpose: "Show a player's cached TARC profile/game information." },
+    bgc: { command: "/bgc", purpose: "Run a Roblox/TARC background check on a username." },
+    groupstats: { command: "/groupstats", purpose: "Show TARC Discord, Roblox group, and game statistics." },
+    ranks: { command: "/ranks", purpose: "Show the full in-game Republic XP rank progression and XP requirements." },
+    quote: { command: "/quote", purpose: "Generate a random Star Wars quote." },
+    links: { command: "/links", purpose: "Show useful official TARC links." },
+    chainofcommand: { command: "/chainofcommand", purpose: "Show current high-command/leadership information from Roblox group roles." },
+    verify: { command: "/verify", purpose: "Explain how to verify/update roles through RoWifi." },
+    xp: { command: "/xp", purpose: "Authorized staff command to add/remove XP through the game's current XP progression system." },
+    starcreator: { command: "/starcreator", purpose: "Authorized Content Creator management command for the permanent Star Creator tag." },
+    promote: { command: "/promote", purpose: "Authorized Roblox group rank-management command using an exact target rank name." },
+    demote: { command: "/demote", purpose: "Authorized Roblox group rank-management command using an exact target rank name." },
+    rmp: { command: "/rmp", purpose: "Authorized Discord role cleanup for one member: gives/keeps RMP and removes legacy enlisted roles." },
+    rmpall: { command: "/rmpall", purpose: "Administrator-only server-wide RMP role consolidation." },
+    teach: { command: "/teach", purpose: "Server-owner-only command for adding approved assistant knowledge." },
+    guidance: [
+      "The assistant should know these commands exist and recommend the most relevant command when it directly solves the user's request.",
+      "Do not pretend /ask itself executed another command.",
+      "If someone asks for the XP rank tree, answer it directly from knowledge and optionally mention /ranks for the formatted command version.",
+      "If someone asks what commands exist, direct them to /help and summarize relevant commands if useful."
+    ]
+  },
+
   xpRankTree: {
     purpose: "This is the in-game Republic progression rank tree. It is NOT the Discord/Roblox Chain of Command. Discord enlisted structure is consolidated under RMP, while these ranks represent in-game XP progression.",
     ranks: [
@@ -214,7 +284,7 @@ export const TARC_KNOWLEDGE = {
       { xp: 500, name: "Elite Commander" }
     ],
     guidance: [
-      "If someone asks for the XP rank tree, explain that it is the in-game progression system and list the ranks/requirements.",
+      "If someone asks for the XP rank tree, rank progression, progression tree, in-game ranks, enlisted progression, XP ranks, promotion XP requirements, or what rank comes after/before another progression rank, interpret that as this in-game XP rank system and answer directly.",
       "Do not insert every XP rank into the Chain of Command response. The CoC remains RMP -> Officer Corps -> High Command -> Leadership.",
       "XP is progression/team-specific in the current game system, so do not claim a user has one universal XP total unless live game data explicitly provides the relevant progression."
     ]
