@@ -187,6 +187,7 @@ const CHAT_REVIVE_MIN_REPEAT_GAP = 8; // avoid repeating one of the last 8 promp
 // }
 const OWNER_BROADCAST_SECRET = String(process.env.OWNER_BROADCAST_SECRET || "");
 const OWNER_BROADCAST_COOLDOWN_MS = 7 * 1000; // owner-only panel: 7 second cooldown
+const CONTROL_PANEL_VERSION = "2026-08-18.2";
 let lastOwnerBroadcastAt = 0;
 
 const CHAT_REVIVE_PROMPTS = [
@@ -1181,7 +1182,28 @@ app.get("/privacy", (req, res) => {
 
 
 
+app.get("/control/version", (req, res) => {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store"
+  });
+  return res.status(200).json({
+    ok: true,
+    version: CONTROL_PANEL_VERSION,
+    cooldownSeconds: Math.ceil(OWNER_BROADCAST_COOLDOWN_MS / 1000)
+  });
+});
+
 app.get("/control", (req, res) => {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store"
+  });
+
   res.type("html").status(200).send(`<!doctype html>
 <html lang="en">
 <head>
@@ -1288,7 +1310,7 @@ app.get("/control", (req, res) => {
   <div class="wrap">
     <div class="card">
       <h1>TARC Bot Control</h1>
-      <p class="sub">Private owner broadcast panel for public chat.</p>
+      <p class="sub">Private owner broadcast panel • v${CONTROL_PANEL_VERSION}</p>
 
       <label for="secret">Owner Broadcast Secret</label>
       <input id="secret" type="password" autocomplete="off" placeholder="Enter your Railway secret" />
@@ -1337,8 +1359,9 @@ app.get("/control", (req, res) => {
         <input id="embedContent" maxlength="2000" placeholder="Optional normal text above the embed" />
       </div>
 
-      <button id="sendButton">Send to Public Chat</button>
+      <button id="sendButton">Send Message</button>
       <div id="result" class="notice"></div>
+      <p id="backendVersion" class="tiny">Checking control backend…</p>
 
       <p class="tiny">
         Enter any Discord text-channel ID the bot can access. A 7-second server-side cooldown applies.
@@ -1353,6 +1376,17 @@ app.get("/control", (req, res) => {
     const embedFields = document.getElementById("embedFields");
     const button = document.getElementById("sendButton");
     const result = document.getElementById("result");
+    const backendVersion = document.getElementById("backendVersion");
+
+    fetch("/control/version", { cache: "no-store" })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        backendVersion.textContent =
+          "Backend online • v" + data.version + " • " + data.cooldownSeconds + "s cooldown";
+      })
+      .catch(function () {
+        backendVersion.textContent = "Could not confirm control backend version.";
+      });
 
     mode.addEventListener("change", function () {
       const isEmbed = mode.value === "embed";
@@ -1431,6 +1465,7 @@ app.get("/control", (req, res) => {
       try {
         const response = await fetch("/owner-broadcast", {
           method: "POST",
+          cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
@@ -1451,7 +1486,7 @@ app.get("/control", (req, res) => {
         result.textContent = String(err.message || err);
       } finally {
         button.disabled = false;
-        button.textContent = "Send to Public Chat";
+        button.textContent = "Send Message";
       }
     });
   </script>
@@ -1460,6 +1495,12 @@ app.get("/control", (req, res) => {
 });
 
 app.post("/owner-broadcast", async (req, res) => {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+  });
+
   try {
     if (!OWNER_BROADCAST_SECRET) {
       return res.status(503).json({ error: "OWNER_BROADCAST_SECRET is not configured." });
@@ -2469,4 +2510,5 @@ client.login(DISCORD_TOKEN).catch(err => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[HTTP] Listening on port ${PORT}`);
+  console.log(`[CONTROL] Panel version ${CONTROL_PANEL_VERSION} ready at /control`);
 });
