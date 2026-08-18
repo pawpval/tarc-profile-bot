@@ -186,10 +186,7 @@ const CHAT_REVIVE_MIN_REPEAT_GAP = 8; // avoid repeating one of the last 8 promp
 //   }
 // }
 const OWNER_BROADCAST_SECRET = String(process.env.OWNER_BROADCAST_SECRET || "");
-const OWNER_BROADCAST_COOLDOWN_MS = 10 * 60 * 1000;
-const OWNER_BROADCAST_ALLOWED_CHANNELS = new Set([
-  "1380623761778151485" // public chat
-]);
+const OWNER_BROADCAST_COOLDOWN_MS = 7 * 1000; // owner-only panel: 7 second cooldown
 let lastOwnerBroadcastAt = 0;
 
 const CHAT_REVIVE_PROMPTS = [
@@ -1296,6 +1293,11 @@ app.get("/control", (req, res) => {
       <label for="secret">Owner Broadcast Secret</label>
       <input id="secret" type="password" autocomplete="off" placeholder="Enter your Railway secret" />
 
+      <label for="channelId">Channel ID</label>
+      <input id="channelId" inputmode="numeric" autocomplete="off"
+        value="1380623761778151485"
+        placeholder="Paste the Discord channel ID" />
+
       <label for="mode">Message Type</label>
       <select id="mode">
         <option value="message">Normal Message</option>
@@ -1339,7 +1341,7 @@ app.get("/control", (req, res) => {
       <div id="result" class="notice"></div>
 
       <p class="tiny">
-        Posts only to <code>1380623761778151485</code>. A 10-minute server-side cooldown applies.
+        Enter any Discord text-channel ID the bot can access. A 7-second server-side cooldown applies.
         Mentions are disabled.
       </p>
     </div>
@@ -1377,9 +1379,17 @@ app.get("/control", (req, res) => {
         return;
       }
 
+      const channelId = document.getElementById("channelId").value.trim();
+
+      if (!/^\d{15,22}$/.test(channelId)) {
+        result.className = "notice bad";
+        result.textContent = "Enter a valid Discord channel ID.";
+        return;
+      }
+
       const payload = {
         secret: secret,
-        channelId: "1380623761778151485"
+        channelId: channelId
       };
 
       if (mode.value === "message") {
@@ -1469,9 +1479,9 @@ app.post("/owner-broadcast", async (req, res) => {
       });
     }
 
-    const channelId = String(body.channelId || "");
-    if (!OWNER_BROADCAST_ALLOWED_CHANNELS.has(channelId)) {
-      return res.status(403).json({ error: "That channel is not allowed for owner broadcasts." });
+    const channelId = String(body.channelId || "").trim();
+    if (!/^\d{15,22}$/.test(channelId)) {
+      return res.status(400).json({ error: "Invalid Discord channel ID." });
     }
 
     const content = String(body.content || "").trim().slice(0, 2000);
@@ -1482,8 +1492,14 @@ app.post("/owner-broadcast", async (req, res) => {
     }
 
     const channel = await client.channels.fetch(channelId);
-    if (!channel?.isTextBased?.()) {
-      return res.status(404).json({ error: "Channel not found or not text-based." });
+    if (!channel?.isTextBased?.() || !channel?.guild) {
+      return res.status(404).json({
+        error: "Channel not found, not text-based, or not a server channel the bot can access."
+      });
+    }
+
+    if (!channel.permissionsFor?.(client.user)?.has?.("SendMessages")) {
+      return res.status(403).json({ error: "The bot cannot send messages in that channel." });
     }
 
     const message = await channel.send({
