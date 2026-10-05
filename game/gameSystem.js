@@ -362,7 +362,7 @@ export async function handleGameInteraction(interaction, options = {}){
   if(id==="game:collection") {await showCollection(interaction);return true;}
   if(id==="game:season") {await showSeason(interaction);return true;}
   if(id==="game:daily") {await daily(interaction);return true;}
-  if(id==="game:how") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("How to Play").setDescription("Play quizzes to earn Credits, XP and competitive Elo. Use Credits in the shop. Level up your profile, build streaks, complete achievements and run patrols between quizzes.\n\n**Ranked rule:** Credits and shop items never buy Elo. Elo comes from competitive quiz performance.")],components:[backRow()]});return true;}
+  if(id==="game:how") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("How to Play").setDescription(`Play quizzes to earn Credits, XP and competitive Elo. Use Credits in the shop. Level up your profile, build streaks, complete achievements and run patrols between quizzes.\n\n**Ranked rule:** Credits and shop items never buy Elo. Elo comes from competitive quiz performance.`)],components:[backRow()]});return true;}
 
   if(id==="game:playmode"){
     const mode=interaction.values[0];
