@@ -222,3 +222,38 @@ export async function adminResetPlayer(userId) {
   await save();
   return state.players[String(userId)];
 }
+
+
+export async function incrementQuestProgress(userId, key, amount = 1) {
+  return mutatePlayer(userId, p => {
+    p.questProgress ||= {};
+    p.questProgress[key] = Number(p.questProgress[key] || 0) + amount;
+  });
+}
+
+export async function claimQuest(userId, quest) {
+  let result;
+  await mutatePlayer(userId, p => {
+    p.claimedQuests ||= [];
+    p.questProgress ||= {};
+    if (p.claimedQuests.includes(quest.id)) { result = { ok:false, reason:"claimed", profile:p }; return; }
+    if (Number(p.questProgress[quest.key] || 0) < quest.target) { result = { ok:false, reason:"progress", profile:p }; return; }
+    p.claimedQuests.push(quest.id);
+    p.credits += quest.credits;
+    p.lifetimeCredits += quest.credits;
+    p.xp += quest.xp;
+    p.seasonXp = Number(p.seasonXp || 0) + quest.seasonXp;
+    p.seasonTier = Math.max(1, Math.floor(p.seasonXp / 500) + 1);
+    result = { ok:true, profile:p };
+  });
+  return result;
+}
+
+export async function addCollectible(userId, collectibleId) {
+  let added = false;
+  await mutatePlayer(userId, p => {
+    p.collection ||= [];
+    if (!p.collection.includes(collectibleId)) { p.collection.push(collectibleId); added = true; }
+  });
+  return added;
+}
