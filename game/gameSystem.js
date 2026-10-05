@@ -484,30 +484,45 @@ export async function handleGameInteraction(interaction, options = {}){
     if(target==="how"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("❓ How to Play").setDescription("🎮 **Play quizzes** to earn Credits and XP.\n🏆 **Compete** in Extreme runs and Face Offs for Elo.\n🎯 **Complete missions** for bonus rewards and Season XP.\n🛰️ **Patrol** between quizzes for random encounters and collectibles.\n🛒 **Spend Credits** on titles and reaction styles.\n\nYour profile, collection, achievements and season all progress together.")],components:[backRow()]});return true;}
   }
   if(id==="game:home") {await interaction.update({embeds:[await homeEmbed(interaction.user)],components:homeRows()});return true;}
+  if(id==="game:operations"){await showOperations(interaction);return true;}
   if(id==="game:event"){
-    const events=[
-      ["🚨 CIS RAID","A CIS force pushes toward the city. You join the defence.",320,150],
-      ["💣 BOMB THREAT","A device is reported near a public route. Your team secures the area.",280,135],
-      ["🛡️ VIP ESCORT","You escort a Republic VIP through a hostile route.",350,165],
-      ["🤖 DROID SWARM","B1 units flood a checkpoint and you help clear them.",300,145],
-      ["📦 SUPPLY RECOVERY","Republic supplies have gone missing in the Wastelands.",260,125]
-    ];
-    const e=pick(events),bonus=Math.floor(Math.random()*151);
-    const now=Date.now(), current=await getPlayer(interaction.user.id), EVENT_CD=2*60*1000;
-    const remaining=EVENT_CD-(now-Number(current.lastEvent||0));
+    const now=Date.now(),p=await getPlayer(interaction.user.id),EVENT_CD=2*60*1000,remaining=EVENT_CD-(now-Number(p.lastEvent||0));
     if(remaining>0){await interaction.reply({content:`⚔️ Another operation will be ready in **${Math.ceil(remaining/60000)}m**.`,ephemeral:true});return true;}
-    await addRewards(interaction.user.id,{credits:e[2]+bonus,xp:e[3]});
-    await mutatePlayer(interaction.user.id,p=>{p.eventRuns=Number(p.eventRuns||0)+1;p.lastEvent=now;});
-    await interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle(e[0]).setDescription(`${e[1]}\n\n**MISSION COMPLETE**\n💳 +${fmt(e[2]+bonus)} Credits\n⭐ +${fmt(e[3])} XP`)],components:operationsRows()});return true;
+    const e=pick(OPERATION_EVENTS),baseCredits=randomBetween(e.credits),xp=randomBetween(e.xp),credits=Math.round(baseCredits*skillMultiplier(p,"event_pay"));
+    await mutatePlayer(interaction.user.id,x=>{x.credits+=credits;x.lifetimeCredits+=credits;x.xp+=xp;x.eventRuns=Number(x.eventRuns||0)+1;x.lastEvent=now;});
+    await incrementQuestProgress(interaction.user.id,"events",1);
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle(`${e.icon} ${e.name.toUpperCase()}`).setDescription(`${e.text}\n\n**MISSION COMPLETE**\n💳 +${fmt(credits)} Credits\n⭐ +${fmt(xp)} XP`)],components:operationsRows()});return true;
   }
-  if(id==="game:command"){
-    const p=await getPlayer(interaction.user.id);
-    const units=Object.values(p.commandUnits||{}).reduce((a,b)=>a+Number(b||0),0);
-    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏛️ COMMAND CENTRE").setDescription(`Build a passive command roster as you progress.\n\n**Officers recruited:** ${units}\n\nRecruitment tiers are being tied to Credits and level progression so this stays part of the same economy rather than becoming a separate game.`)],components:operationsRows()});return true;
+  if(id==="game:command"){await showCommandCentre(interaction);return true;}
+  if(id==="game:skills"){await showSkills(interaction);return true;}
+  if(id==="game:recruit"){
+    const unit=COMMAND_UNITS.find(x=>x.id===interaction.values[0]);if(!unit)return true;
+    const p=await getPlayer(interaction.user.id),lp=getLevelProgress(p);
+    if(lp.level<unit.level){await interaction.reply({content:`You need Level ${unit.level} for that officer.`,ephemeral:true});return true;}
+    if(p.credits<unit.cost){await interaction.reply({content:`You need ${fmt(unit.cost)} Credits.`,ephemeral:true});return true;}
+    await mutatePlayer(interaction.user.id,x=>{x.credits-=unit.cost;x.commandUnits||={};x.commandUnits[unit.id]=Number(x.commandUnits[unit.id]||0)+1;if(!x.commandIncomeAt)x.commandIncomeAt=Date.now();});
+    await showCommandCentre(interaction);return true;
+  }
+  if(id==="game:claimincome"){
+    const p=await getPlayer(interaction.user.id),rate=commandIncomePerHour(p);
+    if(rate<=0){await interaction.reply({content:"Recruit an officer first.",ephemeral:true});return true;}
+    const now=Date.now(),last=Number(p.commandIncomeAt||p.createdAt||now),hours=Math.min(12,Math.max(0,(now-last)/3600000)),credits=Math.floor(rate*hours);
+    if(credits<1){await interaction.reply({content:"Your command roster has not generated a full Credit yet.",ephemeral:true});return true;}
+    await mutatePlayer(interaction.user.id,x=>{x.credits+=credits;x.lifetimeCredits+=credits;x.commandIncomeAt=now;});
+    await interaction.reply({content:`💳 Command income claimed: **+${fmt(credits)} Credits**.`,ephemeral:true});return true;
+  }
+  if(id==="game:buyskill"){
+    const skill=SKILL_TREE.find(x=>x.id===interaction.values[0]);if(!skill)return true;
+    const p=await getPlayer(interaction.user.id),rank=skillRank(p,skill.id);
+    if(rank>=skill.max){await interaction.reply({content:"That skill is already maxed.",ephemeral:true});return true;}
+    const cost=skill.costs[rank];if(p.credits<cost){await interaction.reply({content:`You need ${fmt(cost)} Credits.`,ephemeral:true});return true;}
+    await mutatePlayer(interaction.user.id,x=>{x.credits-=cost;x.skillRanks||={};x.skillRanks[skill.id]=rank+1;});
+    await showSkills(interaction);return true;
   }
   if(id==="game:crateinfo"){
-    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("📦 SUPPLY CRATES").setDescription("Republic and CIS crates are available through the Shop. They can contain Credits, XP and collectible drops.")],components:operationsRows()});return true;
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("📦 SUPPLY CRATES").setDescription("Buy Republic or CIS crates in the Shop. Every crate has a rarity roll from Common to Legendary and pays Credits + XP. Rare rolls have a better chance to add a collectible.")],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:shop").setLabel("Open Shop").setEmoji("🛒").setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId("game:operations").setLabel("Operations").setStyle(ButtonStyle.Secondary))]});return true;
   }
+
   if(id==="game:play") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Play").setDescription("Pick a mode. Everything rewards the same profile.")],components:playMenu()});return true;}
   if(id==="game:profile") {await showProfile(interaction);return true;}
   if(id==="game:leaderboard") {await showLeaderboard(interaction);return true;}
