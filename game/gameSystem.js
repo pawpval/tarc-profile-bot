@@ -79,7 +79,8 @@ function homeRows(){
   const menu = new StringSelectMenuBuilder().setCustomId("game:navigate").setPlaceholder("🧭 Explore TARC Game").addOptions(
     {label:"Profile & Stats",description:"Levels, Elo, accuracy, streaks and recent runs.",value:"profile",emoji:"📊"},
     {label:"Progression",description:"Missions, achievements, collection and season.",value:"progression",emoji:"🏅"},
-    {label:"Shop",description:"Spend Credits on titles and reaction styles.",value:"shop",emoji:"🛒"},
+    {label:"Shop",description:"Titles, boosts, crates and reaction styles.",value:"shop",emoji:"🛒"},
+    {label:"Operations",description:"Interactive events and command progression.",value:"operations",emoji:"⚔️"},
     {label:"Leaderboards",description:"Compare Elo, Credits, XP and more.",value:"leaderboard",emoji:"🏆"},
     {label:"How to Play",description:"A quick explanation of the whole game.",value:"how",emoji:"❓"}
   );
@@ -99,6 +100,16 @@ function progressionRows(){
       new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setEmoji("🏅").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("game:collection").setLabel("Collection").setEmoji("💎").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("game:season").setLabel("Season").setEmoji("⭐").setStyle(ButtonStyle.Secondary)
+    ),
+    backRow()
+  ];
+}
+function operationsRows(){
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("game:event").setLabel("Dynamic Event").setEmoji("⚔️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("game:command").setLabel("Command Centre").setEmoji("🏛️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:crateinfo").setLabel("Supply Crates").setEmoji("📦").setStyle(ButtonStyle.Secondary)
     ),
     backRow()
   ];
@@ -436,11 +447,33 @@ export async function handleGameInteraction(interaction, options = {}){
     const target=interaction.values[0];
     if(target==="profile"){await showProfile(interaction);return true;}
     if(target==="shop"){await showShop(interaction);return true;}
+    if(target==="operations"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("⚔️ OPERATIONS").setDescription("Extra activities that feed your main profile. Run events, build your command roster and open supply crates.")],components:operationsRows()});return true;}
     if(target==="leaderboard"){await showLeaderboard(interaction);return true;}
     if(target==="progression"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏅 Progression").setDescription("Pick a progression system. Everything here builds from playing quizzes and patrols.")],components:progressionRows()});return true;}
     if(target==="how"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("❓ How to Play").setDescription("🎮 **Play quizzes** to earn Credits and XP.\n🏆 **Compete** in Extreme runs and Face Offs for Elo.\n🎯 **Complete missions** for bonus rewards and Season XP.\n🛰️ **Patrol** between quizzes for random encounters and collectibles.\n🛒 **Spend Credits** on titles and reaction styles.\n\nYour profile, collection, achievements and season all progress together.")],components:[backRow()]});return true;}
   }
   if(id==="game:home") {await interaction.update({embeds:[await homeEmbed(interaction.user)],components:homeRows()});return true;}
+  if(id==="game:event"){
+    const events=[
+      ["🚨 CIS RAID","A CIS force pushes toward the city. You join the defence.",320,150],
+      ["💣 BOMB THREAT","A device is reported near a public route. Your team secures the area.",280,135],
+      ["🛡️ VIP ESCORT","You escort a Republic VIP through a hostile route.",350,165],
+      ["🤖 DROID SWARM","B1 units flood a checkpoint and you help clear them.",300,145],
+      ["📦 SUPPLY RECOVERY","Republic supplies have gone missing in the Wastelands.",260,125]
+    ];
+    const e=pick(events),bonus=Math.floor(Math.random()*151);
+    await addRewards(interaction.user.id,{credits:e[2]+bonus,xp:e[3]});
+    await mutatePlayer(interaction.user.id,p=>{p.eventRuns=Number(p.eventRuns||0)+1;});
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle(e[0]).setDescription(`${e[1]}\n\n**MISSION COMPLETE**\n💳 +${fmt(e[2]+bonus)} Credits\n⭐ +${fmt(e[3])} XP`)],components:operationsRows()});return true;
+  }
+  if(id==="game:command"){
+    const p=await getPlayer(interaction.user.id);
+    const units=Object.values(p.commandUnits||{}).reduce((a,b)=>a+Number(b||0),0);
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏛️ COMMAND CENTRE").setDescription(`Build a passive command roster as you progress.\n\n**Officers recruited:** ${units}\n\nRecruitment tiers are being tied to Credits and level progression so this stays part of the same economy rather than becoming a separate game.`)],components:operationsRows()});return true;
+  }
+  if(id==="game:crateinfo"){
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("📦 SUPPLY CRATES").setDescription("Republic and CIS crates are available through the Shop. They can contain Credits, XP and collectible drops.")],components:operationsRows()});return true;
+  }
   if(id==="game:play") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Play").setDescription("Pick a mode. Everything rewards the same profile.")],components:playMenu()});return true;}
   if(id==="game:profile") {await showProfile(interaction);return true;}
   if(id==="game:leaderboard") {await showLeaderboard(interaction);return true;}
