@@ -298,7 +298,7 @@ async function finishFaceoff(interaction,s){
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x31c48d).setTitle("Face Off Complete").setDescription(desc)],components:[]});
 }
 
-export async function handleGameInteraction(interaction){
+export async function handleGameInteraction(interaction, options = {}){
   cleanSessions();
   if(interaction.isChatInputCommand()){
     if(interaction.commandName==="game"){
