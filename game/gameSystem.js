@@ -8,7 +8,8 @@ import {
 } from "discord.js";
 import {
   addRewards, adminResetPlayer, adminSetStat, claimDaily, completeQuiz, getLeaderboard,
-  getLevelProgress, getPlayer, mutatePlayer, purchaseItem, recordQuizAnswer
+  getLevelProgress, getPlayer, mutatePlayer, purchaseItem, recordQuizAnswer,
+  incrementQuestProgress, claimQuest, addCollectible
 } from "./gameState.js";
 import { ACHIEVEMENTS, GAME_STORE, GAME_QUESTS, COLLECTIBLES, SEASON_REWARDS, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
 import { getQuestionPool } from "./questions.js";
