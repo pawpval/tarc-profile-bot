@@ -462,8 +462,11 @@ export async function handleGameInteraction(interaction, options = {}){
       ["📦 SUPPLY RECOVERY","Republic supplies have gone missing in the Wastelands.",260,125]
     ];
     const e=pick(events),bonus=Math.floor(Math.random()*151);
+    const now=Date.now(), current=await getPlayer(interaction.user.id), EVENT_CD=2*60*1000;
+    const remaining=EVENT_CD-(now-Number(current.lastEvent||0));
+    if(remaining>0){await interaction.reply({content:`⚔️ Another operation will be ready in **${Math.ceil(remaining/60000)}m**.`,ephemeral:true});return true;}
     await addRewards(interaction.user.id,{credits:e[2]+bonus,xp:e[3]});
-    await mutatePlayer(interaction.user.id,p=>{p.eventRuns=Number(p.eventRuns||0)+1;});
+    await mutatePlayer(interaction.user.id,p=>{p.eventRuns=Number(p.eventRuns||0)+1;p.lastEvent=now;});
     await interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle(e[0]).setDescription(`${e[1]}\n\n**MISSION COMPLETE**\n💳 +${fmt(e[2]+bonus)} Credits\n⭐ +${fmt(e[3])} XP`)],components:operationsRows()});return true;
   }
   if(id==="game:command"){
