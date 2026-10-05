@@ -381,9 +381,14 @@ async function showCollection(interaction){
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(`Collection  ${owned.size}/${COLLECTIBLES.length}`).setDescription(lines.join("\n"))],components:[backRow()]});
 }
 async function showSeason(interaction){
-  const p=await getPlayer(interaction.user.id), tier=Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1), into=Number(p.seasonXp||0)%500;
-  const rewards=SEASON_REWARDS.map(r=>`${r.tier<=tier?"Unlocked":"Locked"}  **Tier ${r.tier}**  ${r.label}`).join("\n");
-  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Launch Season").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:[backRow()]});
+  const p=await getPlayer(interaction.user.id), tier=Math.min(SEASON_REWARDS.length,Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1)), into=Number(p.seasonXp||0)%500;
+  const claimed=new Set(p.claimedSeasonTiers||[]);
+  const rewards=SEASON_REWARDS.map(r=>`${claimed.has(r.tier)?"✅":r.tier<=tier?"🎁":"🔒"} **Tier ${r.tier}**  ${r.label}`).join("\n");
+  const ready=SEASON_REWARDS.filter(r=>r.tier<=tier&&!claimed.has(r.tier)&&(r.credits>0||r.xp>0));
+  const rows=[];
+  if(ready.length)rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("game:claimseason").setPlaceholder("Claim an unlocked season reward").addOptions(...ready.slice(0,25).map(r=>({label:`Tier ${r.tier} - ${r.label}`.slice(0,100),value:String(r.tier),description:`+${fmt(r.credits)} Credits +${fmt(r.xp)} XP`})))));
+  rows.push(backRow());
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("⭐ LAUNCH SEASON").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:rows});
 }
 
 export function getGameCommands(){
@@ -533,6 +538,12 @@ export async function handleGameInteraction(interaction, options = {}){
   if(id==="game:collection") {await showCollection(interaction);return true;}
   if(id==="game:season") {await showSeason(interaction);return true;}
   if(id==="game:daily") {await daily(interaction);return true;}
+  if(id==="game:claimseason"){
+    const tier=Number(interaction.values[0]),reward=SEASON_REWARDS.find(r=>r.tier===tier),p=await getPlayer(interaction.user.id),unlocked=Math.min(SEASON_REWARDS.length,Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1));
+    if(!reward||tier>unlocked||(p.claimedSeasonTiers||[]).includes(tier)){await interaction.reply({content:"That season reward is not available to claim.",ephemeral:true});return true;}
+    await mutatePlayer(interaction.user.id,x=>{x.claimedSeasonTiers||=[];x.claimedSeasonTiers.push(tier);x.credits+=reward.credits;x.lifetimeCredits+=reward.credits;x.xp+=reward.xp;});
+    await showSeason(interaction);return true;
+  }
   if(id==="game:how") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("How to Play").setDescription(`Play quizzes to earn Credits, XP and competitive Elo. Use Credits in the shop. Level up your profile, build streaks, complete achievements and run patrols between quizzes.\n\n**Ranked rule:** Credits and shop items never buy Elo. Elo comes from competitive quiz performance.`)],components:[backRow()]});return true;}
 
   if(id==="game:playmode"){
