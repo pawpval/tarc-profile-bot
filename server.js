@@ -1074,6 +1074,42 @@ function getGlobalAskCommand() {
   return command;
 }
 
+
+function makeEverywhereCommand(command) {
+  const json = command.toJSON();
+  // Deliberately identical to /ask's working User Install configuration.
+  json.integration_types = [0, 1];
+  json.contexts = [0, 1, 2];
+  json.dm_permission = true;
+  return json;
+}
+
+function getGlobalGameCommands() {
+  return [
+    makeEverywhereCommand(
+      new SlashCommandBuilder()
+        .setName("game")
+        .setDescription("Open the TARC game hub")
+    ),
+    makeEverywhereCommand(
+      new SlashCommandBuilder()
+        .setName("quiz")
+        .setDescription("Start a TARC game quiz")
+        .addUserOption(option =>
+          option
+            .setName("opponent")
+            .setDescription("Optional player to challenge")
+            .setRequired(false)
+        )
+    ),
+    makeEverywhereCommand(
+      new SlashCommandBuilder()
+        .setName("quizleaderboard")
+        .setDescription("Open the TARC game leaderboard")
+    )
+  ];
+}
+
 function getSlashCommands() {
   return [
     new SlashCommandBuilder()
@@ -1290,16 +1326,24 @@ client.once(Events.ClientReady, async () => {
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
     // Keep /ask global so it works through Guild Install and User Install.
-    const globalGameCommands = getGameCommands().filter(command => command.name !== "gameadmin");
-    const globalCommands = [getGlobalAskCommand(), ...globalGameCommands];
-    const registeredGlobalCommands = await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: globalCommands }
-    );
-    console.log("[DISCORD] Global commands registered:", registeredGlobalCommands.map(command => command.name).join(", "));
-    for (const command of registeredGlobalCommands) {
-      console.log(`[DISCORD] Global /${command.name} integrations=${JSON.stringify(command.integration_types || [])} contexts=${JSON.stringify(command.contexts || [])}`);
+    // Register the known-good /ask payload plus each player game command using the
+    // exact same User Install fields. Individual upserts prevent one command from
+    // blocking the rest of the global command set.
+    const globalCommands = [getGlobalAskCommand(), ...getGlobalGameCommands()];
+    const registeredGlobalCommands = [];
+    for (const command of globalCommands) {
+      try {
+        const registered = await rest.post(
+          Routes.applicationCommands(CLIENT_ID),
+          { body: command }
+        );
+        registeredGlobalCommands.push(registered);
+        console.log(`[DISCORD] Global /${registered.name} registered integrations=${JSON.stringify(registered.integration_types || [])} contexts=${JSON.stringify(registered.contexts || [])}`);
+      } catch (commandError) {
+        console.error(`[DISCORD] Global /${command.name} registration failed:`, commandError);
+      }
     }
+    console.log("[DISCORD] Global commands confirmed:", registeredGlobalCommands.map(command => command.name).join(", "));
 
     for (const guildId of GUILD_IDS) {
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
