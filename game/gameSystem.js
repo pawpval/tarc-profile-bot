@@ -233,7 +233,9 @@ async function doPatrol(interaction){
     return interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle("Patrol").setDescription(`You're still recovering from the last patrol. Try again in **${Math.ceil(sec/60)} minute(s)**.`)],components:[backRow()]});
   }
   const e=randomPatrol(), credits=randomBetween(e.credits), xp=randomBetween(e.xp);
-  await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});\n  await incrementQuestProgress(interaction.user.id,"patrols",1);\n  if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
+  await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});
+  await incrementQuestProgress(interaction.user.id,"patrols",1);
+  if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x31c48d).setTitle("Patrol Complete").setDescription(`${e.text}\n\n**+${fmt(credits)} Credits  +${fmt(xp)} XP**`)],components:[new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary)
@@ -408,7 +410,8 @@ export async function handleGameInteraction(interaction, options = {}){
     const embed=questionEmbed(s);embed.setFooter({text:result});
     await interaction.update({embeds:[embed],components:answerRows(s)});return true;
   }
-  if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}\n  if(id==="game:buy"){
+  if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}
+  if(id==="game:buy"){
     const item=findStoreItem(interaction.values[0]); if(!item){await interaction.reply({content:"That item no longer exists.",ephemeral:true});return true;}
     const r=await purchaseItem(interaction.user.id,item);
     if(!r.ok){await interaction.reply({content:r.reason==="owned"?"You already own that.":`You need ${fmt(item.price)} Credits for that.`,ephemeral:true});return true;}
