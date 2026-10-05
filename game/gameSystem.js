@@ -342,7 +342,7 @@ async function doPatrol(interaction){
     const sec=Math.ceil((PATROL_COOLDOWN-elapsed)/1000);
     return interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle("Patrol").setDescription(`You're still recovering from the last patrol. Try again in **${Math.ceil(sec/60)} minute(s)**.`)],components:[backRow()]});
   }
-  const encounter=randomPatrol(), e={...encounter}, credits=randomBetween(e.credits), xp=randomBetween(e.xp);
+  const encounter=randomPatrol(), e={...encounter}, credits=Math.round(randomBetween(e.credits)*skillMultiplier(p,"patrol_pay")), xp=randomBetween(e.xp);
   await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});
   await incrementQuestProgress(interaction.user.id,"patrols",1);
   if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
@@ -580,8 +580,10 @@ export async function handleGameInteraction(interaction, options = {}){
     const hadXpBoost=Number(pre.xpBoostCharges||0)>0;
     const oldStreak=Number(pre.currentStreak||0);
     let awardCredits=credits,awardXp=xp;
-    if(correct&&hadCreditBoost) awardCredits=Math.round(credits*1.5);
-    if(correct&&hadXpBoost) awardXp=Math.round(xp*1.5);
+    if(correct) awardCredits=Math.round(awardCredits*skillMultiplier(pre,"quiz_pay"));
+    if(correct) awardXp=Math.round(awardXp*skillMultiplier(pre,"quiz_xp"));
+    if(correct&&hadCreditBoost) awardCredits=Math.round(awardCredits*1.5);
+    if(correct&&hadXpBoost) awardXp=Math.round(awardXp*1.5);
     const shielded=!correct&&Number(pre.streakShields||0)>0&&oldStreak>0;
     await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits:awardCredits,xp:awardXp});
     if(correct&&(hadCreditBoost||hadXpBoost)){
@@ -615,9 +617,14 @@ export async function handleGameInteraction(interaction, options = {}){
         if(item.value==="credit_boost"){p.creditBoostCharges=Number(p.creditBoostCharges||0)+20;outcome="20 boosted Credit answers added.";}
         if(item.value==="streak_shield"){p.streakShields=Number(p.streakShields||0)+1;outcome="1 Streak Shield added.";}
         if(item.type==="crate"){
-          const credits=250+Math.floor(Math.random()*751),xp=75+Math.floor(Math.random()*226);
+          const drop=weightedCrateDrop(),credits=randomBetween(drop.credits),xp=randomBetween(drop.xp);
           p.credits+=credits;p.lifetimeCredits+=credits;p.xp+=xp;p.cratesOpened=Number(p.cratesOpened||0)+1;
-          outcome=`Crate opened: +${credits} Credits and +${xp} XP.`;
+          outcome=`${drop.rarity} crate: +${credits} Credits and +${xp} XP.`;
+          const chance=Math.min(0.75,0.10+(drop.rarity==="Legendary"?0.50:drop.rarity==="Epic"?0.35:drop.rarity==="Rare"?0.22:drop.rarity==="Uncommon"?0.12:0)+skillRank(p,"crate_luck")*0.08);
+          if(Math.random()<chance){
+            const missing=COLLECTIBLES.filter(c=>!(p.collection||[]).includes(c.id));
+            if(missing.length){const c=pick(missing);p.collection||=[];p.collection.push(c.id);outcome+=` Collectible found: ${c.name} (${c.rarity})!`;}
+          }
         }
         r={ok:true};
       });
