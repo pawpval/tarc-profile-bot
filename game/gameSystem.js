@@ -167,8 +167,8 @@ function difficultyRows(mode,scope,category="__all__"){
 function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="__all__",count=10}={}){
   let pool=getQuestionPool({scope,difficulty,category});
   if(mode==="extreme") pool=getQuestionPool({scope}).filter(q=>q.difficulty==="Hard"||q.difficulty==="Extreme");
-  if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty});}
-  if(mode==="starwars"){scope="starwars";pool=getQuestionPool({scope,difficulty});}
+  if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty,category});}
+  if(mode==="starwars"){scope="starwars";pool=getQuestionPool({scope,difficulty,category});}
   const questions=shuffle(pool).slice(0,Math.min(count,pool.length));
   const id=sid();
   const s={id,type:"solo",userId:String(userId),mode,scope,difficulty,category,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
