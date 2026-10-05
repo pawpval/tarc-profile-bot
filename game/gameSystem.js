@@ -311,6 +311,7 @@ async function showShop(interaction){
   const p=await getPlayer(interaction.user.id);
   const available=GAME_STORE.filter(i=>!p.inventory.includes(i.id)).slice(0,25);
   const owned=GAME_STORE.filter(i=>p.inventory.includes(i.id));
+  const equippable=owned.filter(i=>i.type==="title"||i.type==="answerStyle");
   const embed=new EmbedBuilder().setColor(0x2b7fff).setTitle("Game Shop").setDescription([
     `Credits: **${fmt(p.credits)}**`,
     "",
@@ -326,9 +327,9 @@ async function showShop(interaction){
     );
     components.push(new ActionRowBuilder().addComponents(menu));
   }
-  if(owned.length){
+  if(equippable.length){
     const equip=new StringSelectMenuBuilder().setCustomId("game:equip").setPlaceholder("Equip something you own").addOptions(
-      ...owned.map(i=>({label:i.name,description:i.description.slice(0,100),value:i.id}))
+      ...equippable.map(i=>({label:i.name,description:i.description.slice(0,100),value:i.id}))
     );
     components.push(new ActionRowBuilder().addComponents(equip));
   }
@@ -483,7 +484,7 @@ export async function handleGameInteraction(interaction, options = {}){
     const target=interaction.values[0];
     if(target==="profile"){await showProfile(interaction);return true;}
     if(target==="shop"){await showShop(interaction);return true;}
-    if(target==="operations"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("⚔️ OPERATIONS").setDescription("Extra activities that feed your main profile. Run events, build your command roster and open supply crates.")],components:operationsRows()});return true;}
+    if(target==="operations"){await showOperations(interaction);return true;}
     if(target==="leaderboard"){await showLeaderboard(interaction);return true;}
     if(target==="progression"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏅 Progression").setDescription("Pick a progression system. Everything here builds from playing quizzes and patrols.")],components:progressionRows()});return true;}
     if(target==="how"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("❓ How to Play").setDescription("🎮 **Play quizzes** to earn Credits and XP.\n🏆 **Compete** in Extreme runs and Face Offs for Elo.\n🎯 **Complete missions** for bonus rewards and Season XP.\n🛰️ **Patrol** between quizzes for random encounters and collectibles.\n🛒 **Spend Credits** on titles and reaction styles.\n\nYour profile, collection, achievements and season all progress together.")],components:[backRow()]});return true;}
