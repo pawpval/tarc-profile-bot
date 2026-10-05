@@ -146,18 +146,25 @@ function setupRows(mode){
 }
 function categoryRows(mode,scope){
   const cats=getQuestionCategories(scope).slice(0,24);
-  const options=[{label:"Mixed categories",value:"Mixed"},...cats.map(c=>({label:c.slice(0,100),value:c.slice(0,100)}))];
+  const options=[
+    {label:"All Categories",description:"Questions from every available category.",value:"__all__"},
+    ...cats.map(c=>({label:c.slice(0,100),value:c.slice(0,100)}))
+  ];
   return [new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder().setCustomId(`quiz:category:${mode}:${scope}`).setPlaceholder("Choose a category").addOptions(...options)
   ),backRow()];
 }
-function difficultyRows(mode,scope,category="Mixed"){
-  const select = new StringSelectMenuBuilder().setCustomId(`quiz:difficulty:${mode}:${scope}:${encodeURIComponent(category)}`).setPlaceholder("Choose difficulty").addOptions(
-    {label:"Random",value:"Random"},{label:"Easy",value:"Easy"},{label:"Medium",value:"Medium"},{label:"Hard",value:"Hard"},{label:"Extreme",value:"Extreme"}
-  );
+function difficultyRows(mode,scope,category="__all__"){
+  const pool=getQuestionPool({scope,category});
+  const available=new Set(pool.map(q=>q.difficulty));
+  const choices=[{label:"Random",value:"Random"}];
+  for(const difficulty of ["Easy","Medium","Hard","Extreme"]){
+    if(available.has(difficulty)) choices.push({label:difficulty,value:difficulty});
+  }
+  const select = new StringSelectMenuBuilder().setCustomId(`quiz:difficulty:${mode}:${scope}:${encodeURIComponent(category)}`).setPlaceholder("Choose difficulty").addOptions(...choices);
   return [new ActionRowBuilder().addComponents(select),backRow()];
 }
-function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="Mixed",count=10}={}){
+function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="__all__",count=10}={}){
   let pool=getQuestionPool({scope,difficulty,category});
   if(mode==="extreme") pool=getQuestionPool({scope}).filter(q=>q.difficulty==="Hard"||q.difficulty==="Extreme");
   if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty});}
@@ -462,7 +469,7 @@ export async function handleGameInteraction(interaction, options = {}){
     await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Choose Difficulty").setDescription("Easy, Medium, Hard, Extreme or Random.")],components:difficultyRows(mode,scope,category)});return true;
   }
   if(id.startsWith("quiz:difficulty:")){
-    const parts=id.split(":"), mode=parts[2],scope=parts[3],category=decodeURIComponent(parts.slice(4).join(":")||"Mixed"), difficulty=interaction.values[0];
+    const parts=id.split(":"), mode=parts[2],scope=parts[3],category=decodeURIComponent(parts.slice(4).join(":")||"__all__"), difficulty=interaction.values[0];
     const s=makeQuestionSession(interaction.user.id,{mode,scope,difficulty,category,count:10});
     if(!s.questions.length){sessions.delete(s.id);await interaction.update({content:"No questions are available for that combination yet.",embeds:[],components:[backRow()]});return true;}
     await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
