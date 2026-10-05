@@ -124,6 +124,27 @@ function operationsRows(){
     backRow()
   ];
 }
+async function showCommandCentre(interaction){
+  const p=await getPlayer(interaction.user.id),lp=getLevelProgress(p),income=commandIncomePerHour(p);
+  const lines=COMMAND_UNITS.map(u=>{const n=Number(p.commandUnits?.[u.id]||0),locked=lp.level<u.level;return `${locked?"🔒":"🪖"} **${u.name}**  x${n}\n${fmt(u.cost)} Credits  •  +${fmt(u.income)}/hr  •  Level ${u.level}`;});
+  const available=COMMAND_UNITS.filter(u=>lp.level>=u.level&&p.credits>=u.cost);
+  const rows=[];
+  if(available.length) rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("game:recruit").setPlaceholder("Recruit an officer").addOptions(...available.map(u=>({label:`${u.name} - ${fmt(u.cost)} Credits`.slice(0,100),value:u.id,description:`Adds ${fmt(u.income)} Credits/hour to Command Income`})))));
+  rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:claimincome").setLabel("Claim Income").setEmoji("💳").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId("game:operations").setLabel("Operations").setStyle(ButtonStyle.Secondary)));
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏛️ COMMAND CENTRE").setDescription([`Build an officer roster that earns Credits while you play and while you're away.`,`\n**Income:** ${fmt(income)} Credits/hour`,`**Balance:** ${fmt(p.credits)} Credits\n`,...lines].join("\n").slice(0,4000))],components:rows});
+}
+async function showSkills(interaction){
+  const p=await getPlayer(interaction.user.id);
+  const lines=SKILL_TREE.map(x=>{const r=skillRank(p,x.id),max=r>=x.max,cost=max?0:x.costs[r];return `${max?"✅":"🌿"} **${x.name}**  ${r}/${x.max}\n${x.description}${max?"  MAX":`  Next: ${fmt(cost)} Credits`}`;});
+  const buyable=SKILL_TREE.filter(x=>skillRank(p,x.id)<x.max);
+  const rows=[];
+  if(buyable.length)rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("game:buyskill").setPlaceholder("Upgrade a skill").addOptions(...buyable.map(x=>{const r=skillRank(p,x.id);return {label:`${x.name} ${r+1}/${x.max} - ${fmt(x.costs[r])}`.slice(0,100),value:x.id,description:x.description.slice(0,100)};}))));
+  rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:operations").setLabel("Operations").setStyle(ButtonStyle.Secondary)));
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🌳 SKILL TREE").setDescription(`Credits: **${fmt(p.credits)}**\n\n${lines.join("\n\n")}`.slice(0,4000))],components:rows});
+}
+async function showOperations(interaction){
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("⚔️ OPERATIONS").setDescription("Run dynamic missions, build your Command Centre, open supply crates and upgrade permanent skills. Everything feeds your main profile.")],components:operationsRows()});
+}
 async function homeEmbed(user){
   const p=await getPlayer(user.id);
   const lp=getLevelProgress(p);
