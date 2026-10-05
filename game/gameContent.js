@@ -106,3 +106,39 @@ export const SEASON_REWARDS = [
   {tier:9,credits:2500,xp:600,label:"2,500 Credits"},
   {tier:10,credits:4000,xp:1000,label:"Season Veteran"}
 ];
+
+
+export const COMMAND_UNITS = [
+  {id:"second_lieutenant",name:"Second Lieutenant",cost:1200,income:45,level:2},
+  {id:"lieutenant",name:"Lieutenant",cost:2600,income:95,level:4},
+  {id:"captain",name:"Captain",cost:5200,income:190,level:7},
+  {id:"major",name:"Major",cost:9500,income:340,level:11},
+  {id:"lieutenant_colonel",name:"Lieutenant Colonel",cost:16500,income:575,level:16},
+  {id:"colonel",name:"Colonel",cost:28000,income:950,level:22}
+];
+
+export const SKILL_TREE = [
+  {id:"quiz_pay",name:"Field Pay",description:"+10% Credits from correct quiz answers per rank.",max:3,costs:[1500,3500,7000]},
+  {id:"quiz_xp",name:"Combat Training",description:"+10% XP from correct quiz answers per rank.",max:3,costs:[1500,3500,7000]},
+  {id:"patrol_pay",name:"Patrol Logistics",description:"+10% Credits from patrols per rank.",max:3,costs:[1800,4000,8000]},
+  {id:"event_pay",name:"Operational Command",description:"+10% Credits from dynamic events per rank.",max:3,costs:[2000,4500,9000]},
+  {id:"crate_luck",name:"Salvage Training",description:"Improves collectible chances from supply crates.",max:3,costs:[2200,5000,10000]}
+];
+
+export const OPERATION_EVENTS = [
+  {id:"cis_raid",name:"CIS Raid",icon:"🚨",text:"A CIS force pushes toward the city. You join the defence.",credits:[300,470],xp:[130,200]},
+  {id:"bomb",name:"Bomb Threat",icon:"💣",text:"A device is reported near a public route. Your team secures the area.",credits:[260,420],xp:[120,185]},
+  {id:"vip",name:"VIP Escort",icon:"🛡️",text:"You escort a Republic VIP through a hostile route.",credits:[330,510],xp:[145,215]},
+  {id:"droids",name:"Droid Swarm",icon:"🤖",text:"B1 units flood a checkpoint and you help clear them.",credits:[290,460],xp:[125,195]},
+  {id:"supplies",name:"Supply Recovery",icon:"📦",text:"Republic supplies have gone missing in the Wastelands.",credits:[250,430],xp:[115,180]},
+  {id:"sewers",name:"Sewer Sweep",icon:"🔦",text:"Hostile movement is reported beneath the city. You clear the route.",credits:[310,480],xp:[135,205]},
+  {id:"terminal",name:"Terminal Defence",icon:"⚔️",text:"The terminal comes under attack. You reinforce the defenders.",credits:[340,530],xp:[150,225]}
+];
+
+export const CRATE_DROPS = [
+  {rarity:"Common",weight:55,credits:[200,450],xp:[60,120]},
+  {rarity:"Uncommon",weight:28,credits:[450,800],xp:[120,210]},
+  {rarity:"Rare",weight:12,credits:[800,1400],xp:[210,340]},
+  {rarity:"Epic",weight:4,credits:[1400,2300],xp:[340,520]},
+  {rarity:"Legendary",weight:1,credits:[2500,4000],xp:[600,900]}
+];
