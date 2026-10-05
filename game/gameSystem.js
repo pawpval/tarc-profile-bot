@@ -127,6 +127,7 @@ function backRow(){
 }
 function playMenu(){
   const select = new StringSelectMenuBuilder().setCustomId("game:playmode").setPlaceholder("Choose a game mode").addOptions(
+    {label:"⚡ Quick Play",description:"Jump straight into 10 varied questions and grind.",value:"quickplay"},
     {label:"Classic Quiz",description:"10 questions. Pick a category and difficulty.",value:"classic"},
     {label:"Quickfire",description:"10 mixed questions with bigger score rewards.",value:"quickfire"},
     {label:"Survival",description:"Keep going until you get one wrong.",value:"survival"},
@@ -169,7 +170,10 @@ function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Ra
   if(mode==="extreme") pool=getQuestionPool({scope}).filter(q=>q.difficulty==="Hard"||q.difficulty==="Extreme");
   if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty,category});}
   if(mode==="starwars"){scope="starwars";pool=getQuestionPool({scope,difficulty,category});}
-  const questions=shuffle(pool).slice(0,Math.min(count,pool.length));
+  const recent=[...sessions.values()].filter(x=>x.userId===String(userId)).flatMap(x=>x.questions||[]).map(q=>q.id);
+  const unseen=pool.filter(q=>!recent.includes(q.id));
+  const source=unseen.length>=Math.min(count,pool.length)?unseen:pool;
+  const questions=shuffle(source).slice(0,Math.min(count,source.length));
   const id=sid();
   const s={id,type:"solo",userId:String(userId),mode,scope,difficulty,category,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
   sessions.set(id,s);
@@ -451,6 +455,10 @@ export async function handleGameInteraction(interaction, options = {}){
 
   if(id==="game:playmode"){
     const mode=interaction.values[0];
+    if(mode==="quickplay"){
+      const s=makeQuestionSession(interaction.user.id,{mode:"quickplay",scope:"mixed",difficulty:"Random",category:"__all__",count:10});
+      await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
+    }
     if(mode==="extreme"){
       const s=makeQuestionSession(interaction.user.id,{mode,scope:"mixed",difficulty:"Random"});
       await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
