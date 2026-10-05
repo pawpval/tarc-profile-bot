@@ -251,12 +251,19 @@ export const TARC_QUESTIONS = [
 
 export const ALL_QUESTIONS = [...STAR_WARS_QUESTIONS, ...TARC_QUESTIONS];
 
-export function getQuestionPool({ scope = "mixed", difficulty = "Random" } = {}) {
+export function getQuestionPool({ scope = "mixed", difficulty = "Random", category = null } = {}) {
   let pool = ALL_QUESTIONS;
   if (scope === "starwars") pool = STAR_WARS_QUESTIONS;
   if (scope === "tarc") pool = TARC_QUESTIONS;
+  if (category && category !== "Mixed") pool = pool.filter(item => item.category === category);
   if (difficulty && difficulty !== "Random") {
     pool = pool.filter(item => item.difficulty === difficulty);
   }
   return pool;
+}
+
+
+export function getQuestionCategories(scope = "mixed") {
+  const pool = scope === "starwars" ? STAR_WARS_QUESTIONS : scope === "tarc" ? TARC_QUESTIONS : ALL_QUESTIONS;
+  return [...new Set(pool.map(item => item.category))].sort();
 }
