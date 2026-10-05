@@ -1307,6 +1307,18 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  try {
+    if (await handleGameInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
+  } catch (err) {
+    console.error("[TARC GAME] Interaction failed:", err);
+    const payload = { content: "That game action failed. Try again.", ephemeral: true };
+    try {
+      if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+      else await interaction.reply(payload);
+    } catch {}
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "ask") {
