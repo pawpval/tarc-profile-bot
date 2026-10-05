@@ -177,8 +177,9 @@ function questionEmbed(s){
 function answerRows(s){
   const item=s.questions[s.index];
   const answers=shuffle([item.correct,...item.wrong]).slice(0,4);
+  s.answerChoices=answers;
   return [new ActionRowBuilder().addComponents(...answers.map((answer,i)=>
-    new ButtonBuilder().setCustomId(`quiz:answer:${s.id}:${i}:${encodeURIComponent(answer).slice(0,60)}`).setLabel(answer.slice(0,80)).setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(`quiz:answer:${s.id}:${i}`).setLabel(answer.slice(0,80)).setStyle(ButtonStyle.Secondary)
   ))];
 }
 async function finishSolo(interaction,s){
@@ -355,7 +356,10 @@ function faceoffQuestion(s){
 }
 function faceoffRows(s){
   const item=s.questions[s.index], answers=shuffle([item.correct,...item.wrong]).slice(0,4);
-  return [new ActionRowBuilder().addComponents(...answers.map((a,i)=>new ButtonBuilder().setCustomId(`faceoff:answer:${s.id}:${i}:${encodeURIComponent(a).slice(0,60)}`).setLabel(a.slice(0,80)).setStyle(ButtonStyle.Secondary)))];
+  s.answerChoices=answers;
+  return [new ActionRowBuilder().addComponents(...answers.map((a,i)=>
+    new ButtonBuilder().setCustomId(`faceoff:answer:${s.id}:${i}`).setLabel(a.slice(0,80)).setStyle(ButtonStyle.Secondary)
+  ))];
 }
 async function finishFaceoff(interaction,s){
   const a=s.challenger,b=s.opponent, as=s.scores[a],bs=s.scores[b];
@@ -443,7 +447,9 @@ export async function handleGameInteraction(interaction, options = {}){
     if(s.userId!==interaction.user.id){await interaction.reply({content:"This quiz belongs to someone else.",ephemeral:true});return true;}
     if(s.answered){await interaction.reply({content:"Already answered.",ephemeral:true});return true;}
     s.answered=true;
-    const answer=decodeURIComponent(parts.slice(4).join(":")), item=s.questions[s.index], correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
+    const choiceIndex=Number(parts[3]), item=s.questions[s.index], answer=s.answerChoices?.[choiceIndex];
+    if(typeof answer!=="string"){await interaction.reply({content:"That answer button expired. Start the question again.",ephemeral:true});return true;}
+    const correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
     await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});
@@ -490,7 +496,9 @@ export async function handleGameInteraction(interaction, options = {}){
     const uid=interaction.user.id;if(uid!==s.challenger&&uid!==s.opponent){await interaction.reply({content:"You're not in this face off.",ephemeral:true});return true;}
     s.answers[s.index] ||= {};
     if(s.answers[s.index][uid]){await interaction.reply({content:"You've already answered this question.",ephemeral:true});return true;}
-    const answer=decodeURIComponent(parts.slice(4).join(":")),item=s.questions[s.index],correct=answer===item.correct,reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
+    const choiceIndex=Number(parts[3]),item=s.questions[s.index],answer=s.answerChoices?.[choiceIndex];
+    if(typeof answer!=="string"){await interaction.reply({content:"That answer button expired.",ephemeral:true});return true;}
+    const correct=answer===item.correct,reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     s.answers[s.index][uid]={answer,correct};if(correct){s.correct[uid]+=1;s.scores[uid]+=reward.score;}
     await recordQuizAnswer(uid,{correct,category:item.category,difficulty:item.difficulty,credits:correct?reward.credits:0,xp:correct?reward.xp:3});
     const both=s.answers[s.index][s.challenger]&&s.answers[s.index][s.opponent];
