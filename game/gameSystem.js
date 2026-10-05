@@ -50,6 +50,31 @@ function progressBar(current, needed, size=10){
   const filled=Math.max(0,Math.min(size,Math.round((current/Math.max(1,needed))*size)));
   return `[${"#".repeat(filled)}${".".repeat(size-filled)}]`;
 }
+
+function pick(items){ return items[Math.floor(Math.random()*items.length)]; }
+function resultReaction(profile, correct, item){
+  const style=profile?.equippedAnswerStyle || "standard";
+  const sets={
+    standard:{
+      good:["Correct.","Nice one.","Got it.","Clean answer.","Yep, that's right."],
+      bad:["Not this time.","Missed it.","Close one.","That one got you.","Wrong answer."]
+    },
+    republic:{
+      good:["For the Republic. Correct.","Good work, trooper.","Republic intelligence checks out.","Clean hit."],
+      bad:["Back to the briefing room.","That intel was off.","Missed the target.","The Republic expects a retry."]
+    },
+    cis:{
+      good:["Roger roger. Correct.","Tactical droid approved.","Efficient answer.","The calculation was correct."],
+      bad:["Roger roger... no.","Recalculate that one.","Tactical error.","That answer malfunctioned."]
+    },
+    fire:{
+      good:["You're cooking.","Still on fire.","That was clean.","Locked in."],
+      bad:["Streak breaker.","That one cooled you off.","Rough one.","Run it back."]
+    }
+  };
+  const set=sets[style]||sets.standard;
+  return correct ? pick(set.good) : `${pick(set.bad)} Correct answer: **${item.correct}**.`;
+}
 function homeRows(){
   return [
     new ActionRowBuilder().addComponents(
@@ -431,8 +456,7 @@ export async function handleGameInteraction(interaction, options = {}){
     }
     s.index+=1;s.answered=false;
     if(s.index>=s.questions.length)return finishSolo(interaction,s);
-    const result=correct?`Correct. **+${credits} Credits  +${xp} XP**`:`Wrong. The answer was **${item.correct}**.`;
-    const embed=questionEmbed(s);embed.setFooter({text:result});
+    const reaction=resultReaction(qp,correct,item);\n    const result=correct?`${reaction} +${credits} Credits, +${xp} XP`:reaction;\n    const embed=questionEmbed(s);embed.setFooter({text:result});
     await interaction.update({embeds:[embed],components:answerRows(s)});return true;
   }
   if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}
