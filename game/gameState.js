@@ -87,6 +87,7 @@ export async function getPlayer(userId) {
     await save();
   }
   const p = state.players[id];
+  for (const [key,value] of Object.entries(cloneDefault())) { if (p[key] === undefined) p[key] = value; }
   p.level = levelFromXp(p.xp);
   return p;
 }
