@@ -1047,8 +1047,12 @@ function getGlobalAskCommand() {
     )
     .toJSON();
 
+  // /ask is the one command that is deliberately available everywhere.
+  // 0 = server install, 1 = user install.
+  // 0 = server channel, 1 = bot DM, 2 = private/group DM.
   command.integration_types = [0, 1];
   command.contexts = [0, 1, 2];
+  command.dm_permission = true;
 
   return command;
 }
