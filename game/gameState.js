@@ -41,6 +41,13 @@ const DEFAULT_PROFILE = {
   seasonTier: 1,
   raidEnergy: 5,
   lastEnergyAt: 0,
+  xpBoostCharges: 0,
+  creditBoostCharges: 0,
+  streakShields: 0,
+  commandUnits: {},
+  commandIncomeAt: 0,
+  eventRuns: 0,
+  cratesOpened: 0,
   createdAt: 0,
   updatedAt: 0
 };
