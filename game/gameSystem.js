@@ -279,11 +279,11 @@ async function showSeason(interaction){
 
 export function getGameCommands(){
   return [
-    new SlashCommandBuilder().setName("game").setDescription("Open the TARC game hub").toJSON(),
-    new SlashCommandBuilder().setName("quiz").setDescription("Start a quiz or challenge another player")
+    new SlashCommandBuilder().setName("game").setDescription("🎮 Open the TARC game hub").toJSON(),
+    new SlashCommandBuilder().setName("quiz").setDescription("🧠 Start a quiz or challenge another player")
       .addUserOption(o=>o.setName("opponent").setDescription("Optional player to challenge").setRequired(false)).toJSON(),
-    new SlashCommandBuilder().setName("quizleaderboard").setDescription("Open the quiz leaderboard").toJSON(),
-    new SlashCommandBuilder().setName("gameadmin").setDescription("Owner-only game controls")
+    new SlashCommandBuilder().setName("quizleaderboard").setDescription("🏆 Open the quiz leaderboard").toJSON(),
+    new SlashCommandBuilder().setName("gameadmin").setDescription("🎮 Owner-only game controls")
       .addUserOption(o=>o.setName("player").setDescription("Player to edit").setRequired(true))
       .addStringOption(o=>o.setName("stat").setDescription("Stat to edit").setRequired(true).addChoices(
         {name:"Credits",value:"credits"},{name:"XP",value:"xp"},{name:"Elo",value:"elo"},{name:"Correct Answers",value:"correctAnswers"},{name:"Quizzes Completed",value:"quizzesCompleted"},{name:"Best Streak",value:"bestStreak"}
