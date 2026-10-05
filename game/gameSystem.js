@@ -194,6 +194,9 @@ async function finishSolo(interaction,s){
   const accuracy=pct(s.correct,s.questions.length);
   const completionCredits=Math.round(s.score*0.18);
   const completionXp=Math.round(s.score*0.10);
+  const before=await getPlayer(s.userId);
+  const beforeLevel=getLevelProgress(before).level;
+  const beforeAchievements=new Set(earnedAchievements(before).map(a=>a.id));
   await addRewards(s.userId,{credits:completionCredits,xp:completionXp});
   let eloDelta=0;
   const ranked=s.mode==="extreme";
@@ -204,13 +207,20 @@ async function finishSolo(interaction,s){
   await incrementQuestProgress(s.userId,"quizzes",1);
   sessions.delete(s.id);
   const p=await getPlayer(s.userId);
-  const embed=new EmbedBuilder().setColor(accuracy>=70?0x31c48d:0xff9500).setTitle("Quiz Complete").setDescription([
-    `Score: **${s.correct}/${s.questions.length}**  ${accuracy}%`,
-    `Quiz Score: **${fmt(s.score)}**`,
-    `Rewards: **+${fmt(completionCredits)} Credits  +${fmt(completionXp)} XP**`,
-    ranked ? `Elo: **${eloDelta>=0?"+":""}${eloDelta}**  New Elo: **${fmt(p.elo)}**` : null,
+  const afterLevel=getLevelProgress(p).level;
+  const unlocked=earnedAchievements(p).filter(a=>!beforeAchievements.has(a.id));
+  const moments=[
+    accuracy===100?"💯 **PERFECT RUN!**":accuracy>=80?"🔥 **STRONG RUN!**":accuracy>=60?"⚡ **RUN COMPLETE**":"🎯 **RUN COMPLETE**",
+    afterLevel>beforeLevel?`⬆️ **LEVEL UP!** You reached Level ${afterLevel}.`:null,
+    ...unlocked.slice(0,3).map(a=>`🏅 **ACHIEVEMENT UNLOCKED:** ${a.name}`)
+  ].filter(Boolean);
+  const embed=new EmbedBuilder().setColor(accuracy>=70?0x31c48d:0xff9500).setTitle("🏁 QUIZ COMPLETE").setDescription([
+    moments.join("\n"),
     "",
-    accuracy===100?"Perfect run.":accuracy>=80?"Strong run.":accuracy>=60?"Not bad. Run it again and beat it.":"That one hurt. Try another category."
+    `**RESULT**  ${s.correct}/${s.questions.length}  •  ${accuracy}%`,
+    `**SCORE**  ${fmt(s.score)}`,
+    `**REWARDS**  +${fmt(completionCredits)} Credits  •  +${fmt(completionXp)} XP`,
+    ranked ? `**ELO**  ${eloDelta>=0?"+":""}${eloDelta}  •  ${fmt(p.elo)} total` : null
   ].filter(Boolean).join("\n"));
   return interaction.update({embeds:[embed],components:[new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("game:play").setLabel("Play Again").setStyle(ButtonStyle.Primary),
