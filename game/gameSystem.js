@@ -527,16 +527,18 @@ export async function handleGameInteraction(interaction, options = {}){
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
     const pre=await getPlayer(s.userId);
-    let awardCredits=credits,awardXp=xp;
-    if(correct&&Number(pre.creditBoostCharges||0)>0) awardCredits=Math.round(credits*1.5);
-    if(correct&&Number(pre.xpBoostCharges||0)>0) awardXp=Math.round(xp*1.5);
-    const shielded=!correct&&Number(pre.streakShields||0)>0&&Number(pre.currentStreak||0)>0;
+    const hadCreditBoost=Number(pre.creditBoostCharges||0)>0;
+    const hadXpBoost=Number(pre.xpBoostCharges||0)>0;
     const oldStreak=Number(pre.currentStreak||0);
+    let awardCredits=credits,awardXp=xp;
+    if(correct&&hadCreditBoost) awardCredits=Math.round(credits*1.5);
+    if(correct&&hadXpBoost) awardXp=Math.round(xp*1.5);
+    const shielded=!correct&&Number(pre.streakShields||0)>0&&oldStreak>0;
     await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits:awardCredits,xp:awardXp});
-    if(correct&&(Number(pre.creditBoostCharges||0)>0||Number(pre.xpBoostCharges||0)>0)){
-      await mutatePlayer(s.userId,p=>{if(Number(p.creditBoostCharges||0)>0)p.creditBoostCharges-=1;if(Number(p.xpBoostCharges||0)>0)p.xpBoostCharges-=1;});
+    if(correct&&(hadCreditBoost||hadXpBoost)){
+      await mutatePlayer(s.userId,p=>{if(hadCreditBoost&&Number(p.creditBoostCharges||0)>0)p.creditBoostCharges-=1;if(hadXpBoost&&Number(p.xpBoostCharges||0)>0)p.xpBoostCharges-=1;});
     }
-    if(shielded) await mutatePlayer(s.userId,p=>{p.streakShields-=1;p.currentStreak=oldStreak;});
+    if(shielded) await mutatePlayer(s.userId,p=>{p.streakShields=Math.max(0,Number(p.streakShields||0)-1);p.currentStreak=oldStreak;});
     await incrementQuestProgress(s.userId,"answers",1);
     if(correct) await incrementQuestProgress(s.userId,"correct",1);
     const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
