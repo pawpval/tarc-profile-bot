@@ -10,7 +10,7 @@ import {
   addRewards, adminResetPlayer, adminSetStat, claimDaily, completeQuiz, getLeaderboard,
   getLevelProgress, getPlayer, mutatePlayer, purchaseItem, recordQuizAnswer
 } from "./gameState.js";
-import { ACHIEVEMENTS, GAME_STORE, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
+import { ACHIEVEMENTS, GAME_STORE, GAME_QUESTS, COLLECTIBLES, SEASON_REWARDS, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
 import { getQuestionPool } from "./questions.js";
 
 const sessions = new Map();
@@ -52,16 +52,16 @@ function progressBar(current, needed, size=10){
 function homeRows(){
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:play").setLabel("Play").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:shop").setLabel("Shop").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:leaderboard").setLabel("Leaderboard").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:daily").setLabel("Daily").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId("game:play").setEmoji("🎮").setLabel("Play").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("game:profile").setEmoji("👤").setLabel("Profile").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:shop").setEmoji("🛒").setLabel("Shop").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:leaderboard").setEmoji("🏆").setLabel("Leaderboard").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:daily").setEmoji("🎁").setLabel("Daily").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:patrol").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:how").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("game:patrol").setEmoji("🛰️").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:achievements").setEmoji("🏅").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:how").setEmoji("❓").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -84,7 +84,7 @@ async function homeEmbed(user){
     ].join("\n"));
 }
 function backRow(){
-  return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary));
+  return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary));
 }
 function playMenu(){
   const select = new StringSelectMenuBuilder().setCustomId("game:playmode").setPlaceholder("Choose a game mode").addOptions(
@@ -151,7 +151,7 @@ async function finishSolo(interaction,s){
   if(ranked){
     eloDelta=Math.max(-20,Math.min(35,Math.round((accuracy-60)/2)));
   }
-  await completeQuiz(s.userId,{score:s.correct,total:s.questions.length,ranked,won:accuracy>=70,eloDelta,mode:s.mode});
+  await completeQuiz(s.userId,{score:s.correct,total:s.questions.length,ranked,won:accuracy>=70,eloDelta,mode:s.mode});\n  await incrementQuestProgress(s.userId,"quizzes",1);
   sessions.delete(s.id);
   const p=await getPlayer(s.userId);
   const embed=new EmbedBuilder().setColor(accuracy>=70?0x31c48d:0xff9500).setTitle("Quiz Complete").setDescription([
@@ -164,7 +164,7 @@ async function finishSolo(interaction,s){
   ].filter(Boolean).join("\n"));
   return interaction.update({embeds:[embed],components:[new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("game:play").setLabel("Play Again").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary)
   )]});
 }
 async function showProfile(interaction,user=interaction.user){
@@ -232,10 +232,10 @@ async function doPatrol(interaction){
     return interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle("Patrol").setDescription(`You're still recovering from the last patrol. Try again in **${Math.ceil(sec/60)} minute(s)**.`)],components:[backRow()]});
   }
   const e=randomPatrol(), credits=randomBetween(e.credits), xp=randomBetween(e.xp);
-  await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});
+  await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});\n  await incrementQuestProgress(interaction.user.id,"patrols",1);\n  if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x31c48d).setTitle("Patrol Complete").setDescription(`${e.text}\n\n**+${fmt(credits)} Credits  +${fmt(xp)} XP**`)],components:[new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("game:profile").setEmoji("👤").setLabel("Profile").setStyle(ButtonStyle.Secondary)
   )]});
 }
 async function showAchievements(interaction){
@@ -252,7 +252,27 @@ async function daily(interaction){
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x31c48d).setTitle("Daily Reward").setDescription(`Day streak: **${r.streak}**\n\n**+${fmt(r.credits)} Credits  +${fmt(r.xp)} XP**`)],components:[backRow()]});
 }
 
-export function getGameCommands(){
+
+async function showQuests(interaction){
+  const p=await getPlayer(interaction.user.id);
+  const lines=GAME_QUESTS.map(q=>{const n=Math.min(q.target,Number(p.questProgress?.[q.key]||0));const done=p.claimedQuests?.includes(q.id);return `${done?"Claimed":n>=q.target?"Ready":"Active"}  **${q.name}**  ${n}/${q.target}\n${q.description}  Reward: ${q.credits} Credits + ${q.xp} XP`;});
+  const ready=GAME_QUESTS.filter(q=>!p.claimedQuests?.includes(q.id)&&Number(p.questProgress?.[q.key]||0)>=q.target);
+  const components=[];
+  if(ready.length){components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("game:claimquest").setPlaceholder("Claim a completed quest").addOptions(...ready.map(q=>({label:q.name,value:q.id,description:`${q.credits} Credits + ${q.xp} XP`})))));}
+  components.push(backRow());
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("📋 Missions & Quests").setDescription(lines.join("\n\n").slice(0,4000))],components});
+}
+async function showCollection(interaction){
+  const p=await getPlayer(interaction.user.id), owned=new Set(p.collection||[]);
+  const lines=COLLECTIBLES.map(c=>`${owned.has(c.id)?"Found":"Unknown"}  **${owned.has(c.id)?c.name:"???"}**  ${owned.has(c.id)?c.rarity:""}`);
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(`💎 Collection  ${owned.size}/${COLLECTIBLES.length}`).setDescription(lines.join("\n"))],components:[backRow()]});
+}
+async function showSeason(interaction){
+  const p=await getPlayer(interaction.user.id), tier=Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1), into=Number(p.seasonXp||0)%500;
+  const rewards=SEASON_REWARDS.map(r=>`${r.tier<=tier?"Unlocked":"Locked"}  **Tier ${r.tier}**  ${r.label}`).join("\n");
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🚀 Launch Season").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:[backRow()]});
+}
+\nexport function getGameCommands(){
   return [
     new SlashCommandBuilder().setName("game").setDescription("Open the TARC game hub").toJSON(),
     new SlashCommandBuilder().setName("quiz").setDescription("Start a quiz or challenge another player")
@@ -335,7 +355,7 @@ export async function handleGameInteraction(interaction, options = {}){
   if(id==="game:leaderboard") {await showLeaderboard(interaction);return true;}
   if(id==="game:shop") {await showShop(interaction);return true;}
   if(id==="game:patrol") {await doPatrol(interaction);return true;}
-  if(id==="game:achievements") {await showAchievements(interaction);return true;}
+  if(id==="game:achievements") {await showAchievements(interaction);return true;}\n  if(id==="game:quests") {await showQuests(interaction);return true;}\n  if(id==="game:collection") {await showCollection(interaction);return true;}\n  if(id==="game:season") {await showSeason(interaction);return true;}
   if(id==="game:daily") {await daily(interaction);return true;}
   if(id==="game:how") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("How to Play").setDescription("Play quizzes to earn Credits, XP and competitive Elo. Use Credits in the shop. Level up your profile, build streaks, complete achievements and run patrols between quizzes.\n\n**Ranked rule:** Credits and shop items never buy Elo. Elo comes from competitive quiz performance.")],components:[backRow()]});return true;}
 
@@ -369,7 +389,7 @@ export async function handleGameInteraction(interaction, options = {}){
     const answer=decodeURIComponent(parts.slice(4).join(":")), item=s.questions[s.index], correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score;}else{s.wrong+=1;}
-    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});
+    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});\n    await incrementQuestProgress(s.userId,"answers",1);\n    if(correct) await incrementQuestProgress(s.userId,"correct",1);\n    const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
     if(s.mode==="survival"&&!correct){
       s.questions=s.questions.slice(0,s.index+1);
       return finishSolo(interaction,s);
@@ -380,7 +400,7 @@ export async function handleGameInteraction(interaction, options = {}){
     const embed=questionEmbed(s);embed.setFooter({text:result});
     await interaction.update({embeds:[embed],components:answerRows(s)});return true;
   }
-  if(id==="game:buy"){
+  if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}\n  if(id==="game:buy"){
     const item=findStoreItem(interaction.values[0]); if(!item){await interaction.reply({content:"That item no longer exists.",ephemeral:true});return true;}
     const r=await purchaseItem(interaction.user.id,item);
     if(!r.ok){await interaction.reply({content:r.reason==="owned"?"You already own that.":`You need ${fmt(item.price)} Credits for that.`,ephemeral:true});return true;}
