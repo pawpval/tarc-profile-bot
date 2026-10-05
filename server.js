@@ -1,3 +1,4 @@
+import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import {
@@ -708,7 +709,7 @@ setInterval(cleanExpiredActions, 5 * 60 * 1000).unref();
 function buildProfileEmbed(profile) {
   const divisionsText =
     Array.isArray(profile.divisions) && profile.divisions.length > 0
-      ? profile.divisions.map(d => `**${d.name}**  ${d.role}`).join("\n")
+      ? profile.divisions.map(d => `• ${d.name} — **${d.role}**`).join("\n")
       : "None";
 
   const joinedText = profile.firstJoinUnix ? `<t:${profile.firstJoinUnix}:D>` : "N/A";
@@ -716,17 +717,26 @@ function buildProfileEmbed(profile) {
 
   return new EmbedBuilder()
     .setColor(0x2b7fff)
-    .setTitle(`${profile.username} | TARC Profile`)
-    .addFields(
-      { name: "Rank", value: profile.mainRankName || "Unknown", inline: true },
-      { name: "XP", value: String(profile.xp ?? "N/A"), inline: true },
-      { name: "Kills", value: String(profile.kills ?? "N/A"), inline: true },
-      { name: "Playtime", value: formatCompactTime(profile.playTimeSeconds), inline: true },
-      { name: "Divisions", value: divisionsText },
-      { name: "Medals", value: getMedals(profile.userId) },
-      { name: "First Joined", value: joinedText, inline: true },
-      { name: "Last Update", value: updatedText, inline: true }
-    );
+    .setTitle(`${profile.username} | TARC PROFILE`)
+    .setDescription([
+      `**Rank**`,
+      `${profile.mainRankName || "Unknown"}`,
+      ``,
+      `**Divisions**`,
+      `${divisionsText}`,
+      ``,
+      `**Stats**`,
+      `XP: ${profile.xp ?? "N/A"}`,
+      `Kills: ${profile.kills ?? "N/A"}`,
+      `Playtime: ${formatCompactTime(profile.playTimeSeconds)}`,
+      ``,
+      `**Medals**`,
+      `${getMedals(profile.userId)}`,
+      ``,
+      `**Info**`,
+      `First Joined: ${joinedText}`,
+      `Last Update: ${updatedText}`
+    ].join("\n"));
 }
 
 async function buildBGCEmbed(usernameInput) {
@@ -747,14 +757,14 @@ async function buildBGCEmbed(usernameInput) {
   const shownDivisions = divisions.filter((d) => d.id !== MAIN_GROUP_ID);
 
   const divisionsText = shownDivisions.length > 0
-    ? shownDivisions.map((d) => `**${d.name}**  ${d.role}`).join("\n")
+    ? shownDivisions.map((d) => `• ${d.name} — **${d.role}**`).join("\n")
     : "None";
 
   const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
   const punishmentText = userDetails.isBanned
     ? "Roblox account is banned"
     : punishments.length > 0
-      ? punishments.slice(0, 5).map((p) => `${String(p)}`).join("\n")
+      ? punishments.slice(0, 5).map((p) => `• ${String(p)}`).join("\n")
       : "None found";
 
   const status = getTarcStatus({
@@ -771,13 +781,26 @@ async function buildBGCEmbed(usernameInput) {
   const embed = new EmbedBuilder()
     .setColor(status.text.includes("🔴") ? 0xff3b30 : status.text.includes("🟠") ? 0xff9500 : 0x2b7fff)
     .setTitle(`${resolved.username} | Background Check`)
-    .setDescription(`**${status.text}**\n${safeTrim(status.reasons.join("\n"), 450)}`)
-    .addFields(
-      { name: "Roblox", value: `Username: ${resolved.username}\nDisplay name: ${resolved.displayName}\nUser ID: ${resolved.userId}` },
-      { name: "Account", value: `Age: ${formatAccountAge(userDetails.created)}\nCreated: <t:${createdUnix}:D>\nFirst seen in game: ${firstSeenText}` },
-      { name: "TARC", value: `Rank: ${mainRank || "Unknown"}\nDivisions:\n${safeTrim(divisionsText, 700)}` },
-      { name: "Punishments", value: safeTrim(punishmentText, 500) }
-    );
+    .setDescription([
+      `**TARC Status:** ${status.text}`,
+      safeTrim(status.reasons.map((r) => `• ${r}`).join("\n"), 450),
+      ``,
+      `**User ID:** ${resolved.userId}`,
+      `**Display Name:** ${resolved.displayName}`,
+      ``,
+      `**Account**`,
+      `Age: ${formatAccountAge(userDetails.created)}`,
+      `Created: <t:${createdUnix}:D>`,
+      `First Seen In Game: ${firstSeenText}`,
+      ``,
+      `**TARC**`,
+      `Rank: ${mainRank || "Unknown"}`,
+      `Divisions:`,
+      safeTrim(divisionsText, 700),
+      ``,
+      `**Punishments**`,
+      safeTrim(punishmentText, 500)
+    ].join("\n"));
 
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
@@ -1011,6 +1034,25 @@ function setBotStatus() {
   });
 }
 
+function getGlobalAskCommand() {
+  const command = new SlashCommandBuilder()
+    .setName("ask")
+    .setDescription("Ask the TARC Assistant a question")
+    .addStringOption(option =>
+      option
+        .setName("question")
+        .setDescription("Your TARC-related question")
+        .setRequired(true)
+        .setMaxLength(1000)
+    )
+    .toJSON();
+
+  command.integration_types = [0, 1];
+  command.contexts = [0, 1, 2];
+
+  return command;
+}
+
 function getSlashCommands() {
   return [
     new SlashCommandBuilder()
@@ -1156,6 +1198,35 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
+      .setName("teach")
+      .setDescription("Owner-only: teach the TARC Assistant an approved fact")
+      .addStringOption(option =>
+        option
+          .setName("information")
+          .setDescription("The approved information the assistant should know")
+          .setRequired(true)
+          .setMaxLength(1500)
+      )
+      .addStringOption(option =>
+        option
+          .setName("topic")
+          .setDescription("Short topic/category for this information")
+          .setRequired(false)
+          .setMaxLength(80)
+      )
+      .addStringOption(option =>
+        option
+          .setName("visibility")
+          .setDescription("Whether /ask may use this information")
+          .setRequired(false)
+          .addChoices(
+            { name: "Public / usable by ask", value: "public" },
+            { name: "Private note / never exposed by ask", value: "private" }
+          )
+      )
+      .toJSON(),
+
+    new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
       .toJSON()
@@ -1172,9 +1243,12 @@ client.once(Events.ClientReady, async () => {
     const commands = getSlashCommands();
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-    // Clear global commands to prevent duplicates, then register only to listed guilds.
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
-    console.log("[DISCORD] Global slash commands cleared");
+    // Keep /ask global so it works through Guild Install and User Install.
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: [getGlobalAskCommand()] }
+    );
+    console.log("[DISCORD] Global /ask command registered");
 
     for (const guildId of GUILD_IDS) {
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
@@ -1191,6 +1265,62 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "ask") {
+    try {
+      const question = interaction.options.getString("question", true).trim();
+      await interaction.deferReply();
+
+      const answer = await askTarcAssistant({
+        question,
+        interaction,
+        client
+      });
+
+      return interaction.editReply({
+        content: answer,
+        allowedMentions: { parse: [] }
+      });
+    } catch (err) {
+      console.error("[DISCORD] /ask failed:", err);
+      const message = "I couldn't reach the TARC Assistant right now. Please try again shortly.";
+      if (interaction.deferred || interaction.replied) {
+        return interaction.editReply({ content: message });
+      }
+      return interaction.reply({ content: message, ephemeral: interaction.inGuild() });
+    }
+  }
+
+  if (interaction.commandName === "teach") {
+    try {
+      if (!interaction.inGuild() || !interaction.guild) {
+        return interaction.reply({ content: "This command can only be used in the main TARC server.", ephemeral: true });
+      }
+      if (interaction.guild.ownerId !== interaction.user.id) {
+        return interaction.reply({ content: "Only the server owner can teach the TARC Assistant.", ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      const information = interaction.options.getString("information", true).trim();
+      const topic = interaction.options.getString("topic")?.trim() || "general";
+      const visibility = interaction.options.getString("visibility") || "public";
+
+      const entry = await teachTarcAssistant({ information, topic, visibility, interaction });
+      return interaction.editReply(
+        `Taught the assistant under **${entry.topic}** (${entry.visibility}).\n` +
+        `ID: \`${entry.id}\`\n\n` +
+        `${entry.visibility === "public"
+          ? "This information can now be used by /ask."
+          : "This was saved as a private note and will not be exposed through /ask."}`
+      );
+    } catch (err) {
+      console.error("[DISCORD] /teach failed:", err);
+      const message = `${err.message || "The teaching could not be saved."}`;
+      return interaction.deferred
+        ? interaction.editReply(message)
+        : interaction.reply({ content: message, ephemeral: true });
+    }
+  }
 
   if (interaction.commandName === "xp") {
     try {
@@ -1223,7 +1353,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       for (const result of results) {
         if (!result.resolved) {
-          lines.push(`❌ **${result.input}**  Roblox user not found`);
+          lines.push(`❌ **${result.input}** — Roblox user not found`);
           continue;
         }
 
@@ -1237,7 +1367,7 @@ client.on(Events.InteractionCreate, async interaction => {
         });
 
         queued.push(action);
-        lines.push(`✅ **${result.resolved.username}**  ${operation === "add" ? "+" : "-"}${amount} XP queued`);
+        lines.push(`✅ **${result.resolved.username}** — queued ${operation === "add" ? "+" : "-"}${amount} XP`);
       }
 
       const embed = new EmbedBuilder()
@@ -1293,7 +1423,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       for (const result of results) {
         if (!result.resolved) {
-          lines.push(`❌ **${result.input}**  Roblox user not found`);
+          lines.push(`❌ **${result.input}** — Roblox user not found`);
           continue;
         }
 
@@ -1306,7 +1436,7 @@ client.on(Events.InteractionCreate, async interaction => {
         });
 
         queued.push(action);
-        lines.push(`✅ **${result.resolved.username}**  Star Creator ${operation} queued`);
+        lines.push(`✅ **${result.resolved.username}** — queued Star Creator ${operation}`);
       }
 
       const embed = new EmbedBuilder()
@@ -1514,7 +1644,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const embed = applyCommandImage(
         new EmbedBuilder()
           .setColor(0x2b7fff)
-          .setTitle("TARC Stats")
+          .setTitle("TARC Group Stats")
           .setDescription([
             `**Discord**`,
             `Members: ${formatNumber(discordMembers)}`,
@@ -1546,7 +1676,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .slice(0, 10);
 
       const lines = top.length
-        ? top.map((p, i) => `**${i + 1}**  ${p.username}  ${formatNumber(p.xp)} XP`).join("\n")
+        ? top.map((p, i) => `**${i + 1}.** ${p.username} — ${formatNumber(p.xp)} XP`).join("\n")
         : "No cached XP data yet. Players need to join the game first.";
 
       const embed = applyCommandImage(
@@ -1612,22 +1742,12 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 
   if (interaction.commandName === "ranks") {
-    const regular = XP_RANKS.filter((rank) => rank.xp < 300)
-      .map((rank) => `**${rank.name}**  ${rank.xp} XP`)
-      .join("\n");
-    const elite = XP_RANKS.filter((rank) => rank.xp >= 300)
-      .map((rank) => `**${rank.name}**  ${rank.xp} XP`)
-      .join("\n");
-
+    const lines = XP_RANKS.map((rank) => `• **${rank.name}** — ${rank.xp} XP`).join("\n");
     const embed = applyCommandImage(
       new EmbedBuilder()
         .setColor(0x2b7fff)
-        .setTitle("TARC Rank Progression")
-        .setDescription("Your in game rank is based on XP")
-        .addFields(
-          { name: "Main ranks", value: regular },
-          { name: "Elite ranks", value: elite }
-        )
+        .setTitle("TARC XP Rank Requirements")
+        .setDescription(lines)
     );
     return interaction.reply({ embeds: [embed] });
   }
@@ -1662,7 +1782,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const embed = applyCommandImage(
       new EmbedBuilder()
         .setColor(0x2b7fff)
-        .setTitle("TARC Verification")
+        .setTitle("How To Verify")
         .setDescription([
           `**1. Join the TARC Roblox group**`,
           `[Click here to join the group](${TARC_GROUP_LINK})`,
@@ -1681,25 +1801,25 @@ client.on(Events.InteractionCreate, async interaction => {
     const embed = applyCommandImage(
       new EmbedBuilder()
         .setColor(0x2b7fff)
-        .setTitle("TARC Commands")
+        .setTitle("TARC Bot Commands")
         .setDescription([
-          `**/profile**  Show a player's TARC profile from game data`,
-          `**/bgc**  Run a Roblox background check`,
-          `**/groupstats**  Show Discord, group, and game stats`,
-          `**/xpleaderboard**  Show top cached XP users`,
-          `**/viewxp**  Show your own cached XP`,
-          `**/ranks**  Show XP rank requirements`,
-          `**/quote**  Generate a random Star Wars quote`,
-          `**/links**  Show useful TARC links`,
-          `**/chainofcommand**  Show current high command`,
-          `**/verify**  Show RoWifi verification steps`,
-          `**/xp**  Add or remove up to 2 XP (Officer Permission)`,
-          `**/starcreator**  Give or remove the creator tag (Content Creator Manager)`,
-          `**/promote**  Promote a Roblox user to an exact rank name (Marshal Commander+)`,
-          `**/demote**  Demote a Roblox user to an exact rank name (Marshal Commander+)`,
-          `**/rmp**  Clean one member’s enlisted Discord roles (Marshal Commander+)`,
-          `**/rmpall**  Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
-          `**/help**  Show this command list`
+          `**/profile** — Show a player's TARC profile from game data`,
+          `**/bgc** — Run a Roblox background check`,
+          `**/groupstats** — Show Discord, group, and game stats`,
+          `**/xpleaderboard** — Show top cached XP users`,
+          `**/viewxp** — Show your own cached XP`,
+          `**/ranks** — Show XP rank requirements`,
+          `**/quote** — Generate a random Star Wars quote`,
+          `**/links** — Show useful TARC links`,
+          `**/chainofcommand** — Show current high command`,
+          `**/verify** — Show RoWifi verification steps`,
+          `**/xp** — Add or remove up to 2 XP (Officer Permission)`,
+          `**/starcreator** — Give or remove the creator tag (Content Creator Manager)`,
+          `**/promote** — Promote a Roblox user to an exact rank name (Marshal Commander+)`,
+          `**/demote** — Demote a Roblox user to an exact rank name (Marshal Commander+)`,
+          `**/rmp** — Clean one member’s enlisted Discord roles (Marshal Commander+)`,
+          `**/rmpall** — Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
+          `**/help** — Show this command list`
         ].join("\n"))
     );
     return interaction.reply({ embeds: [embed] });
