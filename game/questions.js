@@ -249,11 +249,61 @@ export const TARC_QUESTIONS = [
   q("tarc045","TARC General","Hard","Which of these is a current CIS-side special character team?","Jango Fett",["Boba Fett","Darth Vader","Grand Moff Tarkin"])
 ];
 
-export const ALL_QUESTIONS = [...STAR_WARS_QUESTIONS, ...TARC_QUESTIONS];
+
+// Extra curated Star Wars pool for longer grind sessions and broader category coverage.
+const EXTRA_STAR_WARS_QUESTIONS = [
+  q("swx001","Characters","Easy","Who is Luke Skywalker's sister?","Leia Organa",["Padmé Amidala","Rey","Ahsoka Tano"]),
+  q("swx002","Characters","Easy","Who piloted the Millennium Falcon with Chewbacca?","Han Solo",["Lando Calrissian","Luke Skywalker","Cassian Andor"]),
+  q("swx003","Characters","Medium","Who was Darth Vader before he became a Sith Lord?","Anakin Skywalker",["Ben Solo","Galen Marek","Quinlan Vos"]),
+  q("swx004","Characters","Hard","Which Jedi Master was a member of the same species as Yoda?","Yaddle",["Shaak Ti","Adi Gallia","Depa Billaba"]),
+  q("swx005","Clone Wars","Easy","Who was the Supreme Chancellor during most of the Clone Wars?","Palpatine",["Bail Organa","Mas Amedda","Mon Mothma"]),
+  q("swx006","Clone Wars","Medium","Which clone commander served under Plo Koon?","Wolffe",["Cody","Bly","Gree"]),
+  q("swx007","Clone Wars","Hard","Which planet was the site of a campaign involving waxer, boil and the Twi'leks?","Ryloth",["Umbara","Saleucami","Mygeeto"]),
+  q("swx008","Clone Wars","Extreme","Which clone commander served Ki-Adi-Mundi and the Galactic Marines?","Bacara",["Neyo","Gree","Appo"]),
+  q("swx009","Republic","Easy","What colour were many Phase I clone troopers before rank markings were added?","White",["Black","Green","Red"]),
+  q("swx010","Republic","Medium","Which gunship transported clone troops into battle?","LAAT",["AAT","MTT","TIE Bomber"]),
+  q("swx011","Republic","Hard","Which clone marshal commander led the 327th Star Corps?","Bly",["Cody","Neyo","Fox"]),
+  q("swx012","Republic","Extreme","Which Republic cruiser class became a major precursor to Imperial Star Destroyers?","Venator-class",["Lucrehulk-class","Providence-class","Recusant-class"]),
+  q("swx013","CIS","Easy","What type of soldier made up most Separatist ground forces?","Battle droids",["Clone troopers","Stormtroopers","Rebel soldiers"]),
+  q("swx014","CIS","Medium","Which tank was commonly used by the Trade Federation and CIS?","AAT",["AT-TE","AT-RT","Juggernaut"]),
+  q("swx015","CIS","Hard","Who was the leader of the Techno Union during the Clone Wars?","Wat Tambor",["Nute Gunray","Poggle the Lesser","San Hill"]),
+  q("swx016","CIS","Extreme","Which Separatist capital ship class was associated with General Grievous' Invisible Hand?","Providence-class",["Venator-class","Arquitens-class","Acclamator-class"]),
+  q("swx017","Jedi and Sith","Easy","What weapon is most associated with Jedi and Sith?","Lightsaber",["Vibroblade","Electrostaff","Bowcaster"]),
+  q("swx018","Jedi and Sith","Medium","Which lightsaber form is associated with Count Dooku?","Makashi",["Soresu","Ataru","Shien"]),
+  q("swx019","Jedi and Sith","Hard","Which form is also known as the Way of the Mynock?","Shien / Djem So",["Makashi","Ataru","Niman"]),
+  q("swx020","Jedi and Sith","Extreme","Which lightsaber form is commonly called the Way of the Rancor?","Juyo",["Soresu","Shii-Cho","Makashi"]),
+  q("swx021","Planets","Easy","What desert planet was Anakin Skywalker raised on?","Tatooine",["Jakku","Geonosis","Jedha"]),
+  q("swx022","Planets","Medium","What planet was home to the Wookiees?","Kashyyyk",["Endor","Felucia","Dathomir"]),
+  q("swx023","Planets","Hard","Which planet was the homeworld of the Twi'leks?","Ryloth",["Rodia","Pantora","Bothawui"]),
+  q("swx024","Planets","Extreme","Which world was home to the Banking Clan and the Battle of Scipio?","Scipio",["Muunilinst","Cato Neimoidia","Mygeeto"]),
+  q("swx025","Vehicles","Easy","Which Imperial walker has four large legs?","AT-AT",["AT-ST","AT-RT","AT-TE"]),
+  q("swx026","Vehicles","Medium","Which small Republic walker was often used for reconnaissance?","AT-RT",["AT-AT","AAT","MTT"]),
+  q("swx027","Vehicles","Hard","Which massive wheeled Republic vehicle was also called a Juggernaut?","HAVw A6 Juggernaut",["AT-TE","TX-130","LAAT"]),
+  q("swx028","Weapons","Easy","What weapon is Chewbacca famous for using?","Bowcaster",["DC-15A","E-11","DL-44"]),
+  q("swx029","Weapons","Medium","Which blaster pistol was widely associated with clone officers?","DC-17",["E-11","DLT-19","A280"]),
+  q("swx030","Weapons","Hard","Which long blaster rifle was used by clone sharpshooters?","DC-15x",["DC-17","E-5","WESTAR-35"]),
+  q("swx031","Droids","Easy","What phrase are B1 battle droids famous for saying?","Roger roger",["For the Republic","This is the way","I have spoken"]),
+  q("swx032","Droids","Medium","Which droid model rolls into a ball and deploys a shield?","Droideka",["B1","B2","IG-100"]),
+  q("swx033","Droids","Hard","What droid guards were commonly used by General Grievous?","IG-100 MagnaGuards",["BX commandos","B2 super battle droids","T-series tactical droids"]),
+  q("swx034","Mandalorians","Easy","What planet is associated with Mandalorian culture?","Mandalore",["Naboo","Corellia","Kamino"]),
+  q("swx035","Mandalorians","Medium","Who led Death Watch for much of the Clone Wars?","Pre Vizsla",["Bo-Katan Kryze","Satine Kryze","Gar Saxon"]),
+  q("swx036","Mandalorians","Hard","What ancient weapon became a symbol of Mandalorian leadership?","Darksaber",["Darkstaff","Beskar Spear","Electrostaff"]),
+  q("swx037","Prequels","Easy","Who won the Boonta Eve podrace in The Phantom Menace?","Anakin Skywalker",["Sebulba","Watto","Qui-Gon Jinn"]),
+  q("swx038","Prequels","Medium","Who killed Qui-Gon Jinn?","Darth Maul",["Count Dooku","Darth Sidious","General Grievous"]),
+  q("swx039","Prequels","Hard","Which Jedi killed Jango Fett on Geonosis?","Mace Windu",["Obi-Wan Kenobi","Anakin Skywalker","Kit Fisto"]),
+  q("swx040","Original Trilogy","Easy","Which battle station destroyed Alderaan?","Death Star",["Starkiller Base","Executor","Malevolence"]),
+  q("swx041","Original Trilogy","Medium","Who froze Han Solo in carbonite?","The Empire on Cloud City",["Jabba the Hutt on Tatooine","The Rebels on Hoth","The Empire on Endor"]),
+  q("swx042","Original Trilogy","Hard","Which Rebel admiral famously warned that the Endor battle was a trap?","Admiral Ackbar",["Admiral Raddus","General Dodonna","Mon Mothma"]),
+  q("swx043","Rebels and Empire","Easy","What fighter is iconic to the Galactic Empire?","TIE Fighter",["X-wing","ARC-170","N-1 Starfighter"]),
+  q("swx044","Rebels and Empire","Medium","Which Rebel ship type destroyed the first Death Star?","X-wing",["A-wing","B-wing","Y-wing"]),
+  q("swx045","Rebels and Empire","Hard","Who was Grand Admiral of the Imperial Seventh Fleet?","Thrawn",["Tarkin","Piett","Krennic"])
+];
+
+export const ALL_QUESTIONS = [...STAR_WARS_QUESTIONS, ...EXTRA_STAR_WARS_QUESTIONS, ...TARC_QUESTIONS];
 
 export function getQuestionPool({ scope = "mixed", difficulty = "Random", category = null } = {}) {
   let pool = ALL_QUESTIONS;
-  if (scope === "starwars") pool = STAR_WARS_QUESTIONS;
+  if (scope === "starwars") pool = [...STAR_WARS_QUESTIONS, ...EXTRA_STAR_WARS_QUESTIONS];
   if (scope === "tarc") pool = TARC_QUESTIONS;
   if (category && category !== "__all__") pool = pool.filter(item => item.category === category);
   if (difficulty && difficulty !== "Random") {
@@ -264,6 +314,6 @@ export function getQuestionPool({ scope = "mixed", difficulty = "Random", catego
 
 
 export function getQuestionCategories(scope = "mixed") {
-  const pool = scope === "starwars" ? STAR_WARS_QUESTIONS : scope === "tarc" ? TARC_QUESTIONS : ALL_QUESTIONS;
+  const pool = scope === "starwars" ? [...STAR_WARS_QUESTIONS, ...EXTRA_STAR_WARS_QUESTIONS] : scope === "tarc" ? TARC_QUESTIONS : ALL_QUESTIONS;
   return [...new Set(pool.map(item => item.category))].sort();
 }
