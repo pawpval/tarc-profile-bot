@@ -526,7 +526,17 @@ export async function handleGameInteraction(interaction, options = {}){
     const correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
-    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});
+    const pre=await getPlayer(s.userId);
+    let awardCredits=credits,awardXp=xp;
+    if(correct&&Number(pre.creditBoostCharges||0)>0) awardCredits=Math.round(credits*1.5);
+    if(correct&&Number(pre.xpBoostCharges||0)>0) awardXp=Math.round(xp*1.5);
+    const shielded=!correct&&Number(pre.streakShields||0)>0&&Number(pre.currentStreak||0)>0;
+    const oldStreak=Number(pre.currentStreak||0);
+    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits:awardCredits,xp:awardXp});
+    if(correct&&(Number(pre.creditBoostCharges||0)>0||Number(pre.xpBoostCharges||0)>0)){
+      await mutatePlayer(s.userId,p=>{if(Number(p.creditBoostCharges||0)>0)p.creditBoostCharges-=1;if(Number(p.xpBoostCharges||0)>0)p.xpBoostCharges-=1;});
+    }
+    if(shielded) await mutatePlayer(s.userId,p=>{p.streakShields-=1;p.currentStreak=oldStreak;});
     await incrementQuestProgress(s.userId,"answers",1);
     if(correct) await incrementQuestProgress(s.userId,"correct",1);
     const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
@@ -537,14 +547,33 @@ export async function handleGameInteraction(interaction, options = {}){
     s.index+=1;s.answered=false;
     if(s.index>=s.questions.length)return finishSolo(interaction,s);
     const reaction=resultReaction(qp,correct,item);
-    const result=correct?`${reaction} +${credits} Credits, +${xp} XP`:reaction;
+    const result=correct?`${reaction} +${awardCredits} Credits, +${awardXp} XP${awardCredits>credits||awardXp>xp?"  BOOST ACTIVE":""}`:shielded?`${reaction} 🛡️ Streak Shield saved your streak.`:reaction;
     const embed=questionEmbed(s);embed.setFooter({text:result});
     await interaction.update({embeds:[embed],components:answerRows(s)});return true;
   }
   if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}
   if(id==="game:buy"){
     const item=findStoreItem(interaction.values[0]); if(!item){await interaction.reply({content:"That item no longer exists.",ephemeral:true});return true;}
-    const r=await purchaseItem(interaction.user.id,item);
+    let r;
+    if(item.type==="consumable"||item.type==="crate"){
+      let outcome="";
+      await mutatePlayer(interaction.user.id,p=>{
+        if(p.credits<item.price){r={ok:false,reason:"credits"};return;}
+        p.credits-=item.price;
+        if(item.value==="xp_boost"){p.xpBoostCharges=Number(p.xpBoostCharges||0)+20;outcome="20 boosted XP answers added.";}
+        if(item.value==="credit_boost"){p.creditBoostCharges=Number(p.creditBoostCharges||0)+20;outcome="20 boosted Credit answers added.";}
+        if(item.value==="streak_shield"){p.streakShields=Number(p.streakShields||0)+1;outcome="1 Streak Shield added.";}
+        if(item.type==="crate"){
+          const credits=250+Math.floor(Math.random()*751),xp=75+Math.floor(Math.random()*226);
+          p.credits+=credits;p.lifetimeCredits+=credits;p.xp+=xp;p.cratesOpened=Number(p.cratesOpened||0)+1;
+          outcome=`Crate opened: +${credits} Credits and +${xp} XP.`;
+        }
+        r={ok:true};
+      });
+      if(!r?.ok){await interaction.reply({content:`You need ${fmt(item.price)} Credits for that.`,ephemeral:true});return true;}
+      await interaction.reply({content:`📦 **${item.name}** purchased. ${outcome}`,ephemeral:true});return true;
+    }
+    r=await purchaseItem(interaction.user.id,item);
     if(!r.ok){await interaction.reply({content:r.reason==="owned"?"You already own that.":`You need ${fmt(item.price)} Credits for that.`,ephemeral:true});return true;}
     await interaction.reply({content:`Bought **${item.name}** for **${fmt(item.price)} Credits**.`,ephemeral:true});return true;
   }
