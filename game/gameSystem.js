@@ -108,7 +108,7 @@ async function homeEmbed(user){
   const lp=getLevelProgress(p);
   return new EmbedBuilder()
     .setColor(0x2b7fff)
-    .setTitle("TARC Game")
+    .setTitle("🎮 TARC GAME")
     .setDescription([
       `**${p.equippedTitle || "Rookie"}**  <@${user.id}>`,
       `Level **${lp.level}**  ${progressBar(lp.current,lp.needed)} ${fmt(lp.current)}/${fmt(lp.needed)} XP`,
@@ -118,7 +118,8 @@ async function homeEmbed(user){
       `Accuracy: **${pct(p.correctAnswers,p.questionsAnswered)}%**`,
       `Best Streak: **${fmt(p.bestStreak)}**`,
       "",
-      "Pick something below. Quizzes are the main game, but everything feeds the same profile."
+      "**PLAY. EARN. CLIMB. COLLECT.**",
+      "Hit **PLAY** for quizzes, claim your **DAILY**, or run a **PATROL**. Use the menu for everything else."
     ].join("\n"));
 }
 function backRow(){
@@ -278,7 +279,7 @@ async function doPatrol(interaction){
     const sec=Math.ceil((PATROL_COOLDOWN-elapsed)/1000);
     return interaction.update({embeds:[new EmbedBuilder().setColor(0xff9500).setTitle("Patrol").setDescription(`You're still recovering from the last patrol. Try again in **${Math.ceil(sec/60)} minute(s)**.`)],components:[backRow()]});
   }
-  const e=randomPatrol(), credits=randomBetween(e.credits), xp=randomBetween(e.xp);
+  const encounter=randomPatrol(), e={...encounter}, credits=randomBetween(e.credits), xp=randomBetween(e.xp);
   await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});
   await incrementQuestProgress(interaction.user.id,"patrols",1);
   if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
