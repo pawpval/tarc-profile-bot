@@ -255,7 +255,7 @@ export function getQuestionPool({ scope = "mixed", difficulty = "Random", catego
   let pool = ALL_QUESTIONS;
   if (scope === "starwars") pool = STAR_WARS_QUESTIONS;
   if (scope === "tarc") pool = TARC_QUESTIONS;
-  if (category && category !== "Mixed") pool = pool.filter(item => item.category === category);
+  if (category && category !== "__all__") pool = pool.filter(item => item.category === category);
   if (difficulty && difficulty !== "Random") {
     pool = pool.filter(item => item.difficulty === difficulty);
   }
