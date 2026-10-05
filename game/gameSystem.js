@@ -52,16 +52,16 @@ function progressBar(current, needed, size=10){
 function homeRows(){
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:play").setEmoji("🎮").setLabel("Play").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("game:profile").setEmoji("👤").setLabel("Profile").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:shop").setEmoji("🛒").setLabel("Shop").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:leaderboard").setEmoji("🏆").setLabel("Leaderboard").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:daily").setEmoji("🎁").setLabel("Daily").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId("game:play").setLabel("Play").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:shop").setLabel("Shop").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:leaderboard").setLabel("Leaderboard").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:daily").setLabel("Daily").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:patrol").setEmoji("🛰️").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:achievements").setEmoji("🏅").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:how").setEmoji("❓").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("game:patrol").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:how").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -84,7 +84,7 @@ async function homeEmbed(user){
     ].join("\n"));
 }
 function backRow(){
-  return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary));
+  return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary));
 }
 function playMenu(){
   const select = new StringSelectMenuBuilder().setCustomId("game:playmode").setPlaceholder("Choose a game mode").addOptions(
@@ -164,7 +164,7 @@ async function finishSolo(interaction,s){
   ].filter(Boolean).join("\n"));
   return interaction.update({embeds:[embed],components:[new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("game:play").setLabel("Play Again").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary)
   )]});
 }
 async function showProfile(interaction,user=interaction.user){
@@ -234,8 +234,8 @@ async function doPatrol(interaction){
   const e=randomPatrol(), credits=randomBetween(e.credits), xp=randomBetween(e.xp);
   await mutatePlayer(interaction.user.id,p2=>{p2.lastPatrol=Date.now();p2.patrols+=1;p2.credits+=credits;p2.lifetimeCredits+=credits;p2.xp+=xp;});\n  await incrementQuestProgress(interaction.user.id,"patrols",1);\n  if(Math.random()<0.22){const c=COLLECTIBLES[Math.floor(Math.random()*COLLECTIBLES.length)];const added=await addCollectible(interaction.user.id,c.id);if(added)e.text += ` You also found **${c.name}** (${c.rarity}).`;}
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x31c48d).setTitle("Patrol Complete").setDescription(`${e.text}\n\n**+${fmt(credits)} Credits  +${fmt(xp)} XP**`)],components:[new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("game:home").setEmoji("🏠").setLabel("Home").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("game:profile").setEmoji("👤").setLabel("Profile").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary)
   )]});
 }
 async function showAchievements(interaction){
@@ -260,17 +260,17 @@ async function showQuests(interaction){
   const components=[];
   if(ready.length){components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("game:claimquest").setPlaceholder("Claim a completed quest").addOptions(...ready.map(q=>({label:q.name,value:q.id,description:`${q.credits} Credits + ${q.xp} XP`})))));}
   components.push(backRow());
-  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("📋 Missions & Quests").setDescription(lines.join("\n\n").slice(0,4000))],components});
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Missions & Quests").setDescription(lines.join("\n\n").slice(0,4000))],components});
 }
 async function showCollection(interaction){
   const p=await getPlayer(interaction.user.id), owned=new Set(p.collection||[]);
   const lines=COLLECTIBLES.map(c=>`${owned.has(c.id)?"Found":"Unknown"}  **${owned.has(c.id)?c.name:"???"}**  ${owned.has(c.id)?c.rarity:""}`);
-  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(`💎 Collection  ${owned.size}/${COLLECTIBLES.length}`).setDescription(lines.join("\n"))],components:[backRow()]});
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(`Collection  ${owned.size}/${COLLECTIBLES.length}`).setDescription(lines.join("\n"))],components:[backRow()]});
 }
 async function showSeason(interaction){
   const p=await getPlayer(interaction.user.id), tier=Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1), into=Number(p.seasonXp||0)%500;
   const rewards=SEASON_REWARDS.map(r=>`${r.tier<=tier?"Unlocked":"Locked"}  **Tier ${r.tier}**  ${r.label}`).join("\n");
-  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🚀 Launch Season").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:[backRow()]});
+  return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Launch Season").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:[backRow()]});
 }
 \nexport function getGameCommands(){
   return [
