@@ -31,7 +31,7 @@ const OFFICIAL_CHANNELS = {
 };
 
 const announcementCache = new Map();
-const ANNOUNCEMENT_CACHE_MS = 2 * 60 * 1000;
+const ANNOUNCEMENT_CACHE_MS = 30 * 1000;
 const ANNOUNCEMENT_FETCH_LIMIT = 30;
 
 
@@ -608,7 +608,13 @@ function announcementQuestionTargets(question) {
   const generalRecent = [
     "announcement", "announcements", "what changed", "what's new", "whats new",
     "latest update", "recent update", "recently announced", "today", "yesterday",
-    "this week", "most recent"
+    "this week", "most recent", "activity", "active", "inactive",
+    "how is the group doing", "how's the group doing", "hows the group doing",
+    "state of the group", "current state", "group health", "how are things going",
+    "what is going on", "what's going on", "whats going on", "anything happening",
+    "situation in the group", "recent situation", "recent issues",
+    "leadership situation", "community situation", "is tarc doing well",
+    "is the group doing well"
   ].some((x) => q.includes(x));
 
   if (generalRecent && targets.size === 0) {
@@ -616,6 +622,8 @@ function announcementQuestionTargets(question) {
     add("communityUpdates");
     add("developmentUpdates");
     add("militaryAnnouncements");
+    add("chainOfCommand");
+    add("divisionalRecruitment");
   }
 
   return Array.from(targets);
@@ -902,6 +910,8 @@ VOICE
 - Suitable alternatives include "Understood", "Certainly", "Of course", "Acknowledged", "Very well", "Correct", "Negative", "Confirmed", "Noted", "As you were", "Right away", "Good question", or simply answer directly with no military opener.
 - Use "Affirmative" only when it genuinely fits a yes/confirmation response, and avoid repeating the same opener across consecutive replies.
 - For casual conversation, sound like a real helpful person with light Republic flavour rather than a scripted clone trooper.
+- You are allowed to have a laugh when the conversation is still about TARC or its community. Light jokes, playful replies, and banter are fine. Do not become stiff just because the question is casual.
+- The TARC-only rule controls SUBJECT MATTER, not personality. You can be funny about TARC while still refusing unrelated topics.
 - Republic flavour should be subtle; do not turn every answer into a Star Wars speech.
 
 TRUTH / REASONING
@@ -916,6 +926,13 @@ TRUTH / REASONING
 - Never say you will permanently remember/learn a factual correction from a normal conversation. Only owner-only /teach data, curated code knowledge, official announcement context, or authoritative live Roblox/Discord data may become trusted factual context.
 - For exact leadership-role questions, an AUTHORITATIVE EXACT-ROLE LOOKUP overrides fuzzy role matches and stale stored names.
 - Official announcement context is authoritative for what was publicly announced recently. Do not apply announcement material to unrelated questions just because it exists.
+- CURRENT-STATE / ACTIVITY QUESTIONS ARE HIGH-FRESHNESS QUESTIONS. When someone asks how TARC is doing, whether activity is good/bad, what is going on, whether the group is struggling, or asks about a current situation, you MUST base the answer on the fresh official context supplied for that question. Do not answer from old conversation memory or generic optimism.
+- Do not treat one tryout, one academy, one active division, or a few messages as proof that the whole group is active. Separate the signals: official announcements, recruitment/event activity, development activity, leadership/community issues, and anything explicitly indicating a decline or concern.
+- Be candid. If the fresh evidence is mixed, say it is mixed. If there is evidence of reduced activity, instability, concern, restructuring, or a serious situation, say that plainly and explain what evidence is driving that assessment. Do not soften it into "everything is going well."
+- Do not manufacture an activity verdict when the available official context is too thin. Say exactly what you could verify and what you could not.
+- Newer major official announcements outweigh older routine messages when judging the current state of TARC. A serious recent announcement must not be drowned out by several ordinary tryout/recruitment posts.
+- Distinguish activity from existence. "A tryout happened" means a tryout happened; it does not by itself mean overall TARC activity is healthy.
+- When leadership/admins ask for a current assessment, give them a useful operational read: what is happening, what looks healthy, what looks weak or uncertain, and which recent official developments matter most. Keep it factual rather than motivational.
 - Divisional Recruitment context is intentionally limited to the current week. Never imply an application is definitely still open unless the message itself clearly says so and its stated window has not passed.
 - The in-game XP rank tree is separate from the TARC Chain of Command. Do not append the full XP tree when someone merely asks for the CoC.
 - Understand the bot's own slash commands from TARC_KNOWLEDGE.botCommands. Recommend the relevant command when useful, especially /ranks for a formatted XP-rank list and /help for the full command list, but still answer the user's question directly when the knowledge is already available.
@@ -969,8 +986,11 @@ ${callerContext}
 LIVE CONTEXT (fresh lookups when relevant)
 ${liveContext}
 
-OFFICIAL ANNOUNCEMENTS / CURRENT-WEEK RECRUITMENT (retrieved only when relevant)
+OFFICIAL ANNOUNCEMENTS / CURRENT-WEEK RECRUITMENT / CURRENT-STATE SIGNALS
 ${officialAnnouncements}
+
+FRESHNESS RULE
+If CURRENT QUESTION asks about activity, the current state of TARC, recent problems, what is happening, leadership/community conditions, or whether the group is doing well, treat the official context above as the primary evidence. Read the dates and substance. Do not infer overall health from isolated routine activity.
 
 OWNER-TAUGHT PUBLIC KNOWLEDGE (retrieved only when relevant)
 ${taughtKnowledge}
