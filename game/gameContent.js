@@ -64,7 +64,13 @@ export const ACHIEVEMENTS = [
   { id:"elo_1500", name:"Contender", description:"Reach 1,500 Elo.", test:p=>p.elo>=1500 },
   { id:"elo_2000", name:"Elite Mind", description:"Reach 2,000 Elo.", test:p=>p.elo>=2000 },
   { id:"rich_10000", name:"Loaded", description:"Hold 10,000 Credits.", test:p=>p.credits>=10000 },
-  { id:"patrol_25", name:"Patrol Regular", description:"Complete 25 patrols.", test:p=>p.patrols>=25 }
+  { id:"patrol_25", name:"Patrol Regular", description:"Complete 25 patrols.", test:p=>p.patrols>=25 },
+  { id:"event_10", name:"First Responder", description:"Complete 10 dynamic operations.", test:p=>Number(p.eventRuns||0)>=10 },
+  { id:"event_50", name:"Operational Veteran", description:"Complete 50 dynamic operations.", test:p=>Number(p.eventRuns||0)>=50 },
+  { id:"crate_10", name:"Supply Runner", description:"Open 10 supply crates.", test:p=>Number(p.cratesOpened||0)>=10 },
+  { id:"collection_10", name:"Collector", description:"Complete the launch collection.", test:p=>(p.collection||[]).length>=10 },
+  { id:"level_10", name:"Seasoned Trooper", description:"Reach Level 10.", test:p=>Number(p.level||1)>=10 },
+  { id:"level_25", name:"Command Material", description:"Reach Level 25.", test:p=>Number(p.level||1)>=25 }
 ];
 
 export function earnedAchievements(profile) {
@@ -78,7 +84,9 @@ export const GAME_QUESTS = [
   { id:"q_quiz_3", name:"Study Session", key:"quizzes", target:3, credits:500, xp:200, seasonXp:150, description:"Complete 3 quizzes." },
   { id:"q_patrol_3", name:"On Duty", key:"patrols", target:3, credits:550, xp:220, seasonXp:150, description:"Complete 3 patrols." },
   { id:"q_faceoff_1", name:"Challenge Accepted", key:"faceoffs", target:1, credits:650, xp:250, seasonXp:200, description:"Complete a Face Off." },
-  { id:"q_streak_5", name:"Locked In", key:"streak5", target:1, credits:450, xp:180, seasonXp:125, description:"Reach a 5-answer streak." }
+  { id:"q_streak_5", name:"Locked In", key:"streak5", target:1, credits:450, xp:180, seasonXp:125, description:"Reach a 5-answer streak." },
+  { id:"q_events_5", name:"Rapid Response", key:"events", target:5, credits:700, xp:300, seasonXp:225, description:"Complete 5 dynamic operations." },
+  { id:"q_answers_50", name:"Databank Dive", key:"answers", target:50, credits:900, xp:400, seasonXp:300, description:"Answer 50 quiz questions." }
 ];
 
 export const COLLECTIBLES = [
