@@ -34,6 +34,13 @@ const DEFAULT_PROFILE = {
   categoryStats: {},
   difficultyStats: {},
   history: [],
+  questProgress: {},
+  claimedQuests: [],
+  collection: [],
+  seasonXp: 0,
+  seasonTier: 1,
+  raidEnergy: 5,
+  lastEnergyAt: 0,
   createdAt: 0,
   updatedAt: 0
 };
