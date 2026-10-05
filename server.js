@@ -1246,6 +1246,8 @@ function getSlashCommands() {
       )
       .toJSON(),
 
+    ...getGameCommands(),
+
     new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
