@@ -388,7 +388,7 @@ export async function handleGameInteraction(interaction, options = {}){
     s.answered=true;
     const answer=decodeURIComponent(parts.slice(4).join(":")), item=s.questions[s.index], correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
-    if(correct){s.correct+=1;s.score+=reward.score;}else{s.wrong+=1;}
+    if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
     await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});\n    await incrementQuestProgress(s.userId,"answers",1);\n    if(correct) await incrementQuestProgress(s.userId,"correct",1);\n    const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
     if(s.mode==="survival"&&!correct){
       s.questions=s.questions.slice(0,s.index+1);
