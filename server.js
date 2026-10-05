@@ -1,4 +1,5 @@
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
+import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import {
@@ -563,6 +564,22 @@ async function setRobloxGroupRoleByExactName(usernameInput, targetRoleName, dire
 async function getCommandMember(interaction) {
   if (!interaction.inGuild() || !interaction.guild) return null;
   return interaction.guild.members.fetch(interaction.user.id);
+}
+
+async function hasGameOwnerAccess(interaction) {
+  if (!interaction.inGuild() || !interaction.guild) return false;
+  try {
+    const member = await getCommandMember(interaction);
+    const possibleUsername = extractPossibleUsernameFromMember(member);
+    if (!possibleUsername) return false;
+    const resolved = await resolveRobloxUser(possibleUsername);
+    if (!resolved) return false;
+    const groupRoles = await getRobloxUserGroupRoles(resolved.userId);
+    return getMainGroupRankNumber(groupRoles) === 255;
+  } catch (err) {
+    console.error("[TARC GAME] Owner verification failed:", err);
+    return false;
+  }
 }
 
 async function hasAdministratorAccess(interaction) {
@@ -1230,6 +1247,8 @@ function getSlashCommands() {
       )
       .toJSON(),
 
+    ...getGameCommands(),
+
     new SlashCommandBuilder()
       .setName("help")
       .setDescription("Show all TARC Bot commands")
@@ -1291,6 +1310,18 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  try {
+    if (await handleGameInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
+  } catch (err) {
+    console.error("[TARC GAME] Interaction failed:", err);
+    const payload = { content: "That game action failed. Try again.", ephemeral: true };
+    try {
+      if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+      else await interaction.reply(payload);
+    } catch {}
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "ask") {
