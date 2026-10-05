@@ -1237,6 +1237,29 @@ function getSlashCommands() {
   ];
 }
 
+
+function humanizeCommandDescription(command) {
+  const name = String(command?.name || "").trim();
+  const description = String(command?.description || "").trim();
+  if (!name) return null;
+  return `**/${name}**  ${description || "TARC Bot command"}`;
+}
+
+function getHelpCommandLines() {
+  const allCommands = [getGlobalAskCommand(), ...getSlashCommands()];
+  const seen = new Set();
+  const lines = [];
+
+  for (const command of allCommands) {
+    if (!command?.name || seen.has(command.name)) continue;
+    seen.add(command.name);
+    const line = humanizeCommandDescription(command);
+    if (line) lines.push(line);
+  }
+
+  return lines;
+}
+
 client.once(Events.ClientReady, async () => {
   console.log(`[DISCORD] Logged in as ${client.user.tag}`);
 
@@ -1802,29 +1825,12 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 
   if (interaction.commandName === "help") {
+    const lines = getHelpCommandLines();
     const embed = applyCommandImage(
       new EmbedBuilder()
         .setColor(0x2b7fff)
         .setTitle("TARC Bot Commands")
-        .setDescription([
-          `**/profile** — Show a player's TARC profile from game data`,
-          `**/bgc** — Run a Roblox background check`,
-          `**/groupstats** — Show Discord, group, and game stats`,
-          `**/xpleaderboard** — Show top cached XP users`,
-          `**/viewxp** — Show your own cached XP`,
-          `**/ranks** — Show XP rank requirements`,
-          `**/quote** — Generate a random Star Wars quote`,
-          `**/links** — Show useful TARC links`,
-          `**/chainofcommand** — Show current high command`,
-          `**/verify** — Show RoWifi verification steps`,
-          `**/xp** — Add or remove up to 2 XP (Officer Permission)`,
-          `**/starcreator** — Give or remove the creator tag (Content Creator Manager)`,
-          `**/promote** — Promote a Roblox user to an exact rank name (Marshal Commander+)`,
-          `**/demote** — Demote a Roblox user to an exact rank name (Marshal Commander+)`,
-          `**/rmp** — Clean one member’s enlisted Discord roles (Marshal Commander+)`,
-          `**/rmpall** — Clean all enlisted Discord roles into RMP (Marshal Commander+)`,
-          `**/help** — Show this command list`
-        ].join("\n"))
+        .setDescription(lines.join("\n"))
     );
     return interaction.reply({ embeds: [embed] });
   }
