@@ -1315,8 +1315,13 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     if (await handleGameInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
   } catch (err) {
-    console.error("[TARC GAME] Interaction failed:", err);
-    const payload = { content: "That game action failed. Try again.", ephemeral: true };
+    const action = String(interaction.customId || interaction.commandName || "game").split(":").slice(0,2).join(":");
+    const errorId = randomUUID().slice(0, 8);
+    console.error(`[TARC GAME] Interaction failed [${errorId}] action=${action} user=${interaction.user?.id || "unknown"}:`, err);
+    const payload = {
+      content: `⚠️ **${action || "Game"}** couldn't finish that action. Nothing has been taken from your profile. Error ID: \`${errorId}\``,
+      ephemeral: true
+    };
     try {
       if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
       else await interaction.reply(payload);
