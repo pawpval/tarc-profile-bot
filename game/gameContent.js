@@ -60,3 +60,39 @@ export const ACHIEVEMENTS = [
 export function earnedAchievements(profile) {
   return ACHIEVEMENTS.filter(a=>a.test(profile));
 }
+
+
+export const GAME_QUESTS = [
+  { id:"q_answer_10", name:"Warm Up", key:"answers", target:10, credits:300, xp:120, seasonXp:100, description:"Answer 10 quiz questions." },
+  { id:"q_correct_8", name:"Sharp Shooter", key:"correct", target:8, credits:400, xp:160, seasonXp:125, description:"Get 8 quiz answers correct." },
+  { id:"q_quiz_3", name:"Study Session", key:"quizzes", target:3, credits:500, xp:200, seasonXp:150, description:"Complete 3 quizzes." },
+  { id:"q_patrol_3", name:"On Duty", key:"patrols", target:3, credits:550, xp:220, seasonXp:150, description:"Complete 3 patrols." },
+  { id:"q_faceoff_1", name:"Challenge Accepted", key:"faceoffs", target:1, credits:650, xp:250, seasonXp:200, description:"Complete a Face Off." },
+  { id:"q_streak_5", name:"Locked In", key:"streak5", target:1, credits:450, xp:180, seasonXp:125, description:"Reach a 5-answer streak." }
+];
+
+export const COLLECTIBLES = [
+  {id:"holocron_blue",name:"Blue Holocron",rarity:"Common"},
+  {id:"clone_helmet",name:"Clone Helmet",rarity:"Common"},
+  {id:"b1_head",name:"B1 Droid Head",rarity:"Common"},
+  {id:"republic_emblem",name:"Republic Emblem",rarity:"Uncommon"},
+  {id:"cis_emblem",name:"CIS Emblem",rarity:"Uncommon"},
+  {id:"kyber_green",name:"Green Kyber Shard",rarity:"Rare"},
+  {id:"kyber_blue",name:"Blue Kyber Shard",rarity:"Rare"},
+  {id:"commando_badge",name:"Commando Badge",rarity:"Rare"},
+  {id:"darksaber_fragment",name:"Darksaber Fragment",rarity:"Epic"},
+  {id:"gold_holocron",name:"Golden Holocron",rarity:"Legendary"}
+];
+
+export const SEASON_REWARDS = [
+  {tier:1,credits:0,xp:0,label:"Season Recruit"},
+  {tier:2,credits:300,xp:100,label:"300 Credits"},
+  {tier:3,credits:500,xp:150,label:"500 Credits"},
+  {tier:4,credits:750,xp:200,label:"750 Credits"},
+  {tier:5,credits:1000,xp:300,label:"1,000 Credits"},
+  {tier:6,credits:1250,xp:350,label:"1,250 Credits"},
+  {tier:7,credits:1500,xp:400,label:"1,500 Credits"},
+  {tier:8,credits:2000,xp:500,label:"2,000 Credits"},
+  {tier:9,credits:2500,xp:600,label:"2,500 Credits"},
+  {tier:10,credits:4000,xp:1000,label:"Season Veteran"}
+];
