@@ -278,11 +278,19 @@ async function showSeason(interaction){
 }
 
 export function getGameCommands(){
+  const everywhere = command => {
+    const json = command.toJSON();
+    json.integration_types = [0, 1];
+    json.contexts = [0, 1, 2];
+    json.dm_permission = true;
+    return json;
+  };
+
   return [
-    new SlashCommandBuilder().setName("game").setDescription("🎮 Open the TARC game hub").toJSON(),
-    new SlashCommandBuilder().setName("quiz").setDescription("🧠 Start a quiz or challenge another player")
-      .addUserOption(o=>o.setName("opponent").setDescription("Optional player to challenge").setRequired(false)).toJSON(),
-    new SlashCommandBuilder().setName("quizleaderboard").setDescription("🏆 Open the quiz leaderboard").toJSON(),
+    everywhere(new SlashCommandBuilder().setName("game").setDescription("🎮 Open the TARC game hub")),
+    everywhere(new SlashCommandBuilder().setName("quiz").setDescription("🧠 Start a quiz or challenge another player")
+      .addUserOption(o=>o.setName("opponent").setDescription("Optional player to challenge").setRequired(false))),
+    everywhere(new SlashCommandBuilder().setName("quizleaderboard").setDescription("🏆 Open the quiz leaderboard")),
     new SlashCommandBuilder().setName("gameadmin").setDescription("🎮 Owner-only game controls")
       .addUserOption(o=>o.setName("player").setDescription("Player to edit").setRequired(true))
       .addStringOption(o=>o.setName("stat").setDescription("Stat to edit").setRequired(true).addChoices(
