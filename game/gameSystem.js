@@ -387,8 +387,8 @@ export async function handleGameInteraction(interaction, options = {}){
     }
     if(interaction.commandName==="gameadmin"){
       if(!interaction.inGuild()) {await interaction.reply({content:"Use this in the TARC server.",ephemeral:true});return true;}
-      // Discord server owner is an additional safety gate. server.js may add Roblox rank-255 verification later.
-      if(interaction.guild.ownerId!==interaction.user.id){await interaction.reply({content:"Owner only.",ephemeral:true});return true;}
+      const allowed = typeof options.isGameOwner === "function" ? await options.isGameOwner(interaction) : false;
+      if(!allowed){await interaction.reply({content:"This panel is restricted to the TARC group owner.",ephemeral:true});return true;}
       const target=interaction.options.getUser("player",true),stat=interaction.options.getString("stat",true),value=interaction.options.getInteger("value",true);
       const p=await adminSetStat(target.id,stat,value);
       await interaction.reply({content:`Updated <@${target.id}>: **${stat} = ${fmt(p[stat])}**`,ephemeral:true});return true;
