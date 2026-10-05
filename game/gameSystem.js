@@ -186,21 +186,19 @@ async function finishSolo(interaction,s){
 async function showProfile(interaction,user=interaction.user){
   const p=await getPlayer(user.id), lp=getLevelProgress(p);
   const achievements=earnedAchievements(p);
-  const embed=new EmbedBuilder().setColor(0x2b7fff).setTitle(`${user.username}'s Game Profile`).setDescription([
-    `**${p.equippedTitle || "Rookie"}**`,
-    `Level **${lp.level}**  ${progressBar(lp.current,lp.needed)}`,
-    `XP: **${fmt(p.xp)}**`,
-    `Credits: **${fmt(p.credits)}**`,
-    `Elo: **${fmt(p.elo)}**  ${rankName(p.elo)}`,
-    "",
-    `Quizzes: **${fmt(p.quizzesCompleted)}**`,
-    `Questions: **${fmt(p.questionsAnswered)}**`,
-    `Accuracy: **${pct(p.correctAnswers,p.questionsAnswered)}%**`,
-    `Best Streak: **${fmt(p.bestStreak)}**`,
-    `Ranked: **${p.rankedWins}W / ${p.rankedLosses}L**`,
-    `Patrols: **${fmt(p.patrols)}**`,
-    `Achievements: **${achievements.length}/${ACHIEVEMENTS.length}**`
-  ].join("\n"));
+  const categoryEntries=Object.entries(p.categoryStats||{}).filter(([,v])=>v.answered>0)
+    .sort((a,b)=>b[1].answered-a[1].answered);
+  const best=categoryEntries.sort((a,b)=>pct(b[1].correct,b[1].answered)-pct(a[1].correct,a[1].answered))[0];
+  const recent=(p.history||[]).slice(0,3).map(h=>`${h.mode || "Quiz"} ${h.score}/${h.total}`).join(" | ") || "No completed quizzes yet";
+  const embed=new EmbedBuilder().setColor(0x2b7fff).setTitle(`${user.username}'s Game Profile`)
+    .addFields(
+      {name:"Progress",value:`**${p.equippedTitle || "Rookie"}**\nLevel **${lp.level}**  ${progressBar(lp.current,lp.needed)}\n${fmt(lp.current)}/${fmt(lp.needed)} XP to next level\nCredits **${fmt(p.credits)}**`,inline:true},
+      {name:"Competitive",value:`Elo **${fmt(p.elo)}**\nRank **${rankName(p.elo)}**\nRanked **${p.rankedWins}W / ${p.rankedLosses}L**\nFace Off **${p.faceoffWins}W / ${p.faceoffLosses}L**`,inline:true},
+      {name:"Quiz Stats",value:`Quizzes **${fmt(p.quizzesCompleted)}**\nQuestions **${fmt(p.questionsAnswered)}**\nCorrect **${fmt(p.correctAnswers)}**\nAccuracy **${pct(p.correctAnswers,p.questionsAnswered)}%**\nBest streak **${fmt(p.bestStreak)}**`,inline:true},
+      {name:"Progression",value:`Patrols **${fmt(p.patrols)}**\nAchievements **${achievements.length}/${ACHIEVEMENTS.length}**\nCollection **${(p.collection||[]).length}/${COLLECTIBLES.length}**\nSeason tier **${Math.max(1,Math.floor(Number(p.seasonXp||0)/500)+1)}**`,inline:true},
+      {name:"Best Category",value:best?`${best[0]}  **${pct(best[1].correct,best[1].answered)}%** (${best[1].answered} answered)`:"Play some quizzes to build category stats.",inline:false},
+      {name:"Recent Runs",value:recent,inline:false}
+    );
   return interaction.update ? interaction.update({embeds:[embed],components:[backRow()]}) : interaction.reply({embeds:[embed],components:[backRow()]});
 }
 async function showLeaderboard(interaction,metric="elo"){
