@@ -12,7 +12,7 @@ import {
   incrementQuestProgress, claimQuest, addCollectible
 } from "./gameState.js";
 import { ACHIEVEMENTS, GAME_STORE, GAME_QUESTS, COLLECTIBLES, SEASON_REWARDS, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
-import { getQuestionPool } from "./questions.js";
+import { getQuestionPool, getQuestionCategories } from "./questions.js";
 
 const sessions = new Map();
 const PATROL_COOLDOWN = 5 * 60 * 1000;
@@ -61,7 +61,12 @@ function homeRows(){
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("game:patrol").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:quests").setLabel("Missions").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:collection").setLabel("Collection").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:season").setLabel("Season").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("game:how").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -99,25 +104,34 @@ function playMenu(){
   return [new ActionRowBuilder().addComponents(select),backRow()];
 }
 function setupRows(mode){
-  const scope = new StringSelectMenuBuilder().setCustomId(`quiz:scope:${mode}`).setPlaceholder("Choose question category").addOptions(
-    {label:"Mixed",value:"mixed"},{label:"Star Wars",value:"starwars"},{label:"TARC",value:"tarc"}
+  const scope = new StringSelectMenuBuilder().setCustomId(`quiz:scope:${mode}`).setPlaceholder("Choose quiz type").addOptions(
+    {label:"Mixed",description:"TARC and Star Wars together.",value:"mixed"},
+    {label:"Star Wars",description:"Star Wars questions only.",value:"starwars"},
+    {label:"TARC",description:"TARC member knowledge only.",value:"tarc"}
   );
   return [new ActionRowBuilder().addComponents(scope),backRow()];
 }
-function difficultyRows(mode,scope){
-  const select = new StringSelectMenuBuilder().setCustomId(`quiz:difficulty:${mode}:${scope}`).setPlaceholder("Choose difficulty").addOptions(
+function categoryRows(mode,scope){
+  const cats=getQuestionCategories(scope).slice(0,24);
+  const options=[{label:"Mixed categories",value:"Mixed"},...cats.map(c=>({label:c.slice(0,100),value:c.slice(0,100)}))];
+  return [new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder().setCustomId(`quiz:category:${mode}:${scope}`).setPlaceholder("Choose a category").addOptions(...options)
+  ),backRow()];
+}
+function difficultyRows(mode,scope,category="Mixed"){
+  const select = new StringSelectMenuBuilder().setCustomId(`quiz:difficulty:${mode}:${scope}:${encodeURIComponent(category)}`).setPlaceholder("Choose difficulty").addOptions(
     {label:"Random",value:"Random"},{label:"Easy",value:"Easy"},{label:"Medium",value:"Medium"},{label:"Hard",value:"Hard"},{label:"Extreme",value:"Extreme"}
   );
   return [new ActionRowBuilder().addComponents(select),backRow()];
 }
-function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",count=10}={}){
-  let pool=getQuestionPool({scope,difficulty});
+function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="Mixed",count=10}={}){
+  let pool=getQuestionPool({scope,difficulty,category});
   if(mode==="extreme") pool=getQuestionPool({scope}).filter(q=>q.difficulty==="Hard"||q.difficulty==="Extreme");
   if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty});}
   if(mode==="starwars"){scope="starwars";pool=getQuestionPool({scope,difficulty});}
   const questions=shuffle(pool).slice(0,Math.min(count,pool.length));
   const id=sid();
-  const s={id,type:"solo",userId:String(userId),mode,scope,difficulty,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
+  const s={id,type:"solo",userId:String(userId),mode,scope,difficulty,category,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
   sessions.set(id,s);
   return s;
 }
