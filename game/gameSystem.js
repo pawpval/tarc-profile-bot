@@ -151,7 +151,8 @@ async function finishSolo(interaction,s){
   if(ranked){
     eloDelta=Math.max(-20,Math.min(35,Math.round((accuracy-60)/2)));
   }
-  await completeQuiz(s.userId,{score:s.correct,total:s.questions.length,ranked,won:accuracy>=70,eloDelta,mode:s.mode});\n  await incrementQuestProgress(s.userId,"quizzes",1);
+  await completeQuiz(s.userId,{score:s.correct,total:s.questions.length,ranked,won:accuracy>=70,eloDelta,mode:s.mode});
+  await incrementQuestProgress(s.userId,"quizzes",1);
   sessions.delete(s.id);
   const p=await getPlayer(s.userId);
   const embed=new EmbedBuilder().setColor(accuracy>=70?0x31c48d:0xff9500).setTitle("Quiz Complete").setDescription([
@@ -272,7 +273,8 @@ async function showSeason(interaction){
   const rewards=SEASON_REWARDS.map(r=>`${r.tier<=tier?"Unlocked":"Locked"}  **Tier ${r.tier}**  ${r.label}`).join("\n");
   return interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Launch Season").setDescription(`Tier **${tier}**  ${progressBar(into,500)} ${into}/500\nSeason XP: **${fmt(p.seasonXp||0)}**\n\n${rewards}`)],components:[backRow()]});
 }
-\nexport function getGameCommands(){
+
+export function getGameCommands(){
   return [
     new SlashCommandBuilder().setName("game").setDescription("Open the TARC game hub").toJSON(),
     new SlashCommandBuilder().setName("quiz").setDescription("Start a quiz or challenge another player")
@@ -355,7 +357,10 @@ export async function handleGameInteraction(interaction, options = {}){
   if(id==="game:leaderboard") {await showLeaderboard(interaction);return true;}
   if(id==="game:shop") {await showShop(interaction);return true;}
   if(id==="game:patrol") {await doPatrol(interaction);return true;}
-  if(id==="game:achievements") {await showAchievements(interaction);return true;}\n  if(id==="game:quests") {await showQuests(interaction);return true;}\n  if(id==="game:collection") {await showCollection(interaction);return true;}\n  if(id==="game:season") {await showSeason(interaction);return true;}
+  if(id==="game:achievements") {await showAchievements(interaction);return true;}
+  if(id==="game:quests") {await showQuests(interaction);return true;}
+  if(id==="game:collection") {await showCollection(interaction);return true;}
+  if(id==="game:season") {await showSeason(interaction);return true;}
   if(id==="game:daily") {await daily(interaction);return true;}
   if(id==="game:how") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("How to Play").setDescription("Play quizzes to earn Credits, XP and competitive Elo. Use Credits in the shop. Level up your profile, build streaks, complete achievements and run patrols between quizzes.\n\n**Ranked rule:** Credits and shop items never buy Elo. Elo comes from competitive quiz performance.")],components:[backRow()]});return true;}
 
@@ -389,7 +394,10 @@ export async function handleGameInteraction(interaction, options = {}){
     const answer=decodeURIComponent(parts.slice(4).join(":")), item=s.questions[s.index], correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
-    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});\n    await incrementQuestProgress(s.userId,"answers",1);\n    if(correct) await incrementQuestProgress(s.userId,"correct",1);\n    const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
+    await recordQuizAnswer(s.userId,{correct,category:item.category,difficulty:item.difficulty,credits,xp});
+    await incrementQuestProgress(s.userId,"answers",1);
+    if(correct) await incrementQuestProgress(s.userId,"correct",1);
+    const qp=await getPlayer(s.userId); if(qp.currentStreak>=5) await incrementQuestProgress(s.userId,"streak5",1);
     if(s.mode==="survival"&&!correct){
       s.questions=s.questions.slice(0,s.index+1);
       return finishSolo(interaction,s);
