@@ -1290,11 +1290,12 @@ client.once(Events.ClientReady, async () => {
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
     // Keep /ask global so it works through Guild Install and User Install.
+    const globalGameCommands = getGameCommands().filter(command => command.name !== "gameadmin");
     await rest.put(
       Routes.applicationCommands(CLIENT_ID),
-      { body: [getGlobalAskCommand()] }
+      { body: [getGlobalAskCommand(), ...globalGameCommands] }
     );
-    console.log("[DISCORD] Global /ask command registered");
+    console.log("[DISCORD] Global /ask and player game commands registered");
 
     for (const guildId of GUILD_IDS) {
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
