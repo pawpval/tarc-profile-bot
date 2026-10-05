@@ -76,24 +76,31 @@ function resultReaction(profile, correct, item){
   return correct ? pick(set.good) : `${pick(set.bad)} Correct answer: **${item.correct}**.`;
 }
 function homeRows(){
+  const menu = new StringSelectMenuBuilder().setCustomId("game:navigate").setPlaceholder("🧭 Explore TARC Game").addOptions(
+    {label:"Profile & Stats",description:"Levels, Elo, accuracy, streaks and recent runs.",value:"profile",emoji:"📊"},
+    {label:"Progression",description:"Missions, achievements, collection and season.",value:"progression",emoji:"🏅"},
+    {label:"Shop",description:"Spend Credits on titles and reaction styles.",value:"shop",emoji:"🛒"},
+    {label:"Leaderboards",description:"Compare Elo, Credits, XP and more.",value:"leaderboard",emoji:"🏆"},
+    {label:"How to Play",description:"A quick explanation of the whole game.",value:"how",emoji:"❓"}
+  );
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:play").setLabel("Play").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("game:profile").setLabel("Profile").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:shop").setLabel("Shop").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:leaderboard").setLabel("Leaderboard").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:daily").setLabel("Daily").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId("game:play").setLabel("PLAY").setEmoji("🎮").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("game:daily").setLabel("DAILY").setEmoji("🎁").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("game:patrol").setLabel("PATROL").setEmoji("🛰️").setStyle(ButtonStyle.Secondary)
     ),
+    new ActionRowBuilder().addComponents(menu)
+  ];
+}
+function progressionRows(){
+  return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:patrol").setLabel("Patrol").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:quests").setLabel("Missions").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:collection").setLabel("Collection").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:season").setLabel("Season").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("game:quests").setLabel("Missions").setEmoji("🎯").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("game:achievements").setLabel("Achievements").setEmoji("🏅").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:collection").setLabel("Collection").setEmoji("💎").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:season").setLabel("Season").setEmoji("⭐").setStyle(ButtonStyle.Secondary)
     ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("game:how").setLabel("How to Play").setStyle(ButtonStyle.Secondary)
-    )
+    backRow()
   ];
 }
 async function homeEmbed(user){
@@ -403,6 +410,14 @@ export async function handleGameInteraction(interaction, options = {}){
   const id=interaction.customId;
   if(!(id.startsWith("game:")||id.startsWith("quiz:")||id.startsWith("faceoff:"))) return false;
 
+  if(id==="game:navigate"){
+    const target=interaction.values[0];
+    if(target==="profile"){await showProfile(interaction);return true;}
+    if(target==="shop"){await showShop(interaction);return true;}
+    if(target==="leaderboard"){await showLeaderboard(interaction);return true;}
+    if(target==="progression"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🏅 Progression").setDescription("Pick a progression system. Everything here builds from playing quizzes and patrols.")],components:progressionRows()});return true;}
+    if(target==="how"){await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("❓ How to Play").setDescription("🎮 **Play quizzes** to earn Credits and XP.\n🏆 **Compete** in Extreme runs and Face Offs for Elo.\n🎯 **Complete missions** for bonus rewards and Season XP.\n🛰️ **Patrol** between quizzes for random encounters and collectibles.\n🛒 **Spend Credits** on titles and reaction styles.\n\nYour profile, collection, achievements and season all progress together.")],components:[backRow()]});return true;}
+  }
   if(id==="game:home") {await interaction.update({embeds:[await homeEmbed(interaction.user)],components:homeRows()});return true;}
   if(id==="game:play") {await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Play").setDescription("Pick a mode. Everything rewards the same profile.")],components:playMenu()});return true;}
   if(id==="game:profile") {await showProfile(interaction);return true;}
