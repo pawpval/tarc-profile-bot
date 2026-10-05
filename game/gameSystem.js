@@ -326,15 +326,15 @@ export async function handleGameInteraction(interaction, options = {}){
   cleanSessions();
   if(interaction.isChatInputCommand()){
     if(interaction.commandName==="game"){
-      return interaction.reply({embeds:[await homeEmbed(interaction.user)],components:homeRows(),ephemeral:true}).then(()=>true);
+      return interaction.reply({embeds:[await homeEmbed(interaction.user)],components:homeRows()}).then(()=>true);
     }
     if(interaction.commandName==="quiz"){
       const opponent=interaction.options.getUser("opponent");
       if(opponent){await startChallenge(interaction,opponent);return true;}
-      return interaction.reply({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Play Quiz").setDescription("Choose a mode. You can change category and difficulty next.")],components:playMenu(),ephemeral:true}).then(()=>true);
+      return interaction.reply({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Play Quiz").setDescription("Choose a mode. You can change category and difficulty next.")],components:playMenu()}).then(()=>true);
     }
     if(interaction.commandName==="quizleaderboard"){
-      await interaction.reply({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Loading leaderboard...")],ephemeral:true});
+      await interaction.reply({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Loading leaderboard...")]});
       const rows=await getLeaderboard("elo",10);
       await interaction.editReply({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Quiz Elo Leaderboard").setDescription(rows.length?rows.map((p,i)=>`**${i+1}.** <@${p.userId}>  **${fmt(p.elo)}**  ${rankName(p.elo)}`).join("\n"):"No scores yet.")],components:[]});
       return true;
