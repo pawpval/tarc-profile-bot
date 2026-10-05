@@ -11,7 +11,7 @@ import {
   getLevelProgress, getPlayer, mutatePlayer, purchaseItem, recordQuizAnswer,
   incrementQuestProgress, claimQuest, addCollectible
 } from "./gameState.js";
-import { ACHIEVEMENTS, GAME_STORE, GAME_QUESTS, COLLECTIBLES, SEASON_REWARDS, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
+import { ACHIEVEMENTS, GAME_STORE, GAME_QUESTS, COLLECTIBLES, SEASON_REWARDS, COMMAND_UNITS, SKILL_TREE, OPERATION_EVENTS, CRATE_DROPS, earnedAchievements, findStoreItem, randomBetween, randomPatrol } from "./gameContent.js";
 import { getQuestionPool, getQuestionCategories } from "./questions.js";
 
 const sessions = new Map();
@@ -48,7 +48,16 @@ function rankName(elo){
 }
 function progressBar(current, needed, size=10){
   const filled=Math.max(0,Math.min(size,Math.round((current/Math.max(1,needed))*size)));
-  return `[${"#".repeat(filled)}${".".repeat(size-filled)}]`;
+  return `${"🟦".repeat(filled)}${"⬛".repeat(size-filled)}`;
+}
+function skillRank(p,id){return Math.max(0,Number(p.skillRanks?.[id]||0));}
+function skillMultiplier(p,id){return 1+(skillRank(p,id)*0.10);}
+function commandIncomePerHour(p){
+  return COMMAND_UNITS.reduce((sum,u)=>sum+(Number(p.commandUnits?.[u.id]||0)*u.income),0);
+}
+function weightedCrateDrop(){
+  const total=CRATE_DROPS.reduce((n,d)=>n+d.weight,0);let roll=Math.random()*total;
+  for(const d of CRATE_DROPS){roll-=d.weight;if(roll<=0)return d;}return CRATE_DROPS[0];
 }
 
 function pick(items){ return items[Math.floor(Math.random()*items.length)]; }
@@ -109,7 +118,8 @@ function operationsRows(){
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("game:event").setLabel("Dynamic Event").setEmoji("⚔️").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("game:command").setLabel("Command Centre").setEmoji("🏛️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("game:crateinfo").setLabel("Supply Crates").setEmoji("📦").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("game:crateinfo").setLabel("Supply Crates").setEmoji("📦").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:skills").setLabel("Skill Tree").setEmoji("🌳").setStyle(ButtonStyle.Secondary)
     ),
     backRow()
   ];
