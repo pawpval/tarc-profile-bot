@@ -396,17 +396,21 @@ export async function handleGameInteraction(interaction, options = {}){
       await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
     }
     if(mode==="tarc"||mode==="starwars"){
-      await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(mode==="tarc"?"TARC Specialist":"Galactic Specialist").setDescription("Choose a difficulty.")],components:difficultyRows(mode,mode)});return true;
+      await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle(mode==="tarc"?"TARC Specialist":"Galactic Specialist").setDescription("Choose a difficulty.")],components:categoryRows(mode,mode)});return true;
     }
     await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Choose Category").setDescription("Pick what you want to be tested on.")],components:setupRows(mode)});return true;
   }
   if(id.startsWith("quiz:scope:")){
     const mode=id.split(":")[2],scope=interaction.values[0];
-    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Choose Difficulty").setDescription("Easy, Medium, Hard, Extreme or Random.")],components:difficultyRows(mode,scope)});return true;
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Choose Category").setDescription("Pick a specific category or keep everything mixed.")],components:categoryRows(mode,scope)});return true;
+  }
+  if(id.startsWith("quiz:category:")){
+    const [, , mode,scope]=id.split(":"), category=interaction.values[0];
+    await interaction.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("Choose Difficulty").setDescription("Easy, Medium, Hard, Extreme or Random.")],components:difficultyRows(mode,scope,category)});return true;
   }
   if(id.startsWith("quiz:difficulty:")){
-    const [, , mode,scope]=id.split(":"), difficulty=interaction.values[0];
-    const s=makeQuestionSession(interaction.user.id,{mode,scope,difficulty,count:10});
+    const parts=id.split(":"), mode=parts[2],scope=parts[3],category=decodeURIComponent(parts.slice(4).join(":")||"Mixed"), difficulty=interaction.values[0];
+    const s=makeQuestionSession(interaction.user.id,{mode,scope,difficulty,category,count:10});
     if(!s.questions.length){sessions.delete(s.id);await interaction.update({content:"No questions are available for that combination yet.",embeds:[],components:[backRow()]});return true;}
     await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
   }
