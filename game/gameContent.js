@@ -7,6 +7,16 @@ export const GAME_STORE = [
   { id:"style_republic", name:"Republic Reactions", type:"answerStyle", value:"republic", price:1200, description:"Republic themed result reactions." },
   { id:"style_cis", name:"CIS Reactions", type:"answerStyle", value:"cis", price:1200, description:"CIS themed result reactions." },
   { id:"style_fire", name:"Fire Reactions", type:"answerStyle", value:"fire", price:2500, description:"Adds a hotter result style to your quiz runs." }
+,
+  { id:"title_commander", name:"Clone Commander", type:"title", value:"Clone Commander", price:5000, description:"A command-grade profile title." },
+  { id:"title_arc", name:"ARC Veteran", type:"title", value:"ARC Veteran", price:7500, description:"For players who know their way around the Republic." },
+  { id:"title_droid", name:"Tactical Droid", type:"title", value:"Tactical Droid", price:7500, description:"A CIS themed profile title." },
+  { id:"title_general", name:"Jedi General", type:"title", value:"Jedi General", price:12000, description:"A high-end Republic title." },
+  { id:"boost_xp", name:"XP Booster", type:"consumable", value:"xp_boost", price:2200, description:"Boosts XP from your next 20 correct quiz answers." },
+  { id:"boost_credits", name:"Credit Booster", type:"consumable", value:"credit_boost", price:2200, description:"Boosts Credits from your next 20 correct quiz answers." },
+  { id:"shield_streak", name:"Streak Shield", type:"consumable", value:"streak_shield", price:1800, description:"Protects your answer streak from one wrong answer." },
+  { id:"crate_republic", name:"Republic Supply Crate", type:"crate", value:"republic_crate", price:1500, description:"Open for Credits, XP and a chance at a collectible." },
+  { id:"crate_cis", name:"CIS Salvage Crate", type:"crate", value:"cis_crate", price:1500, description:"Open for Credits, XP and a chance at a collectible." }
 ];
 
 export function findStoreItem(id) {
