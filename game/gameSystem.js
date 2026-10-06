@@ -155,7 +155,7 @@ async function homeEmbed(user){
       `**${p.equippedTitle || "Rookie"}**  <@${user.id}>`,
       `Level **${lp.level}**  ${progressBar(lp.current,lp.needed)} ${fmt(lp.current)}/${fmt(lp.needed)} XP`,
       "",
-      `💳 Credits: **${fmt(p.credits)}**`,
+      `💵 Credits: **${fmt(p.credits)}**`,
       `🏆 Quiz Elo: **${fmt(p.elo)}**  ${rankName(p.elo)}`,
       `Accuracy: **${pct(p.correctAnswers,p.questionsAnswered)}%**`,
       `Best Streak: **${fmt(p.bestStreak)}**`,
