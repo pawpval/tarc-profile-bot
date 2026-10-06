@@ -956,7 +956,7 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   ];
   const punishmentText = punishmentItems.length ? punishmentItems.join(", ") : "None found";
   const membershipLines = otherMemberships.length
-    ? otherMemberships.slice(0, 6).map(d => `**${d.name}**\n${d.role}`).join("\n\n")
+    ? otherMemberships.map(d => `${d.name}: **${d.role}**`).join("\n")
     : "None";
   const gameLines = cachedProfile ? [
     `First Seen: ${firstSeen}`,
