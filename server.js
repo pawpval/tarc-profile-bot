@@ -38,6 +38,7 @@ const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
 
 // Roblox Open Cloud group ranking.
 const ROBLOX_API_KEY = String(process.env.ROBLOX_API_KEY || "");
+const ROBLOX_UNIVERSE_API_KEY = String(process.env.ROBLOX_UNIVERSE_API_KEY || "");
 const ROWIFI_API_TOKEN = String(process.env.ROWIFI_API_TOKEN || "");
 const ROWIFI_API_BASE = "https://api.rowifi.xyz/v2";
 const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
@@ -426,15 +427,51 @@ async function resolveRobloxUserById(userId) {
   }
 }
 
+async function robloxUniverseOpenCloudRequest(path, options = {}) {
+  if (!ROBLOX_UNIVERSE_API_KEY) {
+    throw new Error("ROBLOX_UNIVERSE_API_KEY is missing from Railway.");
+  }
+
+  const response = await fetch(`${ROBLOX_OPEN_CLOUD_BASE}${path}`, {
+    ...options,
+    headers: {
+      "x-api-key": ROBLOX_UNIVERSE_API_KEY,
+      ...(options.body ? { "content-type": "application/json" } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  const text = await response.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = text; }
+
+  if (!response.ok) {
+    const details = typeof data === "string" ? data : JSON.stringify(data);
+    throw new Error(`Roblox Universe Open Cloud HTTP ${response.status}: ${details || response.statusText}`);
+  }
+
+  return data;
+}
+
 async function getGameRestriction(userId) {
-  if (!ROBLOX_API_KEY || !ROBLOX_UNIVERSE_ID) return { available:false, banned:false };
+  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) return { available:false, banned:false };
+
   try {
-    const params = new URLSearchParams({ maxPageSize:"10", filter:`user == 'users/${userId}'` });
-    const data = await robloxOpenCloudRequest(`/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions?${params.toString()}`);
-    const list = data?.userRestrictions || data?.user_restrictions || [];
-    const active = list.find(r => r?.active === true || r?.isActive === true || r?.status === "ACTIVE");
-    return { available:true, banned:Boolean(active), restriction:active || null };
+    // UserRestriction IDs use the Roblox user resource form: users/{user_id}.
+    // Fetching the specific restriction avoids paging/filter ambiguity.
+    const restrictionId = encodeURIComponent(`users/${userId}`);
+    const data = await robloxUniverseOpenCloudRequest(
+      `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions/${restrictionId}`
+    );
+
+    const active = data?.active === true || data?.isActive === true || data?.status === "ACTIVE";
+    return { available:true, banned:Boolean(active), restriction:data || null };
   } catch (err) {
+    // A missing restriction means the player has no universe-level ban.
+    if (/HTTP 404\b/.test(String(err?.message || ""))) {
+      return { available:true, banned:false };
+    }
+
     console.warn("[BGC] User restriction lookup unavailable:", err.message);
     return { available:false, banned:false };
   }
