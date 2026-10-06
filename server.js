@@ -1818,15 +1818,19 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
-  if (interaction.commandName === "bgc") {
-    const usernameInput = interaction.options.getString("username", true);
+  if (interaction.commandName === "bgcheck") {
+    const usernameInput = interaction.options.getString("username", false);
+    const discordUser = interaction.options.getUser("member", false);
+    if (!usernameInput && !discordUser) {
+      return interaction.reply({ content: "Choose a Roblox username or Discord member to background check.", ephemeral: true });
+    }
     try {
       await interaction.deferReply();
-      const result = await buildBGCEmbed(usernameInput);
+      const result = await buildBGCEmbed({ usernameInput, discordUser, guildId: interaction.guildId || GUILD_ID });
       if (result.error) return interaction.editReply(result.error);
       return interaction.editReply({ embeds: [result.embed] });
     } catch (err) {
-      console.error("[DISCORD] /bgc failed:", err);
+      console.error("[DISCORD] /bgcheck failed:", err);
       return interaction.editReply("Something went wrong running that background check.");
     }
   }
