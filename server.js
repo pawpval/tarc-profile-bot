@@ -346,15 +346,21 @@ async function getRobloxSocialStats(userId) {
 }
 
 async function getRobloxBadgeCount(userId) {
-  let count = 0, cursor = "";
   try {
-    for (let page = 0; page < 20; page++) {
+    // Roblox exposes a dedicated count endpoint. This avoids paging the full badge
+    // inventory and is much less likely to fail for users with large inventories.
+    const data = await fetchJson(`https://badges.roblox.com/v1/users/${userId}/badges/count`);
+    if (Number.isFinite(Number(data?.count))) return Number(data.count);
+  } catch {}
+  try {
+    let count = 0, cursor = "";
+    for (let page = 0; page < 50; page++) {
       const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
       if (cursor) params.set("cursor", cursor);
       const data = await fetchJson(`https://badges.roblox.com/v1/users/${userId}/badges?${params.toString()}`);
       count += Array.isArray(data?.data) ? data.data.length : 0;
       cursor = String(data?.nextPageCursor || "");
-      if (!cursor) break;
+      if (!cursor) return count;
     }
     return count;
   } catch {
@@ -890,36 +896,63 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const divisions = getDivisionsFromGroupRoles(groupRoles);
   const mainRank = cachedProfile?.mainRankName || getMainGroupRoleFromGroupRoles(groupRoles);
+  const otherMemberships = divisions.filter(d => Number(d.id) !== MAIN_GROUP_ID);
   const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
   const createdUnix = Math.floor(new Date(userDetails.created).getTime() / 1000);
   const ageDays = Math.max(0, Math.floor((Date.now() - new Date(userDetails.created).getTime()) / 86400000));
   const flags = [];
   if (userDetails.isBanned) flags.push("Roblox account banned");
-  if (gameRestriction.banned) flags.push("Banned from TARC game");
-  if (discordBan.banned) flags.push("Banned from TARC Discord");
+  if (gameRestriction.banned) flags.push("Banned from main game");
+  if (discordBan.banned) flags.push("Discord ban");
   if (punishments.length) flags.push("Punishment history");
   if (ageDays < 90) flags.push("Very new Roblox account");
   else if (ageDays < 365) flags.push("Roblox account under 1 year old");
-  const status = flags.some(x => x.includes("Banned")) ? "Flagged" : flags.length ? "Review" : "Clear";
-  const memberships = divisions.slice(0, 6).map(d => `${d.name}: **${d.role}**`).join("\n") || "None";
-  const verifiedText = verifiedDiscordId ? `Yes (<@${verifiedDiscordId}>)` : ROWIFI_API_TOKEN ? "No linked Discord found" : "Unavailable";
-  const gameBanText = gameRestriction.available ? (gameRestriction.banned ? "YES" : "No") : "Unavailable";
-  const discordBanText = verifiedDiscordId ? (discordBan.available ? (discordBan.banned ? "YES" : "No") : "Unavailable") : "No verified Discord";
+  const status = flags.some(x => x.toLowerCase().includes("ban")) ? "🔴 Flagged" : flags.length ? "🟠 Review" : "🟢 Clear";
+  const verifiedText = verifiedDiscordId ? `✅ Yes, <@${verifiedDiscordId}>` : ROWIFI_API_TOKEN ? "❌ No linked Discord found" : "Unavailable";
   const profileUrl = `https://www.roblox.com/users/${resolved.userId}/profile`;
-  const firstSeen = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:D>` : "No game data";
-  const gameStats = cachedProfile ? `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**  •  XP: **${cachedProfile.xp ?? "N/A"}**  •  Kills: **${cachedProfile.kills ?? "N/A"}**` : "No cached game stats";
-  const punishmentText = punishments.length ? punishments.slice(0, 3).map(p => String(p)).join(" • ") : "None found";
+  const firstSeen = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:D>` : "Not recorded";
+  const punishmentItems = [
+    ...punishments.slice(0, 3).map(p => String(p)),
+    ...(discordBan.banned ? ["Discord ban"] : []),
+    ...(gameRestriction.banned ? ["Banned from main game"] : []),
+    ...(userDetails.isBanned ? ["Roblox account banned"] : [])
+  ];
+  const punishmentText = punishmentItems.length ? punishmentItems.join(", ") : "None found";
+  const membershipLines = otherMemberships.length
+    ? otherMemberships.slice(0, 6).map(d => `**${d.name}**\n${d.role}`).join("\n\n")
+    : "None";
+  const gameLines = cachedProfile ? [
+    `First Seen: ${firstSeen}`,
+    `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**`,
+    `XP: **${cachedProfile.xp ?? "N/A"}**    Kills: **${cachedProfile.kills ?? "N/A"}**`
+  ] : [`First Seen: ${firstSeen}`];
   const embed = new EmbedBuilder()
-    .setColor(status === "Flagged" ? 0xff3b30 : status === "Review" ? 0xff9500 : 0x2b7fff)
-    .setTitle(`Background Check | ${resolved.username}`)
+    .setColor(status.includes("Flagged") ? 0xff3b30 : status.includes("Review") ? 0xff9500 : 0x2b7fff)
+    .setTitle(`🔎 Background Check | ${resolved.username}`)
     .setDescription([
-      `**Roblox**`, `Username: **${resolved.username}**  •  [Profile](${profileUrl})`,
-      `User ID: ${resolved.userId}  •  Verified Discord: ${verifiedText}`, ``,
-      `**Account**`, `Friends: **${social.friends ?? "N/A"}**  •  Followers: **${social.followers ?? "N/A"}**  •  Badges: **${badgeCount ?? "N/A"}**`,
-      `Age: **${formatAccountAge(userDetails.created)}**  •  Created: <t:${createdUnix}:D>`, ``,
-      `**TARC**`, `Rank: **${mainRank || "Not in group"}**  •  First Seen: ${firstSeen}`, gameStats, safeTrim(memberships, 700), ``,
-      `**Checks**`, `Game Ban: **${gameBanText}**  •  Discord Ban: **${discordBanText}**`,
-      `Punishments: ${safeTrim(punishmentText, 350)}`, `Status: **${status}**${flags.length ? `  •  ${flags.join(" • ")}` : ""}`
+      `**👤 Roblox**`,
+      `Username: **${resolved.username}**`,
+      `Profile: [Open Roblox Profile](${profileUrl})`,
+      `User ID: **${resolved.userId}**`,
+      `Verified Discord: ${verifiedText}`,
+      ``,
+      `**📊 Account**`,
+      `Friends: **${social.friends ?? "N/A"}**    Followers: **${social.followers ?? "N/A"}**`,
+      `Badges: **${badgeCount ?? "N/A"}**`,
+      `Age: **${formatAccountAge(userDetails.created)}**`,
+      `Created: <t:${createdUnix}:D>`,
+      ``,
+      `**🛡️ TARC**`,
+      `Rank: **${mainRank || "Not in group"}**`,
+      ...(otherMemberships.length ? [``, `**Group Memberships**`, membershipLines] : []),
+      ``,
+      `**🎮 Game**`,
+      ...gameLines,
+      ``,
+      `**⚠️ Punishments**`,
+      punishmentText,
+      ``,
+      `**Status:** ${status}`
     ].join("\n"));
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
