@@ -38,6 +38,8 @@ const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
 
 // Roblox Open Cloud group ranking.
 const ROBLOX_API_KEY = String(process.env.ROBLOX_API_KEY || "");
+const ROWIFI_API_TOKEN = String(process.env.ROWIFI_API_TOKEN || "");
+const ROWIFI_API_BASE = "https://api.rowifi.xyz/v2";
 const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
 
 // Discord permissions for Roblox ranking and RMP cleanup.
@@ -1119,9 +1121,10 @@ function getSlashCommands() {
       .toJSON(),
 
     new SlashCommandBuilder()
-      .setName("bgc")
-      .setDescription("Run a Roblox background check")
-      .addStringOption(option => option.setName("username").setDescription("Roblox username").setRequired(true))
+      .setName("bgcheck")
+      .setDescription("Run a TARC background check")
+      .addStringOption(option => option.setName("username").setDescription("Roblox username").setRequired(false))
+      .addUserOption(option => option.setName("member").setDescription("Discord user to check through RoWifi").setRequired(false))
       .toJSON(),
 
     new SlashCommandBuilder()
