@@ -334,6 +334,117 @@ async function getRobloxUserGroupRoles(userId) {
   return data?.data || [];
 }
 
+async function getRobloxSocialStats(userId) {
+  const [friends, followers] = await Promise.allSettled([
+    fetchJson(`https://friends.roblox.com/v1/users/${userId}/friends/count`),
+    fetchJson(`https://friends.roblox.com/v1/users/${userId}/followers/count`)
+  ]);
+  return {
+    friends: friends.status === "fulfilled" ? Number(friends.value?.count || 0) : null,
+    followers: followers.status === "fulfilled" ? Number(followers.value?.count || 0) : null
+  };
+}
+
+async function getRobloxBadgeCount(userId) {
+  let count = 0, cursor = "";
+  try {
+    for (let page = 0; page < 20; page++) {
+      const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
+      if (cursor) params.set("cursor", cursor);
+      const data = await fetchJson(`https://badges.roblox.com/v1/users/${userId}/badges?${params.toString()}`);
+      count += Array.isArray(data?.data) ? data.data.length : 0;
+      cursor = String(data?.nextPageCursor || "");
+      if (!cursor) break;
+    }
+    return count;
+  } catch {
+    return null;
+  }
+}
+
+function firstNumericValue(object, paths) {
+  for (const path of paths) {
+    let value = object;
+    for (const key of path.split(".")) value = value?.[key];
+    if (value !== undefined && value !== null && /^\d+$/.test(String(value))) return String(value);
+  }
+  return null;
+}
+
+async function rowifiRequest(path) {
+  if (!ROWIFI_API_TOKEN) return null;
+  try {
+    return await fetchJson(`${ROWIFI_API_BASE}${path}`, {
+      headers: { Authorization: `Bot ${ROWIFI_API_TOKEN}` }
+    });
+  } catch (err) {
+    console.warn("[ROWIFI] Lookup failed:", err.message);
+    return null;
+  }
+}
+
+async function getRoWifiByRobloxId(robloxId, guildId) {
+  if (!guildId) return null;
+  const data = await rowifiRequest(`/guilds/${guildId}/members/roblox/${robloxId}`);
+  if (!data) return null;
+  const discordId = firstNumericValue(data, [
+    "discordId","discord_id","discord.id","discord.user.id","user.id","member.user.id"
+  ]);
+  return discordId ? { discordId, raw: data } : null;
+}
+
+async function getRoWifiByDiscordId(discordId, guildId) {
+  if (!guildId) return null;
+  const data = await rowifiRequest(`/guilds/${guildId}/members/${discordId}`);
+  if (!data) return null;
+  const robloxId = firstNumericValue(data, [
+    "robloxId","roblox_id","roblox.id","roblox.user.id","roblox_user.id","account.id"
+  ]);
+  return robloxId ? { robloxId: Number(robloxId), raw: data } : null;
+}
+
+async function resolveRobloxUserById(userId) {
+  try {
+    const data = await fetchJson("https://users.roblox.com/v1/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userIds: [Number(userId)], excludeBannedUsers: false })
+    });
+    const found = data?.data?.[0];
+    if (!found?.id) return null;
+    return { userId:Number(found.id), username:String(found.name), displayName:String(found.displayName || found.name) };
+  } catch {
+    const details = await getRobloxUserDetails(userId).catch(() => null);
+    if (!details?.id) return null;
+    return { userId:Number(details.id), username:String(details.name), displayName:String(details.displayName || details.name) };
+  }
+}
+
+async function getGameRestriction(userId) {
+  if (!ROBLOX_API_KEY || !ROBLOX_UNIVERSE_ID) return { available:false, banned:false };
+  try {
+    const params = new URLSearchParams({ maxPageSize:"10", filter:`user == 'users/${userId}'` });
+    const data = await robloxOpenCloudRequest(`/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions?${params.toString()}`);
+    const list = data?.userRestrictions || data?.user_restrictions || [];
+    const active = list.find(r => r?.active === true || r?.isActive === true || r?.status === "ACTIVE");
+    return { available:true, banned:Boolean(active), restriction:active || null };
+  } catch (err) {
+    console.warn("[BGC] User restriction lookup unavailable:", err.message);
+    return { available:false, banned:false };
+  }
+}
+
+async function getDiscordBanStatus(guildId, discordId) {
+  if (!guildId || !discordId) return { available:false, banned:false };
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    const ban = await guild.bans.fetch(String(discordId)).catch(() => null);
+    return { available:true, banned:Boolean(ban) };
+  } catch {
+    return { available:false, banned:false };
+  }
+}
+
 function getMainGroupRoleFromGroupRoles(groupRoles) {
   const entry = groupRoles.find((item) => Number(item?.group?.id) === MAIN_GROUP_ID);
   return entry?.role?.name || "Not in group";
