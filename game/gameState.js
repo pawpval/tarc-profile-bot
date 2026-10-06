@@ -51,6 +51,7 @@ const DEFAULT_PROFILE = {
   lastEvent: 0,
   eventRuns: 0,
   cratesOpened: 0,
+  recentQuestionKeys: [],
   createdAt: 0,
   updatedAt: 0
 };
