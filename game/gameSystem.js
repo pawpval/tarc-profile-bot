@@ -207,19 +207,49 @@ function difficultyRows(mode,scope,category="__all__"){
   const select = new StringSelectMenuBuilder().setCustomId(`quiz:difficulty:${mode}:${scope}:${encodeURIComponent(category)}`).setPlaceholder("Choose difficulty").addOptions(...choices);
   return [new ActionRowBuilder().addComponents(select),backRow()];
 }
-function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="__all__",count=10}={}){
+function questionKey(item){
+  return String(item?.factKey || item?.prompt || item?.id || "").trim().toLowerCase().replace(/\s+/g," ");
+}
+async function makeQuestionSession(userId,{mode="classic",scope="mixed",difficulty="Random",category="__all__",count=10}={}){
   let pool=getQuestionPool({scope,difficulty,category});
   if(mode==="extreme") pool=getQuestionPool({scope}).filter(q=>q.difficulty==="Hard"||q.difficulty==="Extreme");
   if(mode==="tarc"){scope="tarc";pool=getQuestionPool({scope,difficulty,category});}
   if(mode==="starwars"){scope="starwars";pool=getQuestionPool({scope,difficulty,category});}
-  const recent=[...sessions.values()].filter(x=>x.userId===String(userId)).flatMap(x=>x.questions||[]).map(q=>q.id);
-  const unseen=pool.filter(q=>!recent.includes(q.id));
-  const source=unseen.length>=Math.min(count,pool.length)?unseen:pool;
-  const questions=shuffle(source).slice(0,Math.min(count,source.length));
+
+  // Never allow the same actual prompt twice in one pool, even if the bank
+  // accidentally contains duplicate IDs/variants for it.
+  const uniquePool=[];
+  const poolKeys=new Set();
+  for(const item of pool){
+    const key=questionKey(item);
+    if(!key||poolKeys.has(key)) continue;
+    poolKeys.add(key);
+    uniquePool.push(item);
+  }
+  pool=uniquePool;
+
+  // Keep a persistent per-player history so completed rounds do not immediately
+  // recycle the same questions. This survives Railway restarts when /data is mounted.
+  const profile=await getPlayer(userId);
+  const recentKeys=Array.isArray(profile.recentQuestionKeys)?profile.recentQuestionKeys:[];
+  const recentSet=new Set(recentKeys);
+  const unseen=pool.filter(item=>!recentSet.has(questionKey(item)));
+  const wanted=Math.min(count,pool.length);
+  let source=unseen.length>=wanted?unseen:[...unseen,...pool.filter(item=>recentSet.has(questionKey(item)))];
+  const questions=shuffle(source).slice(0,wanted);
+
+  if(questions.length){
+    const selectedKeys=questions.map(questionKey);
+    await mutatePlayer(userId,p=>{
+      const existing=Array.isArray(p.recentQuestionKeys)?p.recentQuestionKeys:[];
+      p.recentQuestionKeys=[...existing,...selectedKeys].slice(-250);
+    });
+  }
+
   const id=sid();
-  const s={id,type:"solo",userId:String(userId),mode,scope,difficulty,category,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
-  sessions.set(id,s);
-  return s;
+  const session={id,type:"solo",userId:String(userId),mode,scope,difficulty,category,questions,index:0,score:0,correct:0,wrong:0,createdAt:Date.now(),answered:false};
+  sessions.set(id,session);
+  return session;
 }
 function questionEmbed(s){
   const item=s.questions[s.index];
@@ -275,10 +305,11 @@ async function finishSolo(interaction,s){
     `**REWARDS**  +${fmt(completionCredits)} Credits  •  +${fmt(completionXp)} XP`,
     ranked ? `**ELO**  ${eloDelta>=0?"+":""}${eloDelta}  •  ${fmt(p.elo)} total` : null
   ].filter(Boolean).join("\n"));
-  return interaction.update({embeds:[embed],components:[new ActionRowBuilder().addComponents(
+  const payload={embeds:[embed],components:[new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("game:play").setLabel("Play Again").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("game:home").setLabel("Home").setStyle(ButtonStyle.Secondary)
-  )]});
+  )]};
+  return interaction.deferred || interaction.replied ? interaction.editReply(payload) : interaction.update(payload);
 }
 async function showProfile(interaction,user=interaction.user){
   const p=await getPlayer(user.id), lp=getLevelProgress(p);
@@ -550,11 +581,11 @@ export async function handleGameInteraction(interaction, options = {}){
   if(id==="game:playmode"){
     const mode=interaction.values[0];
     if(mode==="quickplay"){
-      const s=makeQuestionSession(interaction.user.id,{mode:"quickplay",scope:"mixed",difficulty:"Random",category:"__all__",count:10});
+      const s=await makeQuestionSession(interaction.user.id,{mode:"quickplay",scope:"mixed",difficulty:"Random",category:"__all__",count:10});
       await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
     }
     if(mode==="extreme"){
-      const s=makeQuestionSession(interaction.user.id,{mode,scope:"mixed",difficulty:"Random"});
+      const s=await makeQuestionSession(interaction.user.id,{mode,scope:"mixed",difficulty:"Random"});
       await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
     }
     if(mode==="tarc"||mode==="starwars"){
@@ -572,7 +603,7 @@ export async function handleGameInteraction(interaction, options = {}){
   }
   if(id.startsWith("quiz:difficulty:")){
     const parts=id.split(":"), mode=parts[2],scope=parts[3],category=decodeURIComponent(parts.slice(4).join(":")||"__all__"), difficulty=interaction.values[0];
-    const s=makeQuestionSession(interaction.user.id,{mode,scope,difficulty,category,count:10});
+    const s=await makeQuestionSession(interaction.user.id,{mode,scope,difficulty,category,count:10});
     if(!s.questions.length){sessions.delete(s.id);await interaction.update({content:"No questions are available for that combination yet.",embeds:[],components:[backRow()]});return true;}
     await interaction.update({embeds:[questionEmbed(s)],components:answerRows(s)});return true;
   }
@@ -584,6 +615,10 @@ export async function handleGameInteraction(interaction, options = {}){
     s.answered=true;
     const choiceIndex=Number(parts[3]), item=s.questions[s.index], answer=s.answerChoices?.[choiceIndex];
     if(typeof answer!=="string"){await interaction.reply({content:"That answer button expired. Start the question again.",ephemeral:true});return true;}
+    // Acknowledge the button immediately. State saves can occasionally take long
+    // enough for Discord's 3 second interaction window, which caused the false
+    // "Interaction Failed" banner even though the action later completed.
+    await interaction.deferUpdate();
     const correct=answer===item.correct, reward=DIFFICULTY_REWARD[item.difficulty]||DIFFICULTY_REWARD.Medium;
     const credits=correct?reward.credits:0,xp=correct?reward.xp:3;
     if(correct){s.correct+=1;s.score+=reward.score*(s.mode==="quickfire"?1.25:1);}else{s.wrong+=1;}
@@ -614,7 +649,7 @@ export async function handleGameInteraction(interaction, options = {}){
     const reaction=resultReaction(qp,correct,item);
     const result=correct?`${reaction} +${awardCredits} Credits, +${awardXp} XP${awardCredits>credits||awardXp>xp?"  BOOST ACTIVE":""}`:shielded?`${reaction} 🛡️ Streak Shield saved your streak.`:reaction;
     const embed=questionEmbed(s);embed.setFooter({text:result});
-    await interaction.update({embeds:[embed],components:answerRows(s)});return true;
+    await interaction.editReply({embeds:[embed],components:answerRows(s)});return true;
   }
   if(id==="game:claimquest"){const q=GAME_QUESTS.find(x=>x.id===interaction.values[0]);if(!q){await interaction.reply({content:"Quest not found.",ephemeral:true});return true;}const r=await claimQuest(interaction.user.id,q);await interaction.reply({content:r.ok?`Claimed **${q.name}**: +${q.credits} Credits, +${q.xp} XP and +${q.seasonXp} Season XP.`:"That quest is not ready to claim.",ephemeral:true});return true;}
   if(id==="game:buy"){
