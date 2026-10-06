@@ -982,7 +982,7 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
       ``,
       `**🛡️ Ranks**`,
       `Republic Army: **${mainRank || "Not in group"}**`,
-      ...(otherMemberships.length ? [``, membershipLines] : []),
+      ...(otherMemberships.length ? [membershipLines] : []),
       ...(cachedProfile ? [``, `**🎮 Game Stats**`, `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**`, `XP: **${cachedProfile.xp ?? "N/A"}**    Kills: **${cachedProfile.kills ?? "N/A"}**`] : []),
       ``,
       `**⚠️ Punishments**`,
