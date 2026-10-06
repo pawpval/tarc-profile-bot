@@ -157,48 +157,105 @@ function generatedQuestions() {
   let n = 101;
   const difficulties = ["Easy","Medium","Hard","Extreme"];
 
+  const forwardTemplates = {
+    "Homeworlds": [
+      a=>`What is the homeworld of ${a}?`, a=>`${a} originate from which world?`,
+      a=>`Which planet is most closely associated with ${a} as their homeworld?`, a=>`Choose the home planet of ${a}.`,
+      a=>`Where do ${a} come from?`, a=>`Which world would you identify as the native home of ${a}?`,
+      a=>`In Star Wars, ${a} are native to which planet?`, a=>`Which planet belongs with ${a}?`,
+      a=>`Match ${a} to their homeworld.`, a=>`Which world is the correct homeworld for ${a}?`
+    ],
+    "Clone Units": [
+      a=>`Who commanded ${a}?`, a=>`Which clone commander is associated with ${a}?`,
+      a=>`Match ${a} with its commander.`, a=>`Who is the commander most closely linked to ${a}?`,
+      a=>`${a} is associated with which clone officer?`, a=>`Which officer belongs with ${a}?`,
+      a=>`Choose the commander connected to ${a}.`, a=>`Which clone leader served with ${a}?`,
+      a=>`Who is the best match for ${a}?`, a=>`Identify the commander tied to ${a}.`
+    ],
+    "Characters": [
+      a=>`Who trained ${a}?`, a=>`Who served as ${a}'s Jedi teacher?`,
+      a=>`Which character mentored ${a}?`, a=>`Match ${a} with their teacher.`,
+      a=>`${a} received training from whom?`, a=>`Who is most closely associated with training ${a}?`,
+      a=>`Which mentor belongs with ${a}?`, a=>`Choose the teacher connected to ${a}.`,
+      a=>`Who instructed ${a} in this pairing?`, a=>`Identify ${a}'s mentor from these choices.`
+    ],
+    "Vehicles": [
+      a=>`Which faction is ${a} most associated with?`, a=>`${a} was primarily used by which faction?`,
+      a=>`Match ${a} to its faction.`, a=>`Who fielded ${a}?`,
+      a=>`Which side commonly operated ${a}?`, a=>`Choose the faction connected to ${a}.`,
+      a=>`Which military used ${a}?`, a=>`${a} belongs most closely with which force?`,
+      a=>`Who is the best faction match for ${a}?`, a=>`Identify the faction associated with ${a}.`
+    ]
+  };
+  const reverseTemplates = {
+    "Homeworlds": [
+      b=>`Which people are native to ${b}?`, b=>`${b} is the homeworld of which group?`,
+      b=>`Who comes from ${b}?`, b=>`Match ${b} with its native people.`,
+      b=>`Which species or people are most associated with ${b}?`, b=>`Choose the group whose homeworld is ${b}.`,
+      b=>`Which group belongs with the planet ${b}?`, b=>`Who would call ${b} their homeworld?`,
+      b=>`Identify the native group connected to ${b}.`, b=>`Which answer correctly matches ${b} as a homeworld?`
+    ],
+    "Clone Units": [
+      b=>`Which clone unit was associated with ${b}?`, b=>`${b} commanded which clone formation?`,
+      b=>`Match ${b} to the correct clone unit.`, b=>`Which unit belongs with commander ${b}?`,
+      b=>`${b} is most closely linked to which formation?`, b=>`Choose the clone unit connected to ${b}.`,
+      b=>`Which formation did ${b} lead?`, b=>`What unit is the best match for ${b}?`,
+      b=>`Identify the clone force associated with ${b}.`, b=>`Which unit should be paired with ${b}?`
+    ],
+    "Characters": [
+      b=>`Who was trained by ${b}?`, b=>`${b} served as mentor to which character?`,
+      b=>`Match ${b} with the student in this pairing.`, b=>`Which character received training from ${b}?`,
+      b=>`Who is the student most closely connected to ${b} here?`, b=>`Choose the character mentored by ${b}.`,
+      b=>`Which learner belongs with ${b}?`, b=>`Who did ${b} instruct in this pairing?`,
+      b=>`Identify the student connected to ${b}.`, b=>`Which answer correctly pairs a student with ${b}?`
+    ],
+    "Vehicles": [
+      b=>`Which vehicle is associated with ${b}?`, b=>`${b} commonly fielded which vehicle?`,
+      b=>`Match ${b} to a vehicle it used.`, b=>`Which vehicle belongs with ${b}?`,
+      b=>`Choose the vehicle connected to ${b}.`, b=>`Which machine is most closely associated with ${b}?`,
+      b=>`What vehicle is the best match for ${b}?`, b=>`Identify a vehicle used by ${b}.`,
+      b=>`Which vehicle should be paired with ${b}?`, b=>`Which answer is a vehicle associated with ${b}?`
+    ]
+  };
+
+  // Build a large static bank, but tag variants with the same factKey. The quiz
+  // selector treats those variants as one fact for recent-history purposes, so a
+  // player does not get the same fact reworded again a few questions later.
   for (const [setName, rows] of Object.entries(FACT_SETS)) {
     const left = rows.map(r => r[0]);
     const right = rows.map(r => r[1]);
-    for (let round = 0; round < 20; round++) {
+    for (let round = 0; round < 40; round++) {
       for (let i = 0; i < rows.length; i++) {
         const [a,b] = rows[i];
         const reverse = round % 2 === 1;
-        const prompt = reverse
-          ? (setName === "Homeworlds" ? `Which group/species is most associated with ${b}?` :
-             setName === "Clone Units" ? `Which clone unit was associated with ${b}?` :
-             setName === "Characters" ? `Who was trained by ${b}?` :
-             `Which vehicle is associated with ${b}?`)
-          : (setName === "Homeworlds" ? `What is the homeworld associated with ${a}?` :
-             setName === "Clone Units" ? `Which clone commander is associated with ${a}?` :
-             setName === "Characters" ? `Who trained ${a}?` :
-             `Which faction is ${a} most associated with?`);
+        const templates = reverse ? reverseTemplates[setName] : forwardTemplates[setName];
+        const templateIndex = Math.floor(round / 2) % templates.length;
+        const prompt = templates[templateIndex](reverse ? b : a);
         const correct = reverse ? a : b;
         const pool = reverse ? left : right;
         const wrong = seededWrong(pool, correct, round + i);
         if (wrong.length < 3) continue;
         out.push(q(
-          `sw${String(n++).padStart(3,"0")}`,
+          `sw${String(n++).padStart(4,"0")}`,
           setName,
-          difficulties[Math.min(3, Math.floor(round / 5))],
+          difficulties[(round + i) % difficulties.length],
           prompt,
           correct,
           wrong,
-          { variant: round }
+          { variant: round, factKey: `${setName}:${a}:${b}` }
         ));
       }
     }
   }
   return out;
 }
-
 const generated = generatedQuestions();
 const combined = [...DIRECT, ...generated];
 
-export const STAR_WARS_QUESTIONS = combined.slice(0, 500).map((item, index) => ({
+export const STAR_WARS_QUESTIONS = combined.slice(0, 1000).map((item, index) => ({
   ...item,
   id: `sw${String(index + 1).padStart(3,"0")}`,
-  sourceType: "curated"
+  sourceType: item.factKey ? "generated-variant" : "curated"
 }));
 
 export const TARC_QUESTIONS = [
