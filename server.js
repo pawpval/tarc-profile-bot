@@ -869,73 +869,61 @@ function buildProfileEmbed(profile) {
     ].join("\n"));
 }
 
-async function buildBGCEmbed(usernameInput) {
-  const resolved = await resolveRobloxUser(usernameInput);
-  if (!resolved) return { error: "Couldn’t find that Roblox user." };
-
-  const [userDetails, avatarUrl, groupRoles] = await Promise.all([
-    getRobloxUserDetails(resolved.userId),
-    getRobloxAvatarHeadshot(resolved.userId),
-    getRobloxUserGroupRoles(resolved.userId)
+async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
+  let resolved = null;
+  let verifiedDiscordId = discordUser?.id ? String(discordUser.id) : null;
+  if (usernameInput) resolved = await resolveRobloxUser(usernameInput);
+  if (!resolved && verifiedDiscordId) {
+    const link = await getRoWifiByDiscordId(verifiedDiscordId, guildId);
+    if (link?.robloxId) resolved = await resolveRobloxUserById(link.robloxId);
+  }
+  if (!resolved) return { error: discordUser ? "I couldn't find a RoWifi-linked Roblox account for that Discord user." : "Couldn't find that Roblox user." };
+  if (!verifiedDiscordId) {
+    const link = await getRoWifiByRobloxId(resolved.userId, guildId);
+    verifiedDiscordId = link?.discordId || null;
+  }
+  const [userDetails, avatarUrl, groupRoles, social, badgeCount, gameRestriction, discordBan] = await Promise.all([
+    getRobloxUserDetails(resolved.userId), getRobloxAvatarHeadshot(resolved.userId), getRobloxUserGroupRoles(resolved.userId),
+    getRobloxSocialStats(resolved.userId), getRobloxBadgeCount(resolved.userId), getGameRestriction(resolved.userId),
+    getDiscordBanStatus(guildId, verifiedDiscordId)
   ]);
-
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const divisions = getDivisionsFromGroupRoles(groupRoles);
-
   const mainRank = cachedProfile?.mainRankName || getMainGroupRoleFromGroupRoles(groupRoles);
-  const mainRankNumber = getMainGroupRankNumber(groupRoles);
-  const shownDivisions = divisions.filter((d) => d.id !== MAIN_GROUP_ID);
-
-  const divisionsText = shownDivisions.length > 0
-    ? shownDivisions.map((d) => `• ${d.name} — **${d.role}**`).join("\n")
-    : "None";
-
   const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
-  const punishmentText = userDetails.isBanned
-    ? "Roblox account is banned"
-    : punishments.length > 0
-      ? punishments.slice(0, 5).map((p) => `• ${String(p)}`).join("\n")
-      : "None found";
-
-  const status = getTarcStatus({
-    userDetails,
-    divisions,
-    mainRankName: mainRank,
-    mainRankNumber,
-    punishments
-  });
-
   const createdUnix = Math.floor(new Date(userDetails.created).getTime() / 1000);
-  const firstSeenText = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:R>` : "No game data";
-
+  const ageDays = Math.max(0, Math.floor((Date.now() - new Date(userDetails.created).getTime()) / 86400000));
+  const flags = [];
+  if (userDetails.isBanned) flags.push("Roblox account banned");
+  if (gameRestriction.banned) flags.push("Banned from TARC game");
+  if (discordBan.banned) flags.push("Banned from TARC Discord");
+  if (punishments.length) flags.push("Punishment history");
+  if (ageDays < 90) flags.push("Very new Roblox account");
+  else if (ageDays < 365) flags.push("Roblox account under 1 year old");
+  const status = flags.some(x => x.includes("Banned")) ? "Flagged" : flags.length ? "Review" : "Clear";
+  const memberships = divisions.slice(0, 6).map(d => `${d.name}: **${d.role}**`).join("\n") || "None";
+  const verifiedText = verifiedDiscordId ? `Yes (<@${verifiedDiscordId}>)` : ROWIFI_API_TOKEN ? "No linked Discord found" : "Unavailable";
+  const gameBanText = gameRestriction.available ? (gameRestriction.banned ? "YES" : "No") : "Unavailable";
+  const discordBanText = verifiedDiscordId ? (discordBan.available ? (discordBan.banned ? "YES" : "No") : "Unavailable") : "No verified Discord";
+  const profileUrl = `https://www.roblox.com/users/${resolved.userId}/profile`;
+  const firstSeen = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:D>` : "No game data";
+  const gameStats = cachedProfile ? `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**  •  XP: **${cachedProfile.xp ?? "N/A"}**  •  Kills: **${cachedProfile.kills ?? "N/A"}**` : "No cached game stats";
+  const punishmentText = punishments.length ? punishments.slice(0, 3).map(p => String(p)).join(" • ") : "None found";
   const embed = new EmbedBuilder()
-    .setColor(status.text.includes("🔴") ? 0xff3b30 : status.text.includes("🟠") ? 0xff9500 : 0x2b7fff)
-    .setTitle(`${resolved.username} | Background Check`)
+    .setColor(status === "Flagged" ? 0xff3b30 : status === "Review" ? 0xff9500 : 0x2b7fff)
+    .setTitle(`Background Check | ${resolved.username}`)
     .setDescription([
-      `**TARC Status:** ${status.text}`,
-      safeTrim(status.reasons.map((r) => `• ${r}`).join("\n"), 450),
-      ``,
-      `**User ID:** ${resolved.userId}`,
-      `**Display Name:** ${resolved.displayName}`,
-      ``,
-      `**Account**`,
-      `Age: ${formatAccountAge(userDetails.created)}`,
-      `Created: <t:${createdUnix}:D>`,
-      `First Seen In Game: ${firstSeenText}`,
-      ``,
-      `**TARC**`,
-      `Rank: ${mainRank || "Unknown"}`,
-      `Divisions:`,
-      safeTrim(divisionsText, 700),
-      ``,
-      `**Punishments**`,
-      safeTrim(punishmentText, 500)
+      `**Roblox**`, `Username: **${resolved.username}**  •  [Profile](${profileUrl})`,
+      `User ID: ${resolved.userId}  •  Verified Discord: ${verifiedText}`, ``,
+      `**Account**`, `Friends: **${social.friends ?? "N/A"}**  •  Followers: **${social.followers ?? "N/A"}**  •  Badges: **${badgeCount ?? "N/A"}**`,
+      `Age: **${formatAccountAge(userDetails.created)}**  •  Created: <t:${createdUnix}:D>`, ``,
+      `**TARC**`, `Rank: **${mainRank || "Not in group"}**  •  First Seen: ${firstSeen}`, gameStats, safeTrim(memberships, 700), ``,
+      `**Checks**`, `Game Ban: **${gameBanText}**  •  Discord Ban: **${discordBanText}**`,
+      `Punishments: ${safeTrim(punishmentText, 350)}`, `Status: **${status}**${flags.length ? `  •  ${flags.join(" • ")}` : ""}`
     ].join("\n"));
-
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
 }
-
 async function buildChainOfCommandEmbed() {
   const rolesData = await fetchJson(`https://groups.roblox.com/v1/groups/${ROBLOX_GROUP_ID}/roles`);
   const roles = rolesData?.roles || [];
