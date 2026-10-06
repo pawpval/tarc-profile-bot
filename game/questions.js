@@ -125,20 +125,38 @@ const DIRECT = [
 const FACT_SETS = {
   "Clone Units": [
     ["501st Legion","Captain Rex"],["212th Attack Battalion","Commander Cody"],["104th Battalion","Commander Wolffe"],
-    ["327th Star Corps","Commander Bly"],["Galactic Marines","Commander Bacara"]
+    ["327th Star Corps","Commander Bly"],["Galactic Marines","Commander Bacara"],["41st Elite Corps","Commander Gree"],
+    ["91st Mobile Reconnaissance Corps","Commander Neyo"],["Coruscant Guard","Commander Fox"],
+    ["Doom's Unit","Commander Doom"],["Clone Force 99","Hunter"],["Delta Squad","Boss"]
   ],
   "Homeworlds": [
     ["Wookiees","Kashyyyk"],["Gungans","Naboo"],["Twi'leks","Ryloth"],["Geonosians","Geonosis"],
-    ["Kaminoans","Kamino"],["Umbarans","Umbara"],["Mon Calamari","Mon Cala"],["Mandalorians","Mandalore"]
+    ["Kaminoans","Kamino"],["Umbarans","Umbara"],["Mon Calamari","Mon Cala"],["Mandalorians","Mandalore"],
+    ["Rodians","Rodia"],["Trandoshans","Trandosha"],["Togruta","Shili"],["Zabraks","Iridonia"],
+    ["Neimoidians","Neimoidia"],["Muuns","Muunilinst"],["Hutts","Nal Hutta"],["Pantorans","Pantora"],
+    ["Toydarians","Toydaria"],["Duros","Duro"],["Nautolans","Glee Anselm"],["Kel Dor","Dorin"],
+    ["Mirialans","Mirial"],["Weequay","Sriluur"],["Ithorians","Ithor"],["Chiss","Csilla"]
   ],
   "Characters": [
     ["Ahsoka Tano","Anakin Skywalker"],["Anakin Skywalker","Obi-Wan Kenobi"],["Obi-Wan Kenobi","Qui-Gon Jinn"],
-    ["Count Dooku","Yoda"],["Luke Skywalker","Obi-Wan Kenobi"],["Ezra Bridger","Kanan Jarrus"]
+    ["Count Dooku","Yoda"],["Luke Skywalker","Obi-Wan Kenobi"],["Ezra Bridger","Kanan Jarrus"],
+    ["Kanan Jarrus","Depa Billaba"],["Cal Kestis","Jaro Tapal"],["Qui-Gon Jinn","Count Dooku"],
+    ["Darth Maul","Darth Sidious"],["Asajj Ventress","Count Dooku"],["Savage Opress","Darth Maul"],
+    ["Barriss Offee","Luminara Unduli"],["Depa Billaba","Mace Windu"],["Sabine Wren","Ahsoka Tano"],
+    ["Shin Hati","Baylan Skoll"],["Trilla Suduri","Cere Junda"]
   ],
   "Vehicles": [
     ["STAP","Confederacy of Independent Systems"],["AAT","Confederacy of Independent Systems"],
-    ["AT-TE","Galactic Republic"],["ARC-170","Galactic Republic"],["Republic Attack Gunship","Galactic Republic"],
-    ["TIE Fighter","Galactic Empire"],["X-wing","Rebel Alliance"]
+    ["MTT","Trade Federation"],["Hailfire Droid","Confederacy of Independent Systems"],["Vulture Droid","Confederacy of Independent Systems"],
+    ["Hyena-class Bomber","Confederacy of Independent Systems"],["Droid Tri-Fighter","Confederacy of Independent Systems"],
+    ["AT-TE","Galactic Republic"],["AT-RT","Galactic Republic"],["ARC-170","Galactic Republic"],
+    ["Republic Attack Gunship","Galactic Republic"],["V-19 Torrent","Galactic Republic"],["BARC Speeder","Galactic Republic"],
+    ["HAVw A6 Juggernaut","Galactic Republic"],["Venator-class Star Destroyer","Galactic Republic"],
+    ["TIE Fighter","Galactic Empire"],["TIE Interceptor","Galactic Empire"],["TIE Bomber","Galactic Empire"],
+    ["AT-AT","Galactic Empire"],["AT-ST","Galactic Empire"],["Imperial Star Destroyer","Galactic Empire"],
+    ["X-wing","Rebel Alliance"],["Y-wing","Rebel Alliance"],["A-wing","Rebel Alliance"],["B-wing","Rebel Alliance"],
+    ["Snowspeeder","Rebel Alliance"],["T-47 Airspeeder","Rebel Alliance"],["N-1 Starfighter","Naboo"],
+    ["Razor Crest","Din Djarin"],["Slave I","Boba Fett"],["Millennium Falcon","Han Solo"]
   ]
 };
 
