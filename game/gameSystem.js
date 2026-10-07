@@ -511,6 +511,23 @@ export async function handleGameInteraction(interaction, options = {}){
   const id=interaction.customId;
   if(!(id.startsWith("game:")||id.startsWith("quiz:")||id.startsWith("faceoff:"))) return false;
 
+  // Personal game menus belong to the user who originally ran the command.
+  // Never let another player edit that person's menu into their own profile/state.
+  // Face Off controls are intentionally excluded because both duel players must interact.
+  if(!id.startsWith("faceoff:")){
+    const owner =
+      interaction.message?.interactionMetadata?.user ||
+      interaction.message?.interaction?.user ||
+      null;
+    if(owner?.id && owner.id !== interaction.user.id){
+      await interaction.reply({
+        content: `This game menu belongs to <@${owner.id}>. Use **/game** to open your own.`,
+        ephemeral: true
+      });
+      return true;
+    }
+  }
+
   if(id==="game:navigate"){
     const target=interaction.values[0];
     if(target==="profile"){await showProfile(interaction);return true;}
