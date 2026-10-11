@@ -1,3 +1,4 @@
+import { getEventCommands, handleEventInteraction } from "./eventDM.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
 import { randomUUID } from "node:crypto";
@@ -1282,6 +1283,7 @@ function getGlobalGameCommands() {
 
 function getSlashCommands() {
   return [
+    ...getEventCommands(),
     new SlashCommandBuilder()
       .setName("profile")
       .setDescription("Show a user's TARC profile")
@@ -1522,6 +1524,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleEventInteraction(interaction)) return;
   try {
     if (await handleGameInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
   } catch (err) {
