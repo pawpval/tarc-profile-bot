@@ -4,7 +4,6 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilde
 
 const DATA_DIR = process.env.TARC_DATA_DIR || "./data";
 const FILE = path.join(DATA_DIR, "event-dm.json");
-const CHANNEL_ID = process.env.TARC_EVENT_CHANNEL_ID || "1318201600216666240";
 const GAME_URL = process.env.TARC_EVENT_GAME_URL || "https://www.roblox.com/games/121135265635696";
 const drafts = new Map();
 const load = () => { try { return JSON.parse(fs.readFileSync(FILE,"utf8")); } catch { return { subscribers:[], optedOut:[], deliveries:[] }; } };
@@ -61,27 +60,26 @@ function modal(d){
   return m;
 }
 async function sendBatch(i,d){
-  const guild=await i.client.guilds.fetch(i.guildId);
-  const channel=await guild.channels.fetch(CHANNEL_ID);
-  if(!channel?.isTextBased())throw Error("Announcement channel missing or not text-based.");
-  const posted=await channel.send({embeds:[embed(d)],components:buttons(d),allowedMentions:{parse:[]}});
-  const recipients=[...new Set(state.subscribers)].filter(id=>!state.optedOut.includes(id));
-  const result={event:d.title,posted:posted.id,at:new Date().toISOString(),attempted:0,sent:0,failed:0,errors:[]};
+  const recipients=[...new Set(state.subscribers)].filter(id=>subscribed(id));
+  const result={event:d.title,at:new Date().toISOString(),attempted:0,sent:0,failed:0,errors:[]};
   state.deliveries.push(result);save();
   for(const id of recipients){
-    // Recheck unsubscribe immediately before each send.
     if(!subscribed(id))continue;
     result.attempted++;
     try{
       const user=await i.client.users.fetch(id);
       await user.send({embeds:[embed(d)],components:buttons(d,true),allowedMentions:{parse:[]}});
       result.sent++;
-    }catch(e){result.failed++;result.errors.push({id,code:e.code||"unknown"});}
-    if(result.attempted%10===0) {save();await i.editReply({content:"Event posted. DM delivery: "+result.attempted+"/"+recipients.length+" processed.",components:[],embeds:[]});}
+    }catch(e){
+      result.failed++;
+      result.errors.push({id,code:e.code||"unknown"});
+    }
+    save();
+    if(result.attempted%10===0)await i.editReply({content:"Sending event DMs: "+result.attempted+"/"+recipients.length+" processed.",components:[],embeds:[]});
     await new Promise(resolve=>setTimeout(resolve,350));
   }
   save();
-  await i.editReply({content:"Event posted in <#"+CHANNEL_ID+">. DMs sent: **"+result.sent+"**. Failed: **"+result.failed+"**. Subscribed recipients: **"+recipients.length+"**.",components:[],embeds:[]});
+  await i.editReply({content:"Event DMs complete. Sent: **"+result.sent+"**. Failed: **"+result.failed+"**. Subscribed recipients: **"+recipients.length+"**.",components:[],embeds:[]});
 }
 export function getEventCommands(){return [eventCommand,alertsCommand];}
 export async function handleEventInteraction(i){
@@ -119,11 +117,11 @@ export async function handleEventInteraction(i){
     if(i.customId==="tedm:preview"){await i.reply({content:"Private DM preview. Only subscribed members will receive this when you confirm.",embeds:[embed(d)],components:buttons(d,true),flags:64});return true;}
     if(i.customId==="tedm:cancel"){drafts.delete(i.user.id);await i.update({content:"Event cancelled.",embeds:[],components:[]});return true;}
     if(i.customId==="tedm:confirm"){
-      await i.update({content:"**Final confirmation**\nPost this major event in <#"+CHANNEL_ID+"> and DM **"+state.subscribers.filter(id=>subscribed(id)).length+"** opted-in members?",embeds:[embed(d)],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("tedm:send").setLabel("Send Event").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("tedm:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});return true;
+      await i.update({content:"**Final confirmation**\nSend this major event DM to **"+state.subscribers.filter(id=>subscribed(id)).length+"** opted-in members?",embeds:[embed(d)],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("tedm:send").setLabel("Send Event").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("tedm:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});return true;
     }
     if(i.customId==="tedm:send"){
       if(d.sending){await privateReply(i,"This event is already sending.");return true;}
-      d.sending=true;await i.update({content:"Posting event and delivering opted-in DMs...",embeds:[],components:[]});
+      d.sending=true;await i.update({content:"Delivering opted-in event DMs...",embeds:[],components:[]});
       try{await sendBatch(i,d);drafts.delete(i.user.id);}catch(e){d.sending=false;throw e;}
       return true;
     }
