@@ -13,7 +13,7 @@ const save = () => { fs.mkdirSync(DATA_DIR,{recursive:true}); const temp=FILE+".
 const privateReply = (i,msg) => i.reply({content:msg,flags:64});
 const validUrl = u => { try { const x=new URL(u); return x.protocol==="https:" && !x.username && !x.password; } catch { return false; } };
 const eventCommand = new SlashCommandBuilder().setName("eventdm").setDescription("Create a major TARC event announcement (owner only)").toJSON();
-const alertsCommand = new SlashCommandBuilder().setName("eventalerts").setDescription("Opt in or out of major TARC event DMs").addStringOption(o=>o.setName("setting").setDescription("Event DM preference").setRequired(true).addChoices({name:"Subscribe",value:"on"},{name:"Unsubscribe",value:"off"})).toJSON();
+const alertsCommand = new SlashCommandBuilder().setName("eventalerts").setDescription("Manage major TARC event DM notifications").addStringOption(o=>o.setName("setting").setDescription("Event DM preference").setRequired(true).addChoices({name:"Subscribe",value:"on"},{name:"Unsubscribe",value:"off"})).toJSON();
 function subscribed(id){return state.subscribers.includes(id)&&!state.optedOut.includes(id);}
 function subscribe(id,on){state.subscribers=state.subscribers.filter(x=>x!==id);state.optedOut=state.optedOut.filter(x=>x!==id);(on?state.subscribers:state.optedOut).push(id);save();}
 function parseTime(v){
@@ -60,26 +60,27 @@ function modal(d){
   return m;
 }
 async function sendBatch(i,d){
-  const recipients=[...new Set(state.subscribers)].filter(id=>subscribed(id));
-  const result={event:d.title,at:new Date().toISOString(),attempted:0,sent:0,failed:0,errors:[]};
+  const guild=await i.client.guilds.fetch(i.guildId);
+  const members=await guild.members.fetch();
+  const recipients=[...members.values()].filter(m=>!m.user.bot&&!state.optedOut.includes(m.id));
+  const result={event:d.title,at:new Date().toISOString(),eligible:recipients.length,attempted:0,sent:0,failed:0,errors:[]};
   state.deliveries.push(result);save();
-  for(const id of recipients){
-    if(!subscribed(id))continue;
+  for(const member of recipients){
+    if(state.optedOut.includes(member.id))continue;
     result.attempted++;
     try{
-      const user=await i.client.users.fetch(id);
-      await user.send({embeds:[embed(d)],components:buttons(d,true),allowedMentions:{parse:[]}});
+      await member.send({embeds:[embed(d)],components:buttons(d,true),allowedMentions:{parse:[]}});
       result.sent++;
     }catch(e){
       result.failed++;
-      result.errors.push({id,code:e.code||"unknown"});
+      result.errors.push({id:member.id,code:e.code||"unknown"});
     }
-    save();
-    if(result.attempted%10===0)await i.editReply({content:"Sending event DMs: "+result.attempted+"/"+recipients.length+" processed.",components:[],embeds:[]});
-    await new Promise(resolve=>setTimeout(resolve,350));
+    if(result.attempted%10===0)save();
+    await new Promise(resolve=>setTimeout(resolve,500));
   }
   save();
-  await i.editReply({content:"Event DMs complete. Sent: **"+result.sent+"**. Failed: **"+result.failed+"**. Subscribed recipients: **"+recipients.length+"**.",components:[],embeds:[]});
+  console.log("[EVENTDM] Finished:",JSON.stringify({event:result.event,eligible:result.eligible,attempted:result.attempted,sent:result.sent,failed:result.failed}));
+  await i.editReply({content:"Event DMs complete. Eligible members: **"+result.eligible+"**. Sent: **"+result.sent+"**. Failed: **"+result.failed+"**.",components:[],embeds:[]}).catch(()=>{});
 }
 export function getEventCommands(){return [eventCommand,alertsCommand];}
 export async function handleEventInteraction(i){
@@ -88,7 +89,7 @@ export async function handleEventInteraction(i){
   try{
     if(i.isChatInputCommand()&&i.commandName==="eventalerts"){
       const on=i.options.getString("setting")==="on";subscribe(i.user.id,on);
-      await privateReply(i,on?"Subscribed to major TARC event DMs. You can unsubscribe anytime with /eventalerts.":"Event DMs disabled. You will not receive future event alerts.");
+      await privateReply(i,on?"Event DMs enabled again.":"Event DMs disabled. You will not receive future event alerts.");
       return true;
     }
     if(i.isButton()&&i.customId==="tedm:stop"){
@@ -115,14 +116,12 @@ export async function handleEventInteraction(i){
       await i.update(builder(i,d));return true;
     }
     if(i.customId==="tedm:edit"){await i.showModal(modal(d));return true;}
-    if(i.customId==="tedm:preview"){await i.reply({content:"Private DM preview. Only subscribed members will receive this when you confirm.",embeds:[embed(d)],components:buttons(d,true),flags:64});return true;}
+    if(i.customId==="tedm:preview"){await i.reply({content:"Private DM preview. Eligible TARC server members will receive this when you confirm.",embeds:[embed(d)],components:buttons(d,true),flags:64});return true;}
     if(i.customId==="tedm:cancel"){drafts.delete(i.user.id);await i.update({content:"Event cancelled.",embeds:[],components:[]});return true;}
     if(i.customId==="tedm:confirm"){
-      if(!state.subscribers.some(id=>subscribed(id))){await privateReply(i,"Nobody is subscribed yet. Ask members to use /eventalerts setting: Subscribe. No DMs have been sent.");return true;}
-      await i.update({content:"**Final confirmation**\nSend this major event DM to **"+state.subscribers.filter(id=>subscribed(id)).length+"** opted-in members?",embeds:[embed(d)],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("tedm:send").setLabel("Send Event").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("tedm:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});return true;
+      await i.update({content:"**Final confirmation**\nSend this major event DM to eligible TARC server members who have not disabled notifications?",embeds:[embed(d)],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("tedm:send").setLabel("Send Event").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("tedm:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});return true;
     }
     if(i.customId==="tedm:send"){
-      if(!state.subscribers.some(id=>subscribed(id))){await privateReply(i,"No subscribed members. Nothing was sent.");return true;}
       if(d.sending){await privateReply(i,"This event is already sending.");return true;}
       d.sending=true;await i.update({content:"Delivering opted-in event DMs...",embeds:[],components:[]});
       try{await sendBatch(i,d);drafts.delete(i.user.id);}catch(e){d.sending=false;throw e;}
