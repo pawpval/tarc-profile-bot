@@ -4,7 +4,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilde
 
 const DATA_DIR = process.env.TARC_DATA_DIR || "./data";
 const FILE = path.join(DATA_DIR, "event-dm.json");
-const GAME_URL = process.env.TARC_EVENT_GAME_URL || "https://www.roblox.com/games/121135265635696";
+const GAME_URL = "https://www.roblox.com/games/79834733161236/Coruscant-City-RP#!/game-instances";
 const drafts = new Map();
 const load = () => { try { return JSON.parse(fs.readFileSync(FILE,"utf8")); } catch { return { subscribers:[], optedOut:[], deliveries:[] }; } };
 let state = load();
@@ -110,6 +110,7 @@ export async function handleEventInteraction(i){
       if(colour&&!/^#?[0-9a-fA-F]{6}$/.test(colour))throw Error("Colour must be a six-digit hex code.");
       if(banner&&!validUrl(banner))throw Error("Banner must be an HTTPS image URL.");
       if(link&&!validUrl(link))throw Error("Game link must be an HTTPS URL.");
+      if(link && !/^https:\/\/(www\.)?roblox\.com\/games\/79834733161236(?:\/|#|\?|$)/i.test(link)) throw Error("Event links must point to the correct TARC experience (79834733161236).");
       Object.assign(d,{title:get("title"),description:get("description"),time,inputTime:get("time"),reward:get("reward"),color:colour?parseInt(colour.replace("#",""),16):0x2864b4,banner:banner||"",link:link||GAME_URL,extras:get("extras")});
       await i.update(builder(i,d));return true;
     }
@@ -117,9 +118,11 @@ export async function handleEventInteraction(i){
     if(i.customId==="tedm:preview"){await i.reply({content:"Private DM preview. Only subscribed members will receive this when you confirm.",embeds:[embed(d)],components:buttons(d,true),flags:64});return true;}
     if(i.customId==="tedm:cancel"){drafts.delete(i.user.id);await i.update({content:"Event cancelled.",embeds:[],components:[]});return true;}
     if(i.customId==="tedm:confirm"){
+      if(!state.subscribers.some(id=>subscribed(id))){await privateReply(i,"Nobody is subscribed yet. Ask members to use /eventalerts setting: Subscribe. No DMs have been sent.");return true;}
       await i.update({content:"**Final confirmation**\nSend this major event DM to **"+state.subscribers.filter(id=>subscribed(id)).length+"** opted-in members?",embeds:[embed(d)],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("tedm:send").setLabel("Send Event").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("tedm:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});return true;
     }
     if(i.customId==="tedm:send"){
+      if(!state.subscribers.some(id=>subscribed(id))){await privateReply(i,"No subscribed members. Nothing was sent.");return true;}
       if(d.sending){await privateReply(i,"This event is already sending.");return true;}
       d.sending=true;await i.update({content:"Delivering opted-in event DMs...",embeds:[],components:[]});
       try{await sendBatch(i,d);drafts.delete(i.user.id);}catch(e){d.sending=false;throw e;}
