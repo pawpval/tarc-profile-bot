@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 
 const pending = new Map();
-const command = new SlashCommandBuilder().setName("formatchannels").setDescription("Preview and update text channel emoji prefixes (owner only)").toJSON();
+const command = new SlashCommandBuilder().setName("formatchannels").setDescription("Format all channel emoji prefixes (owner only)").toJSON();
 const PREFIX = /^【([^】\r\n]+)】/u;
 function replacement(name) {
   const match = name.match(PREFIX);
@@ -11,7 +11,10 @@ function replacement(name) {
 }
 function isOwner(i) { return Boolean(process.env.TARC_OWNER_DISCORD_ID) && i.user.id === process.env.TARC_OWNER_DISCORD_ID; }
 function eligible(channel, guild) {
-  return channel.type === ChannelType.GuildText &&
+  return channel.type !== ChannelType.GuildCategory &&
+    channel.type !== ChannelType.PublicThread &&
+    channel.type !== ChannelType.PrivateThread &&
+    channel.type !== ChannelType.AnnouncementThread &&
     channel.manageable &&
     guild.members.me?.permissionsIn(channel).has(PermissionFlagsBits.ManageChannels);
 }
@@ -32,14 +35,14 @@ export async function handleChannelFormatInteraction(i) {
       const channels = await guild.channels.fetch();
       const changes = [...channels.values()].filter(c => c && eligible(c, guild)).map(c => ({ id: c.id, before: c.name, after: replacement(c.name) })).filter(c => c.after);
       if (!changes.length) {
-        await i.editReply("No accessible text channels need formatting. Categories, voice channels and other channel types are untouched.");
+        await i.editReply("No accessible channels need formatting. Categories and threads are untouched.");
         return true;
       }
       const token = i.id;
       pending.set(token, { owner: i.user.id, guildId: guild.id, changes, expires: Date.now() + 5 * 60_000, running: false });
       const sample = changes.slice(0, 12).map(c => "\`" + c.before + "\` → \`" + c.after + "\`").join("\n");
       await i.editReply({
-        content: "**Text channel format preview**\n" + changes.length + " channels will change.\n\n" + sample + (changes.length > 12 ? "\n…and " + (changes.length - 12) + " more." : "") + "\n\nOnly the emoji prefix changes. Confirm within 5 minutes.",
+        content: "**Channel format preview**\n" + changes.length + " channels will change.\n\n" + sample + (changes.length > 12 ? "\n…and " + (changes.length - 12) + " more." : "") + "\n\nOnly the emoji prefix changes. Confirm within 5 minutes.",
         components: [new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId("tarc:format:apply:" + token).setLabel("Apply changes").setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId("tarc:format:cancel:" + token).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
@@ -64,7 +67,7 @@ export async function handleChannelFormatInteraction(i) {
     }
     if (action !== "apply") return true;
     job.running = true;
-    await i.update({ content: "Updating " + job.changes.length + " text channels. This may take a few minutes…", components: [] });
+    await i.update({ content: "Updating " + job.changes.length + " channels. This may take a few minutes…", components: [] });
     let updated = 0, skipped = 0, failed = 0;
     for (const change of job.changes) {
       try {
