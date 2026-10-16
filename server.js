@@ -1,3 +1,4 @@
+import { handleWorldInteraction } from "./game/worldSystem.js";
 import { getChannelFormatCommands, handleChannelFormatInteraction } from "./channelFormatter.js";
 import { getEventCommands, handleEventInteraction } from "./eventDM.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
@@ -1526,6 +1527,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleWorldInteraction(interaction)) return;
   if (await handleChannelFormatInteraction(interaction)) return;
   if (await handleEventInteraction(interaction)) return;
   try {
