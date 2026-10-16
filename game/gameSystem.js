@@ -97,7 +97,8 @@ function homeRows(){
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("game:play").setLabel("PLAY").setEmoji("🎮").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("game:daily").setLabel("DAILY").setEmoji("🎁").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("game:patrol").setLabel("PATROL").setEmoji("🛰️").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("game:patrol").setLabel("PATROL").setEmoji("🛰️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("game:world").setLabel("WORLD").setEmoji("🌆").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(menu)
   ];
@@ -235,8 +236,11 @@ async function makeQuestionSession(userId,{mode="classic",scope="mixed",difficul
   const recentSet=new Set(recentKeys);
   const unseen=pool.filter(item=>!recentSet.has(questionKey(item)));
   const wanted=Math.min(count,pool.length);
-  let source=unseen.length>=wanted?unseen:[...unseen,...pool.filter(item=>recentSet.has(questionKey(item)))];
-  const questions=shuffle(source).slice(0,wanted);
+  // Shuffle unseen first, then only fill unavoidable gaps with the oldest previously seen questions.
+  // This prevents random recycling from crowding out new questions.
+  const seenOrder=new Map(recentKeys.map((key,index)=>[key,index]));
+  const older=pool.filter(item=>recentSet.has(questionKey(item))).sort((a,b)=>(seenOrder.get(questionKey(a))??0)-(seenOrder.get(questionKey(b))??0));
+  const questions=[...shuffle(unseen).slice(0,wanted),...older.slice(0,Math.max(0,wanted-unseen.length))];
 
   if(questions.length){
     const selectedKeys=questions.map(questionKey);
