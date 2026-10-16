@@ -1,3 +1,4 @@
+import { serviceRank, competitiveLeague } from "./ranks.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -149,6 +150,7 @@ async function showOperations(interaction){
 async function homeEmbed(user){
   const p=await getPlayer(user.id);
   const lp=getLevelProgress(p);
+  const service=serviceRank(lp.level),league=competitiveLeague(p.elo);
   return new EmbedBuilder()
     .setColor(0x2b7fff)
     .setTitle("🎮 TARC GAME")
@@ -157,7 +159,8 @@ async function homeEmbed(user){
       `Level **${lp.level}**  ${progressBar(lp.current,lp.needed)} ${fmt(lp.current)}/${fmt(lp.needed)} XP`,
       "",
       `💵 Credits: **${fmt(p.credits)}**`,
-      `🏆 Quiz Elo: **${fmt(p.elo)}**  ${rankName(p.elo)}`,
+      `🏆 Quiz Elo: **${fmt(p.elo)}**  ${league.emoji} ${league.name}`,
+      `🎖️ Service Rank: **${service.code} ${service.name}**${service.next ? " | Next: "+service.next[1]+" (Level "+service.next[2]+")" : " | MAX RANK"}`,
       `Accuracy: **${pct(p.correctAnswers,p.questionsAnswered)}%**`,
       `Best Streak: **${fmt(p.bestStreak)}**`,
       "",
