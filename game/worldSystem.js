@@ -73,6 +73,8 @@ export async function handleWorldInteraction(i){
   if(i.customId!=="game:world"&&!i.customId.startsWith("world:"))return false;
   const action=i.customId==="game:world"?"open":i.customId.slice(6);
   try{
+    const owner=i.message?.interactionMetadata?.user?.id || i.message?.interaction?.user?.id;
+    if(owner && owner!==i.user.id){await i.reply({content:"This game menu belongs to another player. Use /game to open your own.",ephemeral:true});return true;}
     if(action==="home"){
       await i.update({content:"Open /game to return to the main hub.",embeds:[],components:[]});return true;
     }
@@ -94,7 +96,7 @@ export async function handleWorldInteraction(i){
       await mutatePlayer(i.user.id,p=>{
         const w=init(p),now=Date.now(),left=job.wait-(now-Number(w.jobAt[job.id]||0));
         if(left>0){msg="That contract is available in "+Math.ceil(left/60000)+" minutes.";return;}
-        const bonus=1+(w.baseLevel-1)*.05+(p.inventory.includes("world_scanner")?.15:0);
+        const bonus=1+(w.baseLevel-1)*.05+(p.inventory.includes("world_scanner") ? 0.15 : 0);
         const pay=Math.round(job.pay*bonus);
         p.credits+=pay;p.lifetimeCredits+=pay;p.xp+=job.xp;w.jobAt[job.id]=now;
         msg="Contract complete: **"+job.name+"**. +"+fmt(pay)+" Credits and +"+fmt(job.xp)+" XP.";
@@ -141,7 +143,7 @@ export async function handleWorldInteraction(i){
         if(now-w.heistAt<60*60000){msg="Your crew needs more time before another heist.";return;}
         if(p.credits<300){msg="You need at least 300 Credits to attempt a heist.";return;}
         w.heistAt=now;
-        const success=Math.random()<(p.inventory.includes("world_kit")?.65:.5);
+        const success=Math.random()<(p.inventory.includes("world_kit") ? 0.65 : 0.5);
         if(success){
           const reward=900+Math.floor(Math.random()*501);
           p.credits+=reward;p.lifetimeCredits+=reward;p.xp+=200;w.heistsWon++;
