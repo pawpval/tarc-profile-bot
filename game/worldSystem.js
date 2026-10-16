@@ -15,8 +15,10 @@ const FACTIONS={republic:"Galactic Republic",cis:"Separatist Alliance",neutral:"
 const fmt=n=>Math.floor(Number(n)||0).toLocaleString("en-GB");
 const btn=(id,label,style=ButtonStyle.Secondary)=>new ButtonBuilder().setCustomId("world:"+id).setLabel(label).setStyle(style);
 const rows=()=>[
-  new ActionRowBuilder().addComponents(btn("jobs","Jobs",ButtonStyle.Primary),btn("craft","Crafting"),btn("heist","Heist"),btn("faction","Factions")),
-  new ActionRowBuilder().addComponents(btn("salvage","Salvage"),btn("base","Base"),btn("home","Back to Game"))
+  new ActionRowBuilder().addComponents(btn("jobs","💼 Earn Credits",ButtonStyle.Success),btn("salvage","🔩 Collect Scrap",ButtonStyle.Primary)),
+  new ActionRowBuilder().addComponents(btn("craft","🛠️ Craft Gear",ButtonStyle.Primary),btn("base","🏰 Upgrade Base",ButtonStyle.Success)),
+  new ActionRowBuilder().addComponents(btn("heist","💰 Risk a Heist",ButtonStyle.Danger),btn("faction","🚩 Pick a Faction")),
+  new ActionRowBuilder().addComponents(btn("home","↩ Back to Game"))
 ];
 function init(p){
   p.world ||= {parts:0,faction:null,jobAt:{},salvageAt:0,heistAt:0,baseLevel:1,heistsWon:0,heistsLost:0};
@@ -25,15 +27,28 @@ function init(p){
 }
 async function show(i,note=""){
   const p=await getPlayer(i.user.id),w=init(p);
+  const rank=getLevelProgress(p).level;
+  const jobCount=Object.values(w.jobAt||{}).filter(Boolean).length;
+  const crafted=["scanner","armour","kit"].filter(id=>p.inventory.includes("world_"+id)).length;
   const body=[
     note,
-    "**Faction:** "+(FACTIONS[w.faction]||"Unaligned"),
-    "**Scrap Parts:** "+fmt(w.parts)+"  |  **Base Level:** "+fmt(w.baseLevel),
-    "**Credits:** "+fmt(p.credits)+"  |  **Level:** "+getLevelProgress(p).level,
-    "**Heists:** "+fmt(w.heistsWon)+" successful / "+fmt(w.heistsLost)+" failed",
+    "**YOUR WORLD PROGRESS**",
+    "🎖️ Level **"+rank+"**  •  💵 **"+fmt(p.credits)+" Credits**",
+    "🚩 **"+(FACTIONS[w.faction]||"No faction yet")+"**",
+    "🏰 Base **"+w.baseLevel+"/20**  •  🛠️ Gear **"+crafted+"/3**",
+    "🔩 Scrap **"+fmt(w.parts)+"**  •  💼 Jobs tried **"+jobCount+"/3**",
+    "💰 Heists won **"+fmt(w.heistsWon)+"**",
     "",
-    "Earn Credits from jobs, recover scrap, craft equipment and upgrade your base. Quizzes remain the fastest route to leveling."
-  ].filter(Boolean).join("\n");
+    "**START HERE**",
+    "🟢 **Earn Credits**: Take a job for XP and money.",
+    "🔵 **Collect Scrap**: Find parts to make useful gear.",
+    "🛠️ **Craft Gear**: Unlock perks for jobs and heists.",
+    "🏰 **Upgrade Base**: Boost future job earnings.",
+    "💰 **Risk a Heist**: Bigger rewards, but you can lose Credits.",
+    "🚩 **Pick a Faction**: Choose your side.",
+    "",
+    "Everything uses your existing /game Credits and XP."
+  ].filter(Boolean).join("\\n");
   return i.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🌆 CORUSCANT UNDERWORLD").setDescription(body)],components:rows()});
 }
 function select(id,placeholder,options){
