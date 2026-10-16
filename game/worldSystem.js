@@ -48,7 +48,7 @@ async function show(i,note=""){
     "🚩 **Pick a Faction**: Choose your side.",
     "",
     "Everything uses your existing /game Credits and XP."
-  ].filter(Boolean).join("\\n");
+  ].filter(Boolean).join("\n");
   return i.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🌆 CORUSCANT UNDERWORLD").setDescription(body)],components:rows()});
 }
 function select(id,placeholder,options){
