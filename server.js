@@ -1,3 +1,4 @@
+import { getBlacklistCommands, handleBlacklistInteraction, blacklistSnapshot } from "./blacklistManager.js";
 import { handleWorldInteraction } from "./game/worldSystem.js";
 import { getChannelFormatCommands, handleChannelFormatInteraction } from "./channelFormatter.js";
 import { getEventCommands, handleEventInteraction } from "./eventDM.js";
@@ -1031,6 +1032,10 @@ async function buildChainOfCommandEmbed() {
 // ==================== ROUTES ====================
 app.get("/", (req, res) => res.status(200).send("TARC profile bot running"));
 
+app.post("/roblox-blacklist/snapshot", async (req,res)=>{
+  try{const snapshot=await blacklistSnapshot(req.body?.secret);if(!snapshot)return res.status(401).json({error:"Unauthorized"});res.set("Cache-Control","no-store");return res.json(snapshot);}catch(e){console.error("[BLACKLIST SNAPSHOT]",e);return res.status(503).json({error:"Blacklist unavailable"});}
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({
     ok: true,
@@ -1504,7 +1509,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), ...getGlobalGameCommands()];
+    const globalCommands = [getGlobalAskCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1527,6 +1532,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleBlacklistInteraction(interaction)) return;
   if (await handleWorldInteraction(interaction)) return;
   if (await handleChannelFormatInteraction(interaction)) return;
   if (await handleEventInteraction(interaction)) return;
