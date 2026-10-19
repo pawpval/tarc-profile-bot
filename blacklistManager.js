@@ -18,14 +18,15 @@ const fetchJSON=async url=>{const res=await fetch(url,{signal:AbortSignal.timeou
 const groupId=value=>{const s=String(value||"").trim();if(!/^[1-9][0-9]{0,14}$/.test(s)||!Number.isSafeInteger(Number(s)))throw new Error("Enter a valid numeric Roblox group ID.");return s;};
 function linkedId(data){for(const key of ["robloxId","roblox_id"]){if(/^\d+$/.test(String(data?.[key]||"")))return String(data[key]);}for(const o of [data?.roblox,data?.account,data?.roblox_user]){if(/^\d+$/.test(String(o?.id||"")))return String(o.id);}return null;}
 async function authorised(i){
- const guildId=process.env.BLACKLIST_GUILD_ID||process.env.GUILD_ID;
+ const guildId=process.env.BLACKLIST_GUILD_ID||String(process.env.GUILD_ID||process.env.GUILD_IDS||"").split(",")[0].trim();
  if(!guildId||!process.env.ROWIFI_API_TOKEN)throw new Error("RoWifi or the main Discord guild is not configured.");
  const roles=await fetchJSON("https://groups.roblox.com/v1/groups/"+(process.env.ROBLOX_GROUP_ID||"35324584")+"/roles");
  const gm=roles.roles?.find(x=>String(x.name).trim().toLowerCase()==="grand marshal");
  if(!gm||!Number.isInteger(gm.rank)||gm.rank<1)throw new Error("Cannot verify Grand Marshal's Roblox rank. Access denied.");
  const res=await fetch("https://api.rowifi.xyz/v2/guilds/"+guildId+"/members/"+i.user.id,{headers:{Authorization:"Bot "+process.env.ROWIFI_API_TOKEN},signal:AbortSignal.timeout(9000)});
  if(!res.ok)throw new Error("Could not verify your linked Roblox account with RoWifi.");
- const id=linkedId(await res.json());
+ const link=await res.json();
+ const id=linkedId(link)||linkedId(link?.data)||linkedId(link?.user);
  if(!id)throw new Error("No verified Roblox account is linked to this Discord account.");
  const memberships=await fetchJSON("https://groups.roblox.com/v2/users/"+id+"/groups/roles");
  const role=memberships.data?.find(x=>String(x.group?.id)===(process.env.ROBLOX_GROUP_ID||"35324584"))?.role;
