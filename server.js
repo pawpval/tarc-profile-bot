@@ -1218,7 +1218,7 @@ app.post("/roblox-actions/complete", async (req, res) => {
 
 // ==================== DISCORD ====================
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent]
 });
 
 function setBotStatus() {
@@ -1528,6 +1528,36 @@ client.once(Events.ClientReady, async () => {
     }
   } catch (err) {
     console.error("[DISCORD] Command registration failed:", err);
+  }
+});
+
+// Reply directly to an assistant answer to continue the conversation.
+const assistantReplyBusy = new Set();
+client.on(Events.MessageCreate, async message => {
+  if (message.author.bot || !message.reference?.messageId) return;
+  if (!message.content?.trim()) return;
+  const key = message.author.id + ":" + message.channelId;
+  if (assistantReplyBusy.has(key)) return;
+  try {
+    const referenced = await message.fetchReference().catch(() => null);
+    if (!referenced || referenced.author?.id !== client.user.id) return;
+    // Only continue conversations started by /ask or the bot's own reply responses.
+    const isAsk = referenced.interactionMetadata?.name === "ask" || referenced.interaction?.commandName === "ask";
+    const isFollowUp = referenced.content?.startsWith("🤖 ");
+    if (!isAsk && !isFollowUp) return;
+    assistantReplyBusy.add(key);
+    await message.channel.sendTyping().catch(() => {});
+    const answer = await askTarcAssistant({
+      question: message.content.slice(0, 1000),
+      interaction: { user: message.author },
+      client
+    });
+    await message.reply({content: "🤖 " + String(answer).slice(0, 1950), allowedMentions: {repliedUser:false, parse:[]}});
+  } catch (error) {
+    console.error("[ASK REPLY]", error);
+    await message.reply({content:"I couldn't answer that just now. Try again shortly.",allowedMentions:{repliedUser:false,parse:[]}}).catch(() => {});
+  } finally {
+    assistantReplyBusy.delete(key);
   }
 });
 
