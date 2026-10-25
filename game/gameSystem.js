@@ -440,11 +440,11 @@ export function getGameCommands(){
   };
 
   return [
-    everywhere(new SlashCommandBuilder().setName("game").setDescription("🎮 Open the TARC game hub")),
-    everywhere(new SlashCommandBuilder().setName("quiz").setDescription("🧠 Start a quiz or challenge another player")
+    everywhere(new SlashCommandBuilder().setName("game").setDescription("Open the TARC game hub")),
+    everywhere(new SlashCommandBuilder().setName("quiz").setDescription("Start a quiz or challenge another player")
       .addUserOption(o=>o.setName("opponent").setDescription("Optional player to challenge").setRequired(false))),
-    everywhere(new SlashCommandBuilder().setName("quizleaderboard").setDescription("🏆 Open the quiz leaderboard")),
-    new SlashCommandBuilder().setName("gameadmin").setDescription("🎮 Owner-only game controls")
+    everywhere(new SlashCommandBuilder().setName("quizleaderboard").setDescription("Open the quiz leaderboard")),
+    new SlashCommandBuilder().setName("gameadmin").setDescription("Owner-only game controls")
       .addUserOption(o=>o.setName("player").setDescription("Player to edit").setRequired(true))
       .addStringOption(o=>o.setName("stat").setDescription("Stat to edit").setRequired(true).addChoices(
         {name:"Credits",value:"credits"},{name:"XP",value:"xp"},{name:"Elo",value:"elo"},{name:"Correct Answers",value:"correctAnswers"},{name:"Quizzes Completed",value:"quizzesCompleted"},{name:"Best Streak",value:"bestStreak"}
