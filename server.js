@@ -962,38 +962,20 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const membershipLines = otherMemberships.length
     ? otherMemberships.map(d => `${d.name}: **${d.role}**`).join("\n")
     : "None";
-  const gameLines = cachedProfile ? [
-    `First Seen: ${firstSeen}`,
-    `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**`,
-    `XP: **${cachedProfile.xp ?? "N/A"}**    Kills: **${cachedProfile.kills ?? "N/A"}**`
-  ] : [`First Seen: ${firstSeen}`];
   const embed = new EmbedBuilder()
-    .setColor(status.includes("Flagged") ? 0xff3b30 : status.includes("Review") ? 0xff9500 : 0x2b7fff)
-    .setTitle(`🔎 Background Check | ${resolved.username}`)
-    .setDescription([
-      `**👤 Roblox**`,
-      `Username: **${resolved.username}**`,
-      `Profile: [Open Roblox Profile](${profileUrl})`,
-      `User ID: **${resolved.userId}**`,
-      `Verified Discord: ${verifiedText}`,
-      ``,
-      `**📊 Account**`,
-      `Friends: **${social.friends ?? "N/A"}**    Followers: **${social.followers ?? "N/A"}**`,
-      `Badges: **${badgeCount ?? "N/A"}**`,
-      `Age: **${formatAccountAge(userDetails.created)}**`,
-      `Created: <t:${createdUnix}:D>`,
-      `First Seen: ${firstSeen}`,
-      ``,
-      `**🛡️ Ranks**`,
-      `Republic Army: **${mainRank || "Not in group"}**`,
-      ...(otherMemberships.length ? [membershipLines] : []),
-      ...(cachedProfile ? [``, `**🎮 Game Stats**`, `Playtime: **${formatCompactTime(cachedProfile.playTimeSeconds)}**`, `XP: **${cachedProfile.xp ?? "N/A"}**    Kills: **${cachedProfile.kills ?? "N/A"}**`] : []),
-      ``,
-      `**⚠️ Punishments**`,
-      punishmentText,
-      ``,
-      `**Status:** ${status}`
-    ].join("\n"));
+    .setColor(status.includes("Flagged") ? 0xe5484d : status.includes("Review") ? 0xe6a23c : 0x2b7fff)
+    .setTitle(`Background Check · ${resolved.username}`)
+    .setURL(profileUrl)
+    .setDescription(`[${resolved.username}](${profileUrl})  •  ${status}`)
+    .addFields(
+      { name: "Account", value: `**Age**  ${formatAccountAge(userDetails.created)}\n**Friends**  ${social.friends ?? "N/A"}  •  **Badges**  ${badgeCount ?? "N/A"}\n**User ID**  ${resolved.userId}`, inline: true },
+      { name: "Republic Army", value: mainRank || "Not in group", inline: true },
+      ...(otherMemberships.length ? [{ name: "Divisions", value: otherMemberships.map(d => `**${d.name}** · ${d.role}`).join("\n").slice(0, 1024) }] : []),
+      { name: "Background", value: punishmentItems.length ? punishmentItems.map(p => `• ${p}`).join("\n").slice(0, 1024) : "No recorded flags" },
+      { name: "Playtime", value: cachedProfile?.playTimeSeconds != null ? formatCompactTime(cachedProfile.playTimeSeconds) : "Not recorded", inline: true },
+      { name: "Kills", value: cachedProfile?.kills != null ? formatNumber(cachedProfile.kills) : "Not recorded", inline: true }
+    )
+    .setFooter({ text: "TARC · Background Check" });
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
 }
@@ -1293,12 +1275,6 @@ function getSlashCommands() {
     ...getEventCommands(),
     ...getChannelFormatCommands(),
     new SlashCommandBuilder()
-      .setName("profile")
-      .setDescription("Show a user's TARC profile")
-      .addStringOption(option => option.setName("username").setDescription("Roblox username").setRequired(true))
-      .toJSON(),
-
-    new SlashCommandBuilder()
       .setName("bgcheck")
       .setDescription("Run a TARC background check")
       .addStringOption(option => option.setName("username").setDescription("Roblox username").setRequired(false))
@@ -1308,11 +1284,6 @@ function getSlashCommands() {
     new SlashCommandBuilder()
       .setName("groupstats")
       .setDescription("Show TARC Discord, Roblox group, and game stats")
-      .toJSON(),
-
-    new SlashCommandBuilder()
-      .setName("xpleaderboard")
-      .setDescription("Show top 10 cached XP users")
       .toJSON(),
 
     new SlashCommandBuilder()
@@ -1912,25 +1883,6 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
-  if (interaction.commandName === "profile") {
-    const usernameInput = interaction.options.getString("username", true);
-    try {
-      await interaction.deferReply();
-      const resolved = await resolveRobloxUser(usernameInput);
-      if (!resolved) return interaction.editReply("Couldn’t find that Roblox user.");
-
-      const profile = getCachedProfileByResolvedUser(resolved);
-      if (!profile) {
-        return interaction.editReply("Player has no set data yet (they may have never joined the game, or the game hasn’t sent data yet).");
-      }
-
-      return interaction.editReply({ embeds: [buildProfileEmbed(profile)] });
-    } catch (err) {
-      console.error("[DISCORD] /profile failed:", err);
-      return interaction.editReply("Something went wrong fetching that profile.");
-    }
-  }
-
   if (interaction.commandName === "bgcheck") {
     const usernameInput = interaction.options.getString("username", false);
     const discordUser = interaction.options.getUser("member", false);
@@ -1987,33 +1939,6 @@ client.on(Events.InteractionCreate, async interaction => {
     } catch (err) {
       console.error("[DISCORD] /groupstats failed:", err);
       return interaction.editReply("Something went wrong fetching group stats.");
-    }
-  }
-
-  if (interaction.commandName === "xpleaderboard") {
-    try {
-      await interaction.deferReply();
-      const top = Array.from(profileCache.values())
-        .filter((p) => typeof p.xp === "number" && !Number.isNaN(p.xp))
-        .sort((a, b) => b.xp - a.xp)
-        .slice(0, 10);
-
-      const lines = top.length
-        ? top.map((p, i) => `**${i + 1}.** ${p.username} — ${formatNumber(p.xp)} XP`).join("\n")
-        : "No cached XP data yet. Players need to join the game first.";
-
-      const embed = applyCommandImage(
-        new EmbedBuilder()
-          .setColor(0x2b7fff)
-          .setTitle("TARC XP Leaderboard")
-          .setDescription(lines)
-          .setFooter({ text: "Cached data resets if the Railway service restarts." })
-      );
-
-      return interaction.editReply({ embeds: [embed] });
-    } catch (err) {
-      console.error("[DISCORD] /xpleaderboard failed:", err);
-      return interaction.editReply("Something went wrong fetching the XP leaderboard.");
     }
   }
 
