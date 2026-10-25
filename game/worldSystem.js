@@ -30,24 +30,15 @@ async function show(i,note=""){
   const rank=getLevelProgress(p).level;
   const jobCount=Object.values(w.jobAt||{}).filter(Boolean).length;
   const crafted=["scanner","armour","kit"].filter(id=>p.inventory.includes("world_"+id)).length;
-  const body=[
-    note,
-    "**YOUR WORLD PROGRESS**",
-    "🎖️ Level **"+rank+"**  •  💵 **"+fmt(p.credits)+" Credits**",
-    "🚩 **"+(FACTIONS[w.faction]||"No faction yet")+"**",
-    "🏰 Base **"+w.baseLevel+"/20**  •  🛠️ Gear **"+crafted+"/3**",
-    "🔩 Scrap **"+fmt(w.parts)+"**  •  💼 Jobs tried **"+jobCount+"/3**",
-    "💰 Heists won **"+fmt(w.heistsWon)+"**",
+  const body = [
+    note || null,
+    `**Level ${rank}**  ·  **${fmt(p.credits)} Credits**`,
+    `Faction: **${FACTIONS[w.faction] || "Unaffiliated"}**`,
     "",
-    "**START HERE**",
-    "🟢 **Earn Credits**: Take a job for XP and money.",
-    "🔵 **Collect Scrap**: Find parts to make useful gear.",
-    "🛠️ **Craft Gear**: Unlock perks for jobs and heists.",
-    "🏰 **Upgrade Base**: Boost future job earnings.",
-    "💰 **Risk a Heist**: Bigger rewards, but you can lose Credits.",
-    "🚩 **Pick a Faction**: Choose your side.",
+    `Base **${w.baseLevel}/20**  ·  Gear **${crafted}/3**  ·  Scrap **${fmt(w.parts)}**`,
+    `Heists won **${fmt(w.heistsWon)}**`,
     "",
-    "Everything uses your existing /game Credits and XP."
+    "Choose an activity below."
   ].filter(Boolean).join("\n");
   return i.update({embeds:[new EmbedBuilder().setColor(0x2b7fff).setTitle("🌆 CORUSCANT UNDERWORLD").setDescription(body)],components:rows()});
 }
