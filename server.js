@@ -263,15 +263,18 @@ function formatCompactTime(seconds) {
 function formatAccountAge(createdIso) {
   const created = new Date(createdIso);
   if (Number.isNaN(created.getTime())) return "Unknown";
-
-  const days = Math.max(0, Math.floor((Date.now() - created.getTime()) / 86400000));
-  const years = Math.floor(days / 365);
-  const months = Math.floor((days % 365) / 30);
-
-  if (years > 0 && months > 0) return `${years}y ${months}m (${formatNumber(days)} days)`;
-  if (years > 0) return `${years}y (${formatNumber(days)} days)`;
-  if (months > 0) return `${months}m (${formatNumber(days)} days)`;
-  return `${formatNumber(days)} days`;
+  const now = new Date();
+  if (created > now) return "Unknown";
+  let years = now.getUTCFullYear() - created.getUTCFullYear();
+  let months = now.getUTCMonth() - created.getUTCMonth();
+  if (now.getUTCDate() < created.getUTCDate()) months--;
+  if (months < 0) { years--; months += 12; }
+  const days = Math.floor((now - created) / 86400000);
+  const parts = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? "year" : "years"}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? "month" : "months"}`);
+  if (!parts.length) return `${days} ${days === 1 ? "day" : "days"}`;
+  return parts.join(", ");
 }
 
 function applyCommandImage(embed) {
@@ -929,53 +932,63 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     const link = await getRoWifiByRobloxId(resolved.userId, guildId);
     verifiedDiscordId = link?.discordId || null;
   }
-  const [userDetails, avatarUrl, groupRoles, social, badgeCount, gameRestriction, discordBan] = await Promise.all([
-    getRobloxUserDetails(resolved.userId), getRobloxAvatarHeadshot(resolved.userId), getRobloxUserGroupRoles(resolved.userId),
-    getRobloxSocialStats(resolved.userId), getRobloxBadgeCount(resolved.userId), getGameRestriction(resolved.userId),
+  const results = await Promise.allSettled([
+    getRobloxUserDetails(resolved.userId),
+    getRobloxAvatarHeadshot(resolved.userId),
+    getRobloxUserGroupRoles(resolved.userId),
+    getRobloxSocialStats(resolved.userId),
+    getRobloxBadgeCount(resolved.userId),
+    getGameRestriction(resolved.userId),
     getDiscordBanStatus(guildId, verifiedDiscordId)
   ]);
+  const value = (index, fallback = null) => results[index].status === "fulfilled" ? results[index].value : fallback;
+  const userDetails = value(0);
+  if (!userDetails) return { error: "Couldn't retrieve this Roblox account. Please try again." };
+  const avatarUrl = value(1);
+  const groupRoles = value(2, []);
+  const social = value(3, {});
+  const badgeCount = value(4);
+  const gameRestriction = value(5, { available: false, banned: false });
+  const discordBan = value(6, { available: false, banned: false });
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const divisions = getDivisionsFromGroupRoles(groupRoles);
-  const mainRank = cachedProfile?.mainRankName || getMainGroupRoleFromGroupRoles(groupRoles);
+  const mainRank = results[2].status === "fulfilled"
+    ? getMainGroupRoleFromGroupRoles(groupRoles) : (cachedProfile?.mainRankName || "Unavailable");
   const otherMemberships = divisions.filter(d => Number(d.id) !== MAIN_GROUP_ID);
   const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
-  const createdUnix = Math.floor(new Date(userDetails.created).getTime() / 1000);
   const ageDays = Math.max(0, Math.floor((Date.now() - new Date(userDetails.created).getTime()) / 86400000));
   const flags = [];
   if (userDetails.isBanned) flags.push("Roblox account banned");
-  if (gameRestriction.banned) flags.push("Banned from main game");
+  if (gameRestriction.banned) flags.push("Banned from TARC");
   if (discordBan.banned) flags.push("Discord ban");
   if (punishments.length) flags.push("Punishment history");
-  if (ageDays < 90) flags.push("Very new Roblox account");
-  else if (ageDays < 365) flags.push("Roblox account under 1 year old");
-  const status = flags.some(x => x.toLowerCase().includes("ban")) ? "🔴 Flagged" : flags.length ? "🟠 Review" : "🟢 Clear";
-  const verifiedText = verifiedDiscordId ? `✅ Yes, <@${verifiedDiscordId}>` : ROWIFI_API_TOKEN ? "❌ No linked Discord found" : "Unavailable";
+  if (ageDays < 90) flags.push("New Roblox account");
+  else if (ageDays < 365) flags.push("Account under one year old");
+  const incomplete = results.slice(2).some(r => r.status === "rejected") ||
+    !gameRestriction.available || (Boolean(verifiedDiscordId) && !discordBan.available);
+  const status = flags.some(f => /ban/i.test(f)) ? "Flagged" : flags.length ? "Review" : incomplete ? "Incomplete" : "Clear";
   const profileUrl = `https://www.roblox.com/users/${resolved.userId}/profile`;
-  const firstSeen = cachedProfile?.firstJoinUnix ? `<t:${cachedProfile.firstJoinUnix}:D>` : "Not recorded";
-  const punishmentItems = [
-    ...punishments.slice(0, 3).map(p => String(p)),
-    ...(discordBan.banned ? ["Discord ban"] : []),
-    ...(gameRestriction.banned ? ["Banned from main game"] : []),
-    ...(userDetails.isBanned ? ["Roblox account banned"] : [])
+  const rankLines = [
+    `Main: ${mainRank}`,
+    ...otherMemberships.map(d => `${d.name}: ${d.role}`)
   ];
-  const punishmentText = punishmentItems.length ? punishmentItems.join(", ") : "None found";
-  const membershipLines = otherMemberships.length
-    ? otherMemberships.map(d => `${d.name}: **${d.role}**`).join("\n")
-    : "None";
+  const ranks = rankLines.join("\n").slice(0, 1024);
+  const findings = flags.length ? flags.join("\n") : incomplete ? "Some checks unavailable" : "No flags found";
   const embed = new EmbedBuilder()
-    .setColor(status.includes("Flagged") ? 0xe5484d : status.includes("Review") ? 0xe6a23c : 0x2b7fff)
-    .setTitle(`Background Check · ${resolved.username}`)
+    .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Incomplete" ? 0x9297a0 : 0x2b7fff)
+    .setTitle(resolved.username)
     .setURL(profileUrl)
-    .setDescription(`[${resolved.username}](${profileUrl})  •  ${status}`)
+    .setDescription(`**${status}**  ·  Background Check`)
     .addFields(
-      { name: "Account", value: `**Age**  ${formatAccountAge(userDetails.created)}\n**Friends**  ${social.friends ?? "N/A"}  •  **Badges**  ${badgeCount ?? "N/A"}\n**User ID**  ${resolved.userId}`, inline: true },
-      { name: "Republic Army", value: mainRank || "Not in group", inline: true },
-      ...(otherMemberships.length ? [{ name: "Divisions", value: otherMemberships.map(d => `**${d.name}** · ${d.role}`).join("\n").slice(0, 1024) }] : []),
-      { name: "Background", value: punishmentItems.length ? punishmentItems.map(p => `• ${p}`).join("\n").slice(0, 1024) : "No recorded flags" },
-      { name: "Playtime", value: cachedProfile?.playTimeSeconds != null ? formatCompactTime(cachedProfile.playTimeSeconds) : "Not recorded", inline: true },
-      { name: "Kills", value: cachedProfile?.kills != null ? formatNumber(cachedProfile.kills) : "Not recorded", inline: true }
+      { name: "Account Age", value: formatAccountAge(userDetails.created), inline: true },
+      { name: "Friends", value: social.friends == null ? "Unavailable" : formatNumber(social.friends), inline: true },
+      { name: "Badges", value: badgeCount == null ? "Unavailable" : formatNumber(badgeCount), inline: true },
+      { name: "Playtime", value: cachedProfile?.playTimeSeconds == null ? "Not recorded" : formatCompactTime(cachedProfile.playTimeSeconds), inline: true },
+      { name: "Kills", value: cachedProfile?.kills == null ? "Not recorded" : formatNumber(cachedProfile.kills), inline: true },
+      { name: "Ranks", value: ranks || "Not in TARC groups" },
+      { name: "Background", value: findings.slice(0, 1024) }
     )
-    .setFooter({ text: "TARC · Background Check" });
+    .setFooter({ text: `Roblox ID: ${resolved.userId}` });
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
 }
