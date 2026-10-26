@@ -919,6 +919,38 @@ function buildProfileEmbed(profile) {
     ].join("\n"));
 }
 
+const BLACKLIST_BOARD_ID = "BYYGQkyr";
+let blacklistCache = { expires: 0, cards: null };
+async function getBlacklistBoardCards() {
+  if (blacklistCache.expires > Date.now() && blacklistCache.cards) return blacklistCache.cards;
+  const url = `https://api.trello.com/1/boards/${BLACKLIST_BOARD_ID}/cards?filter=open&fields=name,desc,shortUrl,idList&list_fields=name`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(7000) });
+  if (!response.ok) throw new Error(`Trello HTTP ${response.status}`);
+  const cards = await response.json();
+  if (!Array.isArray(cards)) throw new Error("Invalid Trello response");
+  blacklistCache = { expires: Date.now() + 120000, cards };
+  return cards;
+}
+function findBlacklistRecords(cards, userId, username) {
+  const normalize = s => String(s || "").trim().toLowerCase();
+  const user = normalize(username);
+  const id = String(userId);
+  return cards.filter(card => {
+    const desc = String(card.desc || "");
+    const name = String(card.name || "");
+    const declaredId = desc.match(/\*\*Roblox ID:\*\*\s*(\d+)/i)?.[1];
+    const declaredName = desc.match(/\*\*Roblox User:\*\*\s*([^\r\n*]+)/i)?.[1]?.trim();
+    if (declaredId) return declaredId === id;
+    if (declaredName) return normalize(declaredName) === user;
+    // Only match a real username token in the title, not template cards or partial names.
+    return name.split(/[|()]/)[0].trim().toLowerCase() === user;
+  }).map(card => ({
+    url: /^https:\/\/trello\.com\/c\//.test(card.shortUrl || "") ? card.shortUrl : null,
+    category: (card.desc.match(/^#\s+(.+)$/m)?.[1] || "Blacklist").trim(),
+    reason: (card.desc.match(/\*\*Reason:\*\*\s*([^\r\n]+)/i)?.[1] || "").trim()
+  }));
+}
+
 async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   let resolved = null;
   let verifiedDiscordId = discordUser?.id ? String(discordUser.id) : null;
@@ -939,7 +971,8 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     getRobloxSocialStats(resolved.userId),
     getRobloxBadgeCount(resolved.userId),
     getGameRestriction(resolved.userId),
-    getDiscordBanStatus(guildId, verifiedDiscordId)
+    getDiscordBanStatus(guildId, verifiedDiscordId),
+    getBlacklistBoardCards()
   ]);
   const value = (index, fallback = null) => results[index].status === "fulfilled" ? results[index].value : fallback;
   const userDetails = value(0);
@@ -950,6 +983,8 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const badgeCount = value(4);
   const gameRestriction = value(5, { available: false, banned: false });
   const discordBan = value(6, { available: false, banned: false });
+  const blacklistAvailable = results[7]?.status === "fulfilled";
+  const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(7, []), resolved.userId, resolved.username) : [];
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const divisions = getDivisionsFromGroupRoles(groupRoles);
   const mainRank = results[2].status === "fulfilled"
@@ -962,6 +997,7 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   if (gameRestriction.banned) flags.push("Banned from TARC");
   if (discordBan.banned) flags.push("Discord ban");
   if (punishments.length) flags.push("Punishment history");
+  if (blacklistRecords.length) flags.push("Trello blacklist");
   if (ageDays < 90) flags.push("New Roblox account");
   else if (ageDays < 365) flags.push("Account under one year old");
   const incomplete = results.slice(2).some(r => r.status === "rejected") ||
@@ -973,7 +1009,9 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     ...otherMemberships.map(d => `${d.name}: ${d.role}`)
   ];
   const ranks = rankLines.join("\n").slice(0, 1024);
-  const findings = flags.length ? flags.join("\n") : incomplete ? "Some checks unavailable" : "No flags found";
+  const blacklistFindings = blacklistRecords.map(record => `**${record.category}**${record.url ? ` · [Trello record](${record.url})` : ""}${record.reason ? `\n${record.reason.slice(0, 180)}` : ""}`);
+  const otherFlags = flags.filter(f => f !== "Trello blacklist");
+  const findings = [...blacklistFindings, ...otherFlags].join("\n") || (incomplete ? "Some checks unavailable" : "No flags found");
   const embed = new EmbedBuilder()
     .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Incomplete" ? 0x9297a0 : 0x2b7fff)
     .setTitle(resolved.username)
