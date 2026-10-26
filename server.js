@@ -5,6 +5,8 @@ import { getEventCommands, handleEventInteraction } from "./eventDM.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import express from "express";
 import {
   Client,
@@ -42,7 +44,7 @@ const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
 
 // Roblox Open Cloud group ranking.
 const ROBLOX_API_KEY = String(process.env.ROBLOX_API_KEY || "");
-const ROBLOX_UNIVERSE_API_KEY = String(process.env.ROBLOX_UNIVERSE_API_KEY || "");
+const ROBLOX_UNIVERSE_API_KEY = String(process.env.ROBLOX_UNIVERSE_API_KEY || process.env.ROBLOX_API_KEY || "");
 const ROWIFI_API_TOKEN = String(process.env.ROWIFI_API_TOKEN || "");
 const ROWIFI_API_BASE = "https://api.rowifi.xyz/v2";
 const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
@@ -208,6 +210,54 @@ app.use((err, req, res, next) => {
 const profileCache = new Map();      // userId -> profile
 const usernameToUserId = new Map();  // lowercase username -> userId
 
+const BGC_CACHE_DIR = String(process.env.BGC_CACHE_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const BGC_CACHE_FILE = BGC_CACHE_DIR ? join(BGC_CACHE_DIR, "bgc-profiles.json") : null;
+let profileWriteTimer = null;
+
+async function loadPersistentProfiles() {
+  if (!BGC_CACHE_FILE) {
+    console.warn("[BGC] No Railway volume mounted; game stats will reset on redeploy.");
+    return;
+  }
+  try {
+    const saved = JSON.parse(await readFile(BGC_CACHE_FILE, "utf8"));
+    if (!Array.isArray(saved?.profiles)) return;
+    for (const profile of saved.profiles.slice(-5000)) {
+      const id = Number(profile?.userId);
+      const username = String(profile?.username || "");
+      if (!Number.isSafeInteger(id) || id <= 0 || !username) continue;
+      profileCache.set(id, profile);
+      usernameToUserId.set(username.toLowerCase(), id);
+    }
+    console.log(`[BGC] Restored ${profileCache.size} saved game profiles.`);
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.warn("[BGC] Saved profile load failed:", error?.message || error);
+  }
+}
+
+async function savePersistentProfiles() {
+  if (!BGC_CACHE_FILE) return;
+  const profiles = Array.from(profileCache.values())
+    .sort((a, b) => Number(a.lastUpdateUnix || 0) - Number(b.lastUpdateUnix || 0))
+    .slice(-5000);
+  const temporaryFile = `${BGC_CACHE_FILE}.tmp`;
+  await mkdir(BGC_CACHE_DIR, { recursive: true });
+  await writeFile(temporaryFile, JSON.stringify({ version: 1, profiles }), { mode: 0o600 });
+  await rename(temporaryFile, BGC_CACHE_FILE);
+}
+
+function queueProfileSave() {
+  if (!BGC_CACHE_FILE || profileWriteTimer) return;
+  profileWriteTimer = setTimeout(() => {
+    profileWriteTimer = null;
+    savePersistentProfiles().catch(error => console.warn("[BGC] Profile save failed:", error?.message || error));
+  }, 3000);
+  profileWriteTimer.unref();
+}
+
+await loadPersistentProfiles();
+
+
 // ==================== MEDALS ====================
 const MedalAssignments = {
   621243206: ["Medal Of Honor", "Distinguished Service", "Achivement Of Activity", "Medal Of Stars Honesty", "Leaderships Medal Of Honour", "Invaluted's Bravery"],
@@ -354,27 +404,32 @@ async function getRobloxSocialStats(userId) {
 }
 
 async function getRobloxBadgeCount(userId) {
-  try {
-    // Roblox exposes a dedicated count endpoint. This avoids paging the full badge
-    // inventory and is much less likely to fail for users with large inventories.
-    const data = await fetchJson(`https://badges.roblox.com/v1/users/${userId}/badges/count`);
-    if (Number.isFinite(Number(data?.count))) return Number(data.count);
-  } catch {}
-  try {
-    let count = 0, cursor = "";
-    for (let page = 0; page < 50; page++) {
-      const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
-      if (cursor) params.set("cursor", cursor);
-      const data = await fetchJson(`https://badges.roblox.com/v1/users/${userId}/badges?${params.toString()}`);
-      count += Array.isArray(data?.data) ? data.data.length : 0;
-      cursor = String(data?.nextPageCursor || "");
-      if (!cursor) return count;
+  let count = 0;
+  let cursor = "";
+  for (let page = 0; page < 25; page++) {
+    const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
+    if (cursor) params.set("cursor", cursor);
+    let response;
+    try {
+      response = await fetch(`https://badges.roblox.com/v1/users/${userId}/badges?${params}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+    } catch {
+      return { count: null, status: "Unavailable" };
     }
-    // A page limit is not an exact total, so never publish a partial count.
-    return null;
-  } catch {
-    return null;
+    if (response.status === 401 || response.status === 403) {
+      return { count: null, status: "Restricted" };
+    }
+    if (!response.ok) return { count: null, status: "Unavailable" };
+    let data;
+    try { data = await response.json(); } catch { return { count: null, status: "Unavailable" }; }
+    if (!Array.isArray(data?.data)) return { count: null, status: "Unavailable" };
+    count += data.data.length;
+    cursor = String(data.nextPageCursor || "");
+    if (!cursor) return { count, status: "Public" };
   }
+  // Never show a limited page sample as the account's complete badge total.
+  return { count: null, status: "Too many to count" };
 }
 
 function firstNumericValue(object, paths) {
@@ -462,26 +517,60 @@ async function robloxUniverseOpenCloudRequest(path, options = {}) {
 }
 
 async function getGameRestriction(userId) {
-  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) return { available:false, banned:false };
-
+  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) {
+    return { available: false, banned: false };
+  }
   try {
-    // UserRestriction IDs use the Roblox user resource form: users/{user_id}.
-    // Fetching the specific restriction avoids paging/filter ambiguity.
-    const restrictionId = encodeURIComponent(`users/${userId}`);
+    // This endpoint takes the numeric Roblox user ID as its resource ID.
     const data = await robloxUniverseOpenCloudRequest(
-      `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions/${restrictionId}`
+      `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions/${userId}`
     );
-
-    const active = data?.active === true || data?.isActive === true || data?.status === "ACTIVE";
-    return { available:true, banned:Boolean(active), restriction:data || null };
-  } catch (err) {
-    // A missing restriction means the player has no universe-level ban.
-    if (/HTTP 404\b/.test(String(err?.message || ""))) {
-      return { available:true, banned:false };
+    const restriction = data?.gameJoinRestriction || data?.game_join_restriction || data;
+    const active = restriction?.active === true || restriction?.isActive === true || restriction?.status === "ACTIVE";
+    return { available: true, banned: Boolean(active) };
+  } catch (error) {
+    if (/HTTP 404\b/.test(String(error?.message || ""))) {
+      return { available: true, banned: false };
     }
+    console.warn("[BGC] Roblox BanService status unavailable:", error?.message || error);
+    return { available: false, banned: false };
+  }
+}
 
-    console.warn("[BGC] User restriction lookup unavailable:", err.message);
-    return { available:false, banned:false };
+async function getGameBanHistory(userId) {
+  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) {
+    return { available: false, count: 0 };
+  }
+  let nextPageToken = "";
+  const seen = new Set();
+  let count = 0;
+  try {
+    for (let page = 0; page < 5; page++) {
+      const params = new URLSearchParams({
+        filter: `user == 'users/${userId}'`,
+        pageSize: "100"
+      });
+      if (nextPageToken) params.set("pageToken", nextPageToken);
+      const data = await robloxUniverseOpenCloudRequest(
+        `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions:listLogs?${params}`
+      );
+      if (!Array.isArray(data?.logs)) throw new Error("Unexpected BanService history response");
+      for (const log of data.logs) {
+        if (log?.user && String(log.user) !== `users/${userId}`) continue;
+        // Only ban actions count as punishments, not the unban audit events.
+        if (log?.active !== true && log?.gameJoinRestriction?.active !== true) continue;
+        const unique = `${log?.path || ""}:${log?.createTime || log?.startTime || ""}:${log?.place || ""}`;
+        if (seen.has(unique)) continue;
+        seen.add(unique);
+        count++;
+      }
+      nextPageToken = String(data.nextPageToken || "");
+      if (!nextPageToken) return { available: true, count };
+    }
+    return { available: false, count };
+  } catch (error) {
+    console.warn("[BGC] BanService history unavailable:", error?.message || error);
+    return { available: false, count };
   }
 }
 
@@ -1033,7 +1122,7 @@ function bgcRanks(groupRoles, groupsAvailable) {
       .map(d => `${cleanBGCText(d.name, 45)}: ${cleanBGCText(d.role, 60)}`)
   ];
   // Discord's -# markdown keeps rank details small without bullet decoration.
-  const visible = rankLines.slice(0, 5);
+  const visible = rankLines.slice(0, 3);
   if (rankLines.length > visible.length) visible.push(`${rankLines.length - visible.length} more divisions`);
   return visible.map(line => `-# ${line}`).join("\n").slice(0, 1024);
 }
@@ -1073,6 +1162,7 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     getRobloxSocialStats(resolved.userId),
     getRobloxBadgeCount(resolved.userId),
     getGameRestriction(resolved.userId),
+    getGameBanHistory(resolved.userId),
     getDiscordBanStatus(guildId, verifiedDiscordId),
     getBlacklistBoardCards()
   ]);
@@ -1084,16 +1174,18 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const groupsAvailable = results[2].status === "fulfilled";
   const groupRoles = value(2, []);
   const social = value(3, {});
-  const badgeCount = value(4);
+  const badges = value(4, { count: null, status: "Unavailable" });
   const gameRestriction = value(5, { available: false, banned: false });
-  const discordBan = value(6, { available: false, banned: false });
-  const blacklistAvailable = results[7].status === "fulfilled";
-  const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(7, []), resolved.userId, resolved.username) : [];
+  const banHistory = value(6, { available: false, count: 0 });
+  const discordBan = value(7, { available: false, banned: false });
+  const blacklistAvailable = results[8].status === "fulfilled";
+  const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(8, []), resolved.userId, resolved.username) : [];
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const gameHistoryAvailable = Array.isArray(cachedProfile?.punishments);
   const gamePunishments = gameHistoryAvailable
     ? cachedProfile.punishments.filter(item => item !== null && item !== "") : [];
-  const punishmentCount = gamePunishments.length + blacklistRecords.length;
+  const banCount = banHistory.available ? banHistory.count : (gameRestriction.banned ? 1 : 0);
+  const punishmentCount = gamePunishments.length + blacklistRecords.length + banCount;
   const divisions = groupsAvailable ? getDivisionsFromGroupRoles(groupRoles) : [];
   const mainRank = groupsAvailable ? getMainGroupRoleFromGroupRoles(groupRoles) : "";
   const mainRankNumber = groupsAvailable ? getMainGroupRankNumber(groupRoles) : 0;
@@ -1107,7 +1199,10 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   if (userDetails.isBanned) severe.push("Roblox account banned");
   if (gameRestriction.banned) severe.push("Banned from TARC");
   if (discordBan.banned) severe.push("Discord server ban");
-  if (gamePunishments.length) review.push(`${gamePunishments.length} game punishment record${gamePunishments.length === 1 ? "" : "s"}`);
+  if (gamePunishments.length) review.push(`${gamePunishments.length} reported game punishment record${gamePunishments.length === 1 ? "" : "s"}`);
+  if (banHistory.available && banHistory.count) {
+    review.push(`${banHistory.count} TARC BanService record${banHistory.count === 1 ? "" : "s"}`);
+  }
   if (ageDays !== null && ageDays < 90) review.push("Roblox account under 90 days old");
   else if (ageDays !== null && ageDays < 365) review.push("Roblox account under one year old");
   if (groupsAvailable && !isMultiMainAllowed(mainRank, mainRankNumber)) {
@@ -1117,14 +1212,15 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
 
   if (!groupsAvailable) missing.push("group ranks");
   if (results[3].status !== "fulfilled" || social.friends == null) missing.push("friends");
-  if (badgeCount == null) missing.push("badges");
-  if (!gameRestriction.available) missing.push("TARC ban status");
+  // Badge inventories can be restricted by the player's Roblox privacy settings.
+  // That should not turn an otherwise valid background check into "Incomplete".
+  if (!gameRestriction.available || !banHistory.available) missing.push("BanService access");
   if (verifiedDiscordId && !discordBan.available) missing.push("Discord ban status");
   if (!blacklistAvailable) missing.push("Trello blacklists");
   if (ageDays === null) missing.push("account creation date");
 
   const status = (severe.length || blacklistRecords.length) ? "Flagged"
-    : review.length ? "Review" : missing.length ? "Incomplete" : "Clear";
+    : review.length ? "Review" : missing.length ? "Partial" : "Clear";
   const evidence = [
     ...blacklistRecords.slice(0, 4).map(record => {
       const label = record.url ? `[${record.category}](${record.url})` : record.category;
@@ -1134,22 +1230,23 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     ...severe,
     ...review
   ];
-  if (missing.length) evidence.push(`Unavailable: ${missing.join(", ")}`);
-  const punishmentValue = blacklistAvailable
-    ? (gameHistoryAvailable ? (punishmentCount ? `${punishmentCount} recorded` : "0") : `${blacklistRecords.length} Trello`)
-    : (gameHistoryAvailable ? `${gamePunishments.length} game only` : "Unavailable");
+  const missingNote = missing.length ? `\n-# Checks unavailable: ${missing.join(", ")}` : "";
+  const sourcesComplete = blacklistAvailable && banHistory.available && gameHistoryAvailable;
+  const punishmentValue = sourcesComplete
+    ? (punishmentCount ? `${punishmentCount} recorded` : "0")
+    : `${punishmentCount} known`;
 
   const embed = new EmbedBuilder()
-    .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Incomplete" ? 0x9297a0 : 0x2b7fff)
+    .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Partial" ? 0x9297a0 : 0x2b7fff)
     .setTitle(resolved.username)
     .setURL(`https://www.roblox.com/users/${resolved.userId}/profile`)
-    .setDescription(`Background Check  |  **${status}**`)
+    .setDescription(`Background Check  |  **${status}**${missingNote}`)
     .addFields(
       { name: "Account Age", value: formatAccountAge(userDetails.created), inline: true },
       { name: "Friends", value: social.friends == null ? "Unavailable" : formatNumber(social.friends), inline: true },
-      { name: "Badges", value: badgeCount == null ? "Unavailable" : formatNumber(badgeCount), inline: true },
-      { name: "Playtime", value: cachedProfile?.playTimeSeconds == null ? "Not recorded" : formatCompactTime(cachedProfile.playTimeSeconds), inline: true },
-      { name: "Kills", value: cachedProfile?.kills == null ? "Not recorded" : formatNumber(cachedProfile.kills), inline: true },
+      { name: "Badges", value: badges?.count == null ? (badges?.status || "Unavailable") : `${formatNumber(badges.count)} public`, inline: true },
+      { name: "Playtime", value: cachedProfile?.playTimeSeconds == null ? "Not synced" : formatCompactTime(cachedProfile.playTimeSeconds), inline: true },
+      { name: "Kills", value: cachedProfile?.kills == null ? "Not synced" : formatNumber(cachedProfile.kills), inline: true },
       { name: "Punishments", value: punishmentValue, inline: true },
       { name: "Ranks", value: bgcRanks(groupRoles, groupsAvailable) }
     )
@@ -1233,19 +1330,20 @@ app.post("/ingest", (req, res) => {
     const profile = {
       userId,
       username,
-      xp: body.xp !== undefined ? Number(body.xp) : null,
-      kills: body.kills !== undefined ? Number(body.kills) : null,
-      playTimeSeconds: body.playTimeSeconds !== undefined ? Number(body.playTimeSeconds) : 0,
-      cash: body.cash !== undefined ? Number(body.cash) : null,
-      mainRankName: String(body.mainRankName || "Unknown"),
-      divisions: Array.isArray(body.divisions) ? body.divisions : [],
-      punishments: Array.isArray(body.punishments) ? body.punishments : [],
+      xp: body.xp !== undefined ? Number(body.xp) : (existing?.xp ?? null),
+      kills: body.kills !== undefined ? Number(body.kills) : (existing?.kills ?? null),
+      playTimeSeconds: body.playTimeSeconds !== undefined ? Number(body.playTimeSeconds) : (existing?.playTimeSeconds ?? null),
+      cash: body.cash !== undefined ? Number(body.cash) : (existing?.cash ?? null),
+      mainRankName: String(body.mainRankName || existing?.mainRankName || "Unknown"),
+      divisions: Array.isArray(body.divisions) ? body.divisions : (existing?.divisions || []),
+      punishments: Array.isArray(body.punishments) ? body.punishments : (existing?.punishments ?? null),
       firstJoinUnix: existing?.firstJoinUnix || (body.firstJoinUnix ? Number(body.firstJoinUnix) : now),
       lastUpdateUnix: now
     };
 
     profileCache.set(userId, profile);
     usernameToUserId.set(username.toLowerCase(), userId);
+    queueProfileSave();
 
     console.log(`[INGEST] Stored ${username} (${userId}) XP=${profile.xp}`);
     return res.status(200).json({ ok: true });
