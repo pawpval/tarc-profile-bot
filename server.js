@@ -404,8 +404,41 @@ async function getRobloxSocialStats(userId) {
 }
 
 async function getRobloxBadgeCount(userId) {
-  let count = 0;
-  let cursor = "";
+  // Roblox's inventory endpoint respects the target user's visibility settings.
+  // Use Open Cloud when a key exists; the old public badge endpoint now restricts anonymous requests.
+  const key = String(process.env.ROBLOX_BADGES_API_KEY || ROBLOX_API_KEY || "");
+  if (key) {
+    let count = 0, pageToken = "";
+    for (let page = 0; page < 25; page++) {
+      const params = new URLSearchParams({ filter: "badges=true", maxPageSize: "100" });
+      if (pageToken) params.set("pageToken", pageToken);
+      let response;
+      try {
+        response = await fetch(`https://apis.roblox.com/cloud/v2/users/${userId}/inventory-items?${params}`, {
+          headers: { "x-api-key": key, Accept: "application/json" },
+          signal: AbortSignal.timeout(6000)
+        });
+      } catch {
+        return { count: null, status: "Unavailable" };
+      }
+      if (response.status === 403) return { count: null, status: "Restricted" };
+      if (response.ok) {
+        let data;
+        try { data = await response.json(); } catch { return { count: null, status: "Unavailable" }; }
+        if (!Array.isArray(data?.inventoryItems)) return { count: null, status: "Unavailable" };
+        count += data.inventoryItems.length;
+        pageToken = String(data.nextPageToken || "");
+        if (!pageToken) return { count, status: "Public" };
+        continue;
+      }
+      // Unauthorized or unsupported key: allow a read-only legacy fallback.
+      if (response.status !== 401) return { count: null, status: "Unavailable" };
+      break;
+    }
+    if (count > 0 && pageToken) return { count: null, status: "Too many to count" };
+  }
+
+  let count = 0, cursor = "";
   for (let page = 0; page < 25; page++) {
     const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
     if (cursor) params.set("cursor", cursor);
@@ -428,7 +461,6 @@ async function getRobloxBadgeCount(userId) {
     cursor = String(data.nextPageCursor || "");
     if (!cursor) return { count, status: "Public" };
   }
-  // Never show a limited page sample as the account's complete badge total.
   return { count: null, status: "Too many to count" };
 }
 
@@ -555,11 +587,12 @@ async function getGameBanHistory(userId) {
         `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions:listLogs?${params}`
       );
       if (!Array.isArray(data?.logs)) throw new Error("Unexpected BanService history response");
-      for (const log of data.logs) {
+      for (const [index, log] of data.logs.entries()) {
         if (log?.user && String(log.user) !== `users/${userId}`) continue;
         // Only ban actions count as punishments, not the unban audit events.
         if (log?.active !== true && log?.gameJoinRestriction?.active !== true) continue;
-        const unique = `${log?.path || ""}:${log?.createTime || log?.startTime || ""}:${log?.place || ""}`;
+        const eventId = log?.path || log?.id || log?.createTime || log?.startTime;
+        const unique = eventId ? `${eventId}:${log?.place || ""}` : `${page}:${index}`;
         if (seen.has(unique)) continue;
         seen.add(unique);
         count++;
