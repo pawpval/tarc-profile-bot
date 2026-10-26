@@ -370,7 +370,8 @@ async function getRobloxBadgeCount(userId) {
       cursor = String(data?.nextPageCursor || "");
       if (!cursor) return count;
     }
-    return count;
+    // A page limit is not an exact total, so never publish a partial count.
+    return null;
   } catch {
     return null;
   }
@@ -485,13 +486,22 @@ async function getGameRestriction(userId) {
 }
 
 async function getDiscordBanStatus(guildId, discordId) {
-  if (!guildId || !discordId) return { available:false, banned:false };
+  if (!guildId || !discordId) return { available: false, banned: false };
   try {
     const guild = await client.guilds.fetch(guildId);
-    const ban = await guild.bans.fetch(String(discordId)).catch(() => null);
-    return { available:true, banned:Boolean(ban) };
-  } catch {
-    return { available:false, banned:false };
+    try {
+      const ban = await guild.bans.fetch(String(discordId));
+      return { available: true, banned: Boolean(ban) };
+    } catch (error) {
+      // Discord 10026 = Unknown Ban: a definitive negative result.
+      if (error?.code === 10026 || (error?.status === 404 && error?.code !== 50001)) {
+        return { available: true, banned: false };
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.warn("[BGC] Discord ban lookup unavailable:", error?.message || error);
+    return { available: false, banned: false };
   }
 }
 
@@ -920,50 +930,142 @@ function buildProfileEmbed(profile) {
 }
 
 const BLACKLIST_BOARD_ID = "BYYGQkyr";
+const BLACKLIST_INFO_LIST_ID = "6ab8f41fbcd51cf6d596d6c0";
+const BLACKLIST_LIST_LABELS = new Map([
+  ["6ab8f41fbcd51cf6d596d6c1", "Universal Blacklist"],
+  ["6ab8f5cabd0756e6232c63a4", "Universal Divisional Blacklist"],
+  ["6ab8f5c87f803ffda64a01fb", "RI Blacklist"],
+  ["6ab8f41fbcd51cf6d596d6c2", "Officer / HICOM Blacklist"]
+]);
 let blacklistCache = { expires: 0, cards: null };
+
 async function getBlacklistBoardCards() {
-  if (blacklistCache.expires > Date.now() && blacklistCache.cards) return blacklistCache.cards;
-  const url = `https://api.trello.com/1/boards/${BLACKLIST_BOARD_ID}/cards?filter=open&fields=name,desc,shortUrl,idList&list_fields=name`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(7000) });
+  if (blacklistCache.cards && blacklistCache.expires > Date.now()) return blacklistCache.cards;
+  const params = new URLSearchParams({
+    filter: "open",
+    fields: "id,name,desc,shortUrl,idList,closed"
+  });
+  // The current blacklist board is public; credentials are optional.
+  if (process.env.TRELLO_API_KEY && process.env.TRELLO_TOKEN) {
+    params.set("key", process.env.TRELLO_API_KEY);
+    params.set("token", process.env.TRELLO_TOKEN);
+  }
+  const response = await fetch(`https://api.trello.com/1/boards/${BLACKLIST_BOARD_ID}/cards?${params}`, {
+    signal: AbortSignal.timeout(8000),
+    headers: { Accept: "application/json" }
+  });
   if (!response.ok) throw new Error(`Trello HTTP ${response.status}`);
   const cards = await response.json();
   if (!Array.isArray(cards)) throw new Error("Invalid Trello response");
-  blacklistCache = { expires: Date.now() + 120000, cards };
+  blacklistCache = { expires: Date.now() + 2 * 60 * 1000, cards };
   return cards;
 }
+
+function trelloField(description, label) {
+  const prefix = `${label.toLowerCase()}:`;
+  for (const rawLine of String(description || "").split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^[-*]\s+/, "").replace(/\*{2}/g, "").trim();
+    if (line.toLowerCase().startsWith(prefix)) return line.slice(prefix.length).trim();
+  }
+  return "";
+}
+
+function normalizeRobloxName(value) {
+  return String(value || "").trim().replace(/^@/, "").toLowerCase();
+}
+
+function cleanBGCText(value, max = 120) {
+  return String(value || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/@/g, "@\u200b")
+    .replace(/[*_`[\]<>]/g, "")
+    .trim()
+    .slice(0, max);
+}
+
 function findBlacklistRecords(cards, userId, username) {
-  const normalize = s => String(s || "").trim().toLowerCase();
-  const user = normalize(username);
   const id = String(userId);
-  return cards.filter(card => {
-    const desc = String(card.desc || "");
+  const user = normalizeRobloxName(username);
+  const seen = new Set();
+  const records = [];
+  for (const card of cards) {
+    if (!card || card.closed || card.idList === BLACKLIST_INFO_LIST_ID) continue;
+    if (!BLACKLIST_LIST_LABELS.has(card.idList)) continue;
+    const description = String(card.desc || "");
     const name = String(card.name || "");
-    const declaredId = desc.match(/\*\*Roblox ID:\*\*\s*(\d+)/i)?.[1];
-    const declaredName = desc.match(/\*\*Roblox User:\*\*\s*([^\r\n*]+)/i)?.[1]?.trim();
-    if (declaredId) return declaredId === id;
-    if (declaredName) return normalize(declaredName) === user;
-    // Only match a real username token in the title, not template cards or partial names.
-    return name.split(/[|()]/)[0].trim().toLowerCase() === user;
-  }).map(card => ({
-    url: /^https:\/\/trello\.com\/c\//.test(card.shortUrl || "") ? card.shortUrl : null,
-    category: (card.desc.match(/^#\s+(.+)$/m)?.[1] || "Blacklist").trim(),
-    reason: (card.desc.match(/\*\*Reason:\*\*\s*([^\r\n]+)/i)?.[1] || "").trim()
-  }));
+    const declaredId = trelloField(description, "Roblox ID").match(/^\d+$/)?.[0] || "";
+    const profileId = trelloField(description, "Roblox Profile").match(/roblox\.com\/users\/(\d+)/i)?.[1] || "";
+    // An ID remains reliable even if the player later changes username.
+    if (declaredId && profileId && declaredId !== profileId) continue;
+    if (declaredId || profileId) {
+      if ((declaredId || profileId) !== id) continue;
+    } else {
+      const declaredName = trelloField(description, "Roblox User");
+      const titleName = name.split("|")[0]
+        .replace(/\s+\bBL\s+from\b.*$/i, "")
+        .replace(/\s*\([^)]*\)\s*$/, "").trim();
+      if (normalizeRobloxName(declaredName || titleName) !== user) continue;
+    }
+    const recordId = String(card.id || card.shortUrl || name);
+    if (seen.has(recordId)) continue;
+    seen.add(recordId);
+
+    const blFrom = `${name}\n${description}`.match(/\bBL\s+from\s+([^\r\n|.;]+)/i)?.[1]
+      ?.replace(/\s+\b(?:for|because|due to)\b.*$/i, "").replace(/\*+$/g, "").trim();
+    const heading = description.match(/^#\s+([^\r\n]+)/m)?.[1]?.trim();
+    const category = blFrom ? `BL from ${cleanBGCText(blFrom, 60)}` :
+      cleanBGCText(heading || BLACKLIST_LIST_LABELS.get(card.idList), 65);
+    const reason = cleanBGCText(trelloField(description, "Reason"), 110);
+    const url = /^https:\/\/trello\.com\/c\/[a-zA-Z0-9]+/.test(card.shortUrl || "")
+      ? card.shortUrl : null;
+    records.push({ category, reason, url });
+  }
+  return records;
+}
+
+function bgcRanks(groupRoles, groupsAvailable) {
+  if (!groupsAvailable) return "Unavailable";
+  const divisions = getDivisionsFromGroupRoles(groupRoles);
+  const main = getMainGroupRoleFromGroupRoles(groupRoles);
+  const rankLines = [
+    `Main: ${cleanBGCText(main, 60)}`,
+    ...divisions.filter(d => d.id !== MAIN_GROUP_ID)
+      .map(d => `${cleanBGCText(d.name, 45)}: ${cleanBGCText(d.role, 60)}`)
+  ];
+  // Discord's -# markdown keeps rank details small without bullet decoration.
+  const visible = rankLines.slice(0, 5);
+  if (rankLines.length > visible.length) visible.push(`${rankLines.length - visible.length} more divisions`);
+  return visible.map(line => `-# ${line}`).join("\n").slice(0, 1024);
+}
+
+async function resolveBGCInput(input) {
+  const text = String(input || "").trim();
+  const fromUrl = text.match(/roblox\.com\/users\/(\d+)/i)?.[1];
+  const id = fromUrl || (/^\d+$/.test(text) ? text : "");
+  return id ? resolveRobloxUserById(Number(id)) : resolveRobloxUser(text.replace(/^@/, ""));
 }
 
 async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   let resolved = null;
-  let verifiedDiscordId = discordUser?.id ? String(discordUser.id) : null;
-  if (usernameInput) resolved = await resolveRobloxUser(usernameInput);
-  if (!resolved && verifiedDiscordId) {
-    const link = await getRoWifiByDiscordId(verifiedDiscordId, guildId);
-    if (link?.robloxId) resolved = await resolveRobloxUserById(link.robloxId);
+  let verifiedDiscordId = null;
+  if (usernameInput) resolved = await resolveBGCInput(usernameInput);
+  if (discordUser) {
+    const selectedLink = await getRoWifiByDiscordId(discordUser.id, guildId);
+    if (!selectedLink?.robloxId) {
+      return { error: "Couldn't verify a RoWifi-linked Roblox account for that Discord member." };
+    }
+    if (resolved && Number(selectedLink.robloxId) !== resolved.userId) {
+      return { error: "That Roblox username and Discord member aren't linked to the same account." };
+    }
+    verifiedDiscordId = String(discordUser.id);
+    if (!resolved) resolved = await resolveRobloxUserById(selectedLink.robloxId);
   }
-  if (!resolved) return { error: discordUser ? "I couldn't find a RoWifi-linked Roblox account for that Discord user." : "Couldn't find that Roblox user." };
+  if (!resolved) return { error: "Couldn't find that Roblox user." };
   if (!verifiedDiscordId) {
     const link = await getRoWifiByRobloxId(resolved.userId, guildId);
     verifiedDiscordId = link?.discordId || null;
   }
+
   const results = await Promise.allSettled([
     getRobloxUserDetails(resolved.userId),
     getRobloxAvatarHeadshot(resolved.userId),
@@ -977,56 +1079,82 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const value = (index, fallback = null) => results[index].status === "fulfilled" ? results[index].value : fallback;
   const userDetails = value(0);
   if (!userDetails) return { error: "Couldn't retrieve this Roblox account. Please try again." };
+
   const avatarUrl = value(1);
+  const groupsAvailable = results[2].status === "fulfilled";
   const groupRoles = value(2, []);
   const social = value(3, {});
   const badgeCount = value(4);
   const gameRestriction = value(5, { available: false, banned: false });
   const discordBan = value(6, { available: false, banned: false });
-  const blacklistAvailable = results[7]?.status === "fulfilled";
+  const blacklistAvailable = results[7].status === "fulfilled";
   const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(7, []), resolved.userId, resolved.username) : [];
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
-  const divisions = getDivisionsFromGroupRoles(groupRoles);
-  const mainRank = results[2].status === "fulfilled"
-    ? getMainGroupRoleFromGroupRoles(groupRoles) : (cachedProfile?.mainRankName || "Unavailable");
-  const otherMemberships = divisions.filter(d => Number(d.id) !== MAIN_GROUP_ID);
-  const punishments = Array.isArray(cachedProfile?.punishments) ? cachedProfile.punishments : [];
-  const ageDays = Math.max(0, Math.floor((Date.now() - new Date(userDetails.created).getTime()) / 86400000));
-  const flags = [];
-  if (userDetails.isBanned) flags.push("Roblox account banned");
-  if (gameRestriction.banned) flags.push("Banned from TARC");
-  if (discordBan.banned) flags.push("Discord ban");
-  if (punishments.length) flags.push("Punishment history");
-  if (blacklistRecords.length) flags.push("Trello blacklist");
-  if (ageDays < 90) flags.push("New Roblox account");
-  else if (ageDays < 365) flags.push("Account under one year old");
-  const incomplete = results.slice(2).some(r => r.status === "rejected") ||
-    !gameRestriction.available || (Boolean(verifiedDiscordId) && !discordBan.available);
-  const status = flags.some(f => /ban/i.test(f)) ? "Flagged" : flags.length ? "Review" : incomplete ? "Incomplete" : "Clear";
-  const profileUrl = `https://www.roblox.com/users/${resolved.userId}/profile`;
-  const rankLines = [
-    `Main: ${mainRank}`,
-    ...otherMemberships.map(d => `${d.name}: ${d.role}`)
+  const gameHistoryAvailable = Array.isArray(cachedProfile?.punishments);
+  const gamePunishments = gameHistoryAvailable
+    ? cachedProfile.punishments.filter(item => item !== null && item !== "") : [];
+  const punishmentCount = gamePunishments.length + blacklistRecords.length;
+  const divisions = groupsAvailable ? getDivisionsFromGroupRoles(groupRoles) : [];
+  const mainRank = groupsAvailable ? getMainGroupRoleFromGroupRoles(groupRoles) : "";
+  const mainRankNumber = groupsAvailable ? getMainGroupRankNumber(groupRoles) : 0;
+  const createdAt = new Date(userDetails.created);
+  const ageDays = Number.isNaN(createdAt.getTime()) ? null :
+    Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 86400000));
+
+  const severe = [];
+  const review = [];
+  const missing = [];
+  if (userDetails.isBanned) severe.push("Roblox account banned");
+  if (gameRestriction.banned) severe.push("Banned from TARC");
+  if (discordBan.banned) severe.push("Discord server ban");
+  if (gamePunishments.length) review.push(`${gamePunishments.length} game punishment record${gamePunishments.length === 1 ? "" : "s"}`);
+  if (ageDays !== null && ageDays < 90) review.push("Roblox account under 90 days old");
+  else if (ageDays !== null && ageDays < 365) review.push("Roblox account under one year old");
+  if (groupsAvailable && !isMultiMainAllowed(mainRank, mainRankNumber)) {
+    const mainDivisions = getMainDivisionsOnly(divisions);
+    if (mainDivisions.length > 1) review.push(`Member of ${mainDivisions.length} main divisions`);
+  }
+
+  if (!groupsAvailable) missing.push("group ranks");
+  if (results[3].status !== "fulfilled" || social.friends == null) missing.push("friends");
+  if (badgeCount == null) missing.push("badges");
+  if (!gameRestriction.available) missing.push("TARC ban status");
+  if (verifiedDiscordId && !discordBan.available) missing.push("Discord ban status");
+  if (!blacklistAvailable) missing.push("Trello blacklists");
+  if (ageDays === null) missing.push("account creation date");
+
+  const status = (severe.length || blacklistRecords.length) ? "Flagged"
+    : review.length ? "Review" : missing.length ? "Incomplete" : "Clear";
+  const evidence = [
+    ...blacklistRecords.slice(0, 4).map(record => {
+      const label = record.url ? `[${record.category}](${record.url})` : record.category;
+      return `${label}${record.reason ? ` — ${record.reason}` : ""}`;
+    }),
+    ...(blacklistRecords.length > 4 ? [`${blacklistRecords.length - 4} more blacklist records`] : []),
+    ...severe,
+    ...review
   ];
-  const ranks = rankLines.join("\n").slice(0, 1024);
-  const blacklistFindings = blacklistRecords.map(record => `**${record.category}**${record.url ? ` · [Trello record](${record.url})` : ""}${record.reason ? `\n${record.reason.slice(0, 180)}` : ""}`);
-  const otherFlags = flags.filter(f => f !== "Trello blacklist");
-  const findings = [...blacklistFindings, ...otherFlags].join("\n") || (incomplete ? "Some checks unavailable" : "No flags found");
+  if (missing.length) evidence.push(`Unavailable: ${missing.join(", ")}`);
+  const punishmentValue = blacklistAvailable
+    ? (gameHistoryAvailable ? (punishmentCount ? `${punishmentCount} recorded` : "0") : `${blacklistRecords.length} Trello`)
+    : (gameHistoryAvailable ? `${gamePunishments.length} game only` : "Unavailable");
+
   const embed = new EmbedBuilder()
     .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Incomplete" ? 0x9297a0 : 0x2b7fff)
     .setTitle(resolved.username)
-    .setURL(profileUrl)
-    .setDescription(`**${status}**  ·  Background Check`)
+    .setURL(`https://www.roblox.com/users/${resolved.userId}/profile`)
+    .setDescription(`Background Check  |  **${status}**`)
     .addFields(
       { name: "Account Age", value: formatAccountAge(userDetails.created), inline: true },
       { name: "Friends", value: social.friends == null ? "Unavailable" : formatNumber(social.friends), inline: true },
       { name: "Badges", value: badgeCount == null ? "Unavailable" : formatNumber(badgeCount), inline: true },
       { name: "Playtime", value: cachedProfile?.playTimeSeconds == null ? "Not recorded" : formatCompactTime(cachedProfile.playTimeSeconds), inline: true },
       { name: "Kills", value: cachedProfile?.kills == null ? "Not recorded" : formatNumber(cachedProfile.kills), inline: true },
-      { name: "Ranks", value: ranks || "Not in TARC groups" },
-      { name: "Background", value: findings.slice(0, 1024) }
+      { name: "Punishments", value: punishmentValue, inline: true },
+      { name: "Ranks", value: bgcRanks(groupRoles, groupsAvailable) }
     )
     .setFooter({ text: `Roblox ID: ${resolved.userId}` });
+  if (evidence.length) embed.addFields({ name: "Background", value: evidence.join("\n").slice(0, 1024) });
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   return { embed };
 }
@@ -1325,12 +1453,14 @@ function getSlashCommands() {
   return [
     ...getEventCommands(),
     ...getChannelFormatCommands(),
-    new SlashCommandBuilder()
-      .setName("bgcheck")
-      .setDescription("Run a TARC background check")
-      .addStringOption(option => option.setName("username").setDescription("Roblox username").setRequired(false))
-      .addUserOption(option => option.setName("member").setDescription("Discord user to check through RoWifi").setRequired(false))
-      .toJSON(),
+    ...["bgc", "bgcheck"].map(name =>
+      new SlashCommandBuilder()
+        .setName(name)
+        .setDescription("Run a TARC background check")
+        .addStringOption(option => option.setName("username").setDescription("Roblox username, ID, or profile URL").setRequired(false))
+        .addUserOption(option => option.setName("member").setDescription("Discord user to check through RoWifi").setRequired(false))
+        .toJSON()
+    ),
 
     new SlashCommandBuilder()
       .setName("groupstats")
@@ -1934,7 +2064,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
-  if (interaction.commandName === "bgcheck") {
+  if (interaction.commandName === "bgc" || interaction.commandName === "bgcheck") {
     const usernameInput = interaction.options.getString("username", false);
     const discordUser = interaction.options.getUser("member", false);
     if (!usernameInput && !discordUser) {
@@ -1946,7 +2076,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (result.error) return interaction.editReply(result.error);
       return interaction.editReply({ embeds: [result.embed] });
     } catch (err) {
-      console.error("[DISCORD] /bgcheck failed:", err);
+      console.error(`[DISCORD] /${interaction.commandName} failed:`, err);
       return interaction.editReply("Something went wrong running that background check.");
     }
   }
