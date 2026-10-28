@@ -3,6 +3,8 @@ import {
   recordQuestionTrend,
   getDynamicTrendContext,
   addTeaching,
+  addCodeword,
+  findExactCodeword,
   getPublicTeachingContext
 } from "./assistantState.js";
 import { buildExternalGroupContext, findRelevantExternalGroups } from "./externalGroups.js";
@@ -1076,7 +1078,12 @@ ${question}
   return answer;
 }
 
-export async function teachTarcAssistant({ information, topic = "general", visibility = "public", interaction }) {
+export async function teachTarcAssistant({ information, trigger = "", response = "", topic = "general", visibility = "public", interaction }) {
+  if (trigger || response) {
+    if (information?.trim()) throw new Error("Use either information OR trigger + response, not both.");
+    if (!trigger?.trim() || !response?.trim()) throw new Error("Code words require both trigger and response.");
+    return await addCodeword({ trigger, response, taughtByDiscordId: interaction?.user?.id || "" });
+  }
   const clean = String(information || "").trim();
   if (!clean) throw new Error("Teaching information cannot be empty.");
 
@@ -1094,6 +1101,10 @@ export async function askTarcAssistant({ question, interaction, client, replyCon
   if (!enforceRateLimit(interaction.user.id)) {
     return "You're sending questions a little too quickly. Give me a moment, then try again.";
   }
+  // Exact owner-defined code phrases take priority over Gemini and fuzzy notes.
+  // Matching is case-insensitive and ignores punctuation/extra spaces, but not words.
+  const codewordResponse = await findExactCodeword(cleanQuestion);
+  if (codewordResponse) return codewordResponse;
 
   // HARD TARC-ONLY GATE.
   // This runs before Roblox lookups, Discord announcement retrieval, trend
