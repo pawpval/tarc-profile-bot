@@ -83,15 +83,19 @@ function itemScore(item, terms, general) {
   const text = normalize(item.text);
   const channel = normalize(item.channelName);
   let score = 0;
+  let matches = 0;
   for (const term of terms) {
-    if (text.includes(term)) score += 5;
-    if (channel.includes(term)) score += 7;
+    if (text.includes(term)) { score += 5; matches++; }
+    if (channel.includes(term)) { score += 7; matches++; }
   }
+  // For a specific request, unrelated recent chat should never outrank an
+  // older message that actually mentions the requested topic.
+  if (!general && terms.length && matches === 0) return -1;
   if (SOURCE_CHANNELS.test(item.channelName)) score += general ? 7 : 2;
   const ageHours = Math.max(0, (Date.now() - item.createdAt) / 3600000);
   score += Math.max(0, 9 - Math.log2(1 + ageHours) * 1.4);
   if (general && /announcement|community|event|recruit|development|leadership/i.test(item.channelName)) score += 3;
-  if (!general && terms.length && score < 5) score -= 5;
+  if (general && ageHours > 14 * 24) score -= 15; // current assessments must favour current activity
   return score;
 }
 
@@ -107,7 +111,7 @@ function pickEvidence(items, terms, general) {
     for (const item of ranked) {
       if (selected.length >= 24 || budget <= 450) break;
       if (used.has(item.id)) continue;
-      if (!general && terms.length && item.score < 5) continue;
+      if (!general && terms.length && item.score < 0) continue;
       const count = perChannel.get(item.channelId) || 0;
       if (count >= phase) continue;
       const block = `[${new Date(item.createdAt).toISOString().slice(0, 16)} UTC] #${item.channelName} by ${item.author}\n${item.text}\nSource: ${item.link}`;
