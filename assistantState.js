@@ -1,16 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const DATA_DIR = String(process.env.TARC_DATA_DIR || "./data");
+const DATA_DIR = String(process.env.TARC_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.BGC_CACHE_DIR || "./data");
 const STATE_FILE = path.join(DATA_DIR, "tarc-assistant-state.json");
 
 const MAX_TEACHINGS = 500;
+const MAX_CODEWORDS = 250;
 const MAX_RECENT_QUESTIONS = 2000;
 const MAX_DYNAMIC_TOPICS = 50;
 
 const state = {
   loaded: false,
   teachings: [],
+  codewords: [],
   recentQuestions: [],
   dynamicTopics: {}
 };
@@ -32,13 +34,14 @@ function normalize(text) {
     .trim();
 }
 
-async function persistState() {
+async function persistState({ strict = false } = {}) {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     const payload = {
       version: 1,
       savedAt: new Date().toISOString(),
       teachings: state.teachings.slice(-MAX_TEACHINGS),
+      codewords: state.codewords.slice(-MAX_CODEWORDS),
       recentQuestions: state.recentQuestions.slice(-MAX_RECENT_QUESTIONS),
       dynamicTopics: Object.fromEntries(
         Object.entries(state.dynamicTopics)
@@ -49,6 +52,7 @@ async function persistState() {
     await fs.writeFile(STATE_FILE, JSON.stringify(payload, null, 2), "utf8");
   } catch (err) {
     console.error("[TARC STATE] Save failed:", err);
+    if (strict) throw new Error("Could not save teaching on Railway. Check the writable data directory / volume.");
   }
 }
 
@@ -62,6 +66,7 @@ export async function loadAssistantState() {
     const parsed = JSON.parse(raw);
 
     if (Array.isArray(parsed?.teachings)) state.teachings = parsed.teachings.slice(-MAX_TEACHINGS);
+    if (Array.isArray(parsed?.codewords)) state.codewords = parsed.codewords.slice(-MAX_CODEWORDS);
     if (Array.isArray(parsed?.recentQuestions)) state.recentQuestions = parsed.recentQuestions.slice(-MAX_RECENT_QUESTIONS);
     if (parsed?.dynamicTopics && typeof parsed.dynamicTopics === "object") state.dynamicTopics = parsed.dynamicTopics;
   } catch (err) {
@@ -147,10 +152,48 @@ export async function addTeaching({ text, topic = "general", visibility = "publi
     updatedAt: Date.now()
   };
 
-  state.teachings.push(entry);
-  state.teachings = state.teachings.slice(-MAX_TEACHINGS);
-  await persistState();
+  const previousTeachings = state.teachings;
+  state.teachings = [...state.teachings, entry].slice(-MAX_TEACHINGS);
+  try { await persistState({ strict: true }); }
+  catch (error) { state.teachings = previousTeachings; throw error; }
   return entry;
+}
+
+// Exact phrase rules are deliberately separate from fuzzy owner-taught facts.
+export async function addCodeword({ trigger, response, taughtByDiscordId = "" }) {
+  await loadAssistantState();
+  const phrase = String(trigger || "").trim();
+  const answer = String(response || "").trim();
+  const normalized = normalize(phrase);
+  if (!phrase || !normalized) throw new Error("Provide a code-word trigger phrase.");
+  if (!answer) throw new Error("Provide the exact response for that phrase.");
+  if (phrase.length > 240) throw new Error("Code-word triggers must be 240 characters or fewer.");
+  if (answer.length > 1750) throw new Error("Code-word responses must be 1,750 characters or fewer.");
+  const existing = state.codewords.find(entry => entry.normalized === normalized);
+  const entry = {
+    id: existing?.id || `code_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    trigger: phrase,
+    normalized,
+    response: answer,
+    taughtByDiscordId: String(taughtByDiscordId || ""),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+  const previousCodewords = state.codewords;
+  state.codewords = state.codewords.filter(item => item.normalized !== normalized);
+  state.codewords.push(entry);
+  state.codewords = state.codewords.slice(-MAX_CODEWORDS);
+  try { await persistState({ strict: true }); }
+  catch (error) { state.codewords = previousCodewords; throw error; }
+  return entry;
+}
+
+export async function findExactCodeword(question) {
+  await loadAssistantState();
+  const normalized = normalize(question);
+  if (!normalized) return null;
+  const entry = state.codewords.find(item => item.normalized === normalized);
+  return entry?.response || null;
 }
 
 export async function getPublicTeachingContext(question, limit = 12) {
