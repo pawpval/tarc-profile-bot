@@ -34,6 +34,14 @@ function normalize(text) {
     .trim();
 }
 
+function normalizeCodeword(text) {
+  return String(text || "").toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function persistState({ strict = false } = {}) {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -164,7 +172,7 @@ export async function addCodeword({ trigger, response, taughtByDiscordId = "" })
   await loadAssistantState();
   const phrase = String(trigger || "").trim();
   const answer = String(response || "").trim();
-  const normalized = normalize(phrase);
+  const normalized = normalizeCodeword(phrase);
   if (!phrase || !normalized) throw new Error("Provide a code-word trigger phrase.");
   if (!answer) throw new Error("Provide the exact response for that phrase.");
   if (phrase.length > 240) throw new Error("Code-word triggers must be 240 characters or fewer.");
@@ -190,7 +198,7 @@ export async function addCodeword({ trigger, response, taughtByDiscordId = "" })
 
 export async function findExactCodeword(question) {
   await loadAssistantState();
-  const normalized = normalize(question);
+  const normalized = normalizeCodeword(question);
   if (!normalized) return null;
   const entry = state.codewords.find(item => item.normalized === normalized);
   return entry?.response || null;
