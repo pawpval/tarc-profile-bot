@@ -1464,6 +1464,22 @@ function makeEverywhereCommand(command) {
   return json;
 }
 
+function getGlobalTeachCommand() {
+  return makeEverywhereCommand(
+    new SlashCommandBuilder()
+      .setName("teach")
+      .setDescription("Owner-only: teach a TARC fact or an exact code phrase")
+      .addStringOption(o => o.setName("information").setDescription("A fact or instruction to save for /ask").setRequired(false).setMaxLength(1500))
+      .addStringOption(o => o.setName("trigger").setDescription("Exact phrase for a custom reply").setRequired(false).setMaxLength(240))
+      .addStringOption(o => o.setName("response").setDescription("Exact response to that phrase").setRequired(false).setMaxLength(1750))
+      .addStringOption(o => o.setName("topic").setDescription("Category for a saved fact").setRequired(false).setMaxLength(80))
+      .addStringOption(o => o.setName("visibility").setDescription("Whether a saved fact can be used by /ask").setRequired(false).addChoices(
+        { name: "Public / usable by ask", value: "public" },
+        { name: "Private / not used by ask", value: "private" }
+      ))
+  );
+}
+
 function getGlobalGameCommands() {
   return [
     makeEverywhereCommand(
@@ -1628,35 +1644,6 @@ function getSlashCommands() {
       .addStringOption(option => option.setName("confirmation").setDescription("Type CONFIRM to run the server-wide update").setRequired(true))
       .toJSON(),
 
-    new SlashCommandBuilder()
-      .setName("teach")
-      .setDescription("Owner-only: teach the TARC Assistant an approved fact")
-      .addStringOption(option =>
-        option
-          .setName("information")
-          .setDescription("The approved information the assistant should know")
-          .setRequired(true)
-          .setMaxLength(1500)
-      )
-      .addStringOption(option =>
-        option
-          .setName("topic")
-          .setDescription("Short topic/category for this information")
-          .setRequired(false)
-          .setMaxLength(80)
-      )
-      .addStringOption(option =>
-        option
-          .setName("visibility")
-          .setDescription("Whether /ask may use this information")
-          .setRequired(false)
-          .addChoices(
-            { name: "Public / usable by ask", value: "public" },
-            { name: "Private note / never exposed by ask", value: "private" }
-          )
-      )
-      .toJSON(),
-
     ...getGameCommands(),
 
     new SlashCommandBuilder()
@@ -1675,7 +1662,7 @@ function humanizeCommandDescription(command) {
 }
 
 function getHelpCommandLines() {
-  const allCommands = [getGlobalAskCommand(), ...getSlashCommands()];
+  const allCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), ...getSlashCommands()];
   const seen = new Set();
   const lines = [];
 
@@ -1702,7 +1689,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1892,32 +1879,48 @@ client.on(Events.InteractionCreate, async interaction => {
 
   if (interaction.commandName === "teach") {
     try {
-      if (!interaction.inGuild() || !interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in the main TARC server.", ephemeral: true });
+      // Verify the actual owner of the main TARC server, even when this
+      // user-installed command is run in a personal DM or group DM.
+      const mainGuildId = String(process.env.TARC_MAIN_GUILD_ID || GUILD_ID || GUILD_IDS[0] || "");
+      const mainGuild = mainGuildId ? await client.guilds.fetch(mainGuildId).catch(() => null) : null;
+      if (!mainGuild || String(mainGuild.ownerId) !== String(interaction.user.id)) {
+        return interaction.reply({
+          content: "Only the owner of the main TARC server can use /teach.",
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
       }
-      if (interaction.guild.ownerId !== interaction.user.id) {
-        return interaction.reply({ content: "Only the server owner can teach the TARC Assistant.", ephemeral: true });
+
+      const information = interaction.options.getString("information")?.trim() || "";
+      const trigger = interaction.options.getString("trigger")?.trim() || "";
+      const response = interaction.options.getString("response")?.trim() || "";
+      const topic = interaction.options.getString("topic")?.trim() || "general";
+      const visibility = interaction.options.getString("visibility") || "public";
+      if ((!information && (!trigger || !response)) || (information && (trigger || response))) {
+        return interaction.reply({ content: "Enter **information** for a saved fact, or both **trigger** and **response** for a code word.", ephemeral: true });
+      }
+      if ((trigger || response) && visibility === "private") {
+        return interaction.reply({ content: "Code words are designed to respond in /ask. Use the default Public visibility.", ephemeral: true });
       }
 
       await interaction.deferReply({ ephemeral: true });
-      const information = interaction.options.getString("information", true).trim();
-      const topic = interaction.options.getString("topic")?.trim() || "general";
-      const visibility = interaction.options.getString("visibility") || "public";
-
-      const entry = await teachTarcAssistant({ information, topic, visibility, interaction });
-      return interaction.editReply(
-        `Taught the assistant under **${entry.topic}** (${entry.visibility}).\n` +
-        `ID: \`${entry.id}\`\n\n` +
-        `${entry.visibility === "public"
-          ? "This information can now be used by /ask."
-          : "This was saved as a private note and will not be exposed through /ask."}`
-      );
+      const entry = await teachTarcAssistant({ information, trigger, response, topic, visibility, interaction });
+      if (entry.trigger) {
+        return interaction.editReply({
+          content: `Code phrase saved. When someone asks **${entry.trigger.replace(/[*_~]/g, "")}**, /ask will return your custom response (case and punctuation don't matter).\nID: \`${entry.id}\``,
+          allowedMentions: { parse: [] }
+        });
+      }
+      return interaction.editReply({
+        content: `Taught the assistant under **${entry.topic}** (${entry.visibility}).\nID: \`${entry.id}\`\n\n${entry.visibility === "public" ? "This information can now be used by /ask." : "This was saved as a private note and will not be exposed through /ask."}`,
+        allowedMentions: { parse: [] }
+      });
     } catch (err) {
       console.error("[DISCORD] /teach failed:", err);
-      const message = `${err.message || "The teaching could not be saved."}`;
+      const message = String(err?.message || "The teaching could not be saved.");
       return interaction.deferred
-        ? interaction.editReply(message)
-        : interaction.reply({ content: message, ephemeral: true });
+        ? interaction.editReply({ content: message, allowedMentions: { parse: [] } })
+        : interaction.reply({ content: message, ephemeral: true, allowedMentions: { parse: [] } });
     }
   }
 
