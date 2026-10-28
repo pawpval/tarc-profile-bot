@@ -15,6 +15,12 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   Events
 } from "discord.js";
 
@@ -44,7 +50,6 @@ const ACTION_LOG_CHANNEL_ID = String(process.env.ACTION_LOG_CHANNEL_ID || "");
 
 // Roblox Open Cloud group ranking.
 const ROBLOX_API_KEY = String(process.env.ROBLOX_API_KEY || "");
-const ROBLOX_UNIVERSE_API_KEY = String(process.env.ROBLOX_UNIVERSE_API_KEY || process.env.ROBLOX_API_KEY || "");
 const ROWIFI_API_TOKEN = String(process.env.ROWIFI_API_TOKEN || "");
 const ROWIFI_API_BASE = "https://api.rowifi.xyz/v2";
 const ROBLOX_OPEN_CLOUD_BASE = "https://apis.roblox.com/cloud/v2";
@@ -519,91 +524,6 @@ async function resolveRobloxUserById(userId) {
     const details = await getRobloxUserDetails(userId).catch(() => null);
     if (!details?.id) return null;
     return { userId:Number(details.id), username:String(details.name), displayName:String(details.displayName || details.name) };
-  }
-}
-
-async function robloxUniverseOpenCloudRequest(path, options = {}) {
-  if (!ROBLOX_UNIVERSE_API_KEY) {
-    throw new Error("ROBLOX_UNIVERSE_API_KEY is missing from Railway.");
-  }
-
-  const response = await fetch(`${ROBLOX_OPEN_CLOUD_BASE}${path}`, {
-    ...options,
-    headers: {
-      "x-api-key": ROBLOX_UNIVERSE_API_KEY,
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.headers || {})
-    }
-  });
-
-  const text = await response.text();
-  let data = {};
-  try { data = text ? JSON.parse(text) : {}; } catch { data = text; }
-
-  if (!response.ok) {
-    const details = typeof data === "string" ? data : JSON.stringify(data);
-    throw new Error(`Roblox Universe Open Cloud HTTP ${response.status}: ${details || response.statusText}`);
-  }
-
-  return data;
-}
-
-async function getGameRestriction(userId) {
-  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) {
-    return { available: false, banned: false };
-  }
-  try {
-    // This endpoint takes the numeric Roblox user ID as its resource ID.
-    const data = await robloxUniverseOpenCloudRequest(
-      `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions/${userId}`
-    );
-    const restriction = data?.gameJoinRestriction || data?.game_join_restriction || data;
-    const active = restriction?.active === true || restriction?.isActive === true || restriction?.status === "ACTIVE";
-    return { available: true, banned: Boolean(active) };
-  } catch (error) {
-    if (/HTTP 404\b/.test(String(error?.message || ""))) {
-      return { available: true, banned: false };
-    }
-    console.warn("[BGC] Roblox BanService status unavailable:", error?.message || error);
-    return { available: false, banned: false };
-  }
-}
-
-async function getGameBanHistory(userId) {
-  if (!ROBLOX_UNIVERSE_API_KEY || !ROBLOX_UNIVERSE_ID) {
-    return { available: false, count: 0 };
-  }
-  let nextPageToken = "";
-  const seen = new Set();
-  let count = 0;
-  try {
-    for (let page = 0; page < 5; page++) {
-      const params = new URLSearchParams({
-        filter: `user == 'users/${userId}'`,
-        pageSize: "100"
-      });
-      if (nextPageToken) params.set("pageToken", nextPageToken);
-      const data = await robloxUniverseOpenCloudRequest(
-        `/universes/${ROBLOX_UNIVERSE_ID}/user-restrictions:listLogs?${params}`
-      );
-      if (!Array.isArray(data?.logs)) throw new Error("Unexpected BanService history response");
-      for (const [index, log] of data.logs.entries()) {
-        if (log?.user && String(log.user) !== `users/${userId}`) continue;
-        // Only ban actions count as punishments, not the unban audit events.
-        if (log?.active !== true && log?.gameJoinRestriction?.active !== true) continue;
-        const eventId = log?.path || log?.id || log?.createTime || log?.startTime;
-        const unique = eventId ? `${eventId}:${log?.place || ""}` : `${page}:${index}`;
-        if (seen.has(unique)) continue;
-        seen.add(unique);
-        count++;
-      }
-      nextPageToken = String(data.nextPageToken || "");
-      if (!nextPageToken) return { available: true, count };
-    }
-    return { available: false, count };
-  } catch (error) {
-    console.warn("[BGC] BanService history unavailable:", error?.message || error);
-    return { available: false, count };
   }
 }
 
@@ -1194,8 +1114,6 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     getRobloxUserGroupRoles(resolved.userId),
     getRobloxSocialStats(resolved.userId),
     getRobloxBadgeCount(resolved.userId),
-    getGameRestriction(resolved.userId),
-    getGameBanHistory(resolved.userId),
     getDiscordBanStatus(guildId, verifiedDiscordId),
     getBlacklistBoardCards()
   ]);
@@ -1208,17 +1126,14 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const groupRoles = value(2, []);
   const social = value(3, {});
   const badges = value(4, { count: null, status: "Unavailable" });
-  const gameRestriction = value(5, { available: false, banned: false });
-  const banHistory = value(6, { available: false, count: 0 });
-  const discordBan = value(7, { available: false, banned: false });
-  const blacklistAvailable = results[8].status === "fulfilled";
-  const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(8, []), resolved.userId, resolved.username) : [];
+  const discordBan = value(5, { available: false, banned: false });
+  const blacklistAvailable = results[6].status === "fulfilled";
+  const blacklistRecords = blacklistAvailable ? findBlacklistRecords(value(6, []), resolved.userId, resolved.username) : [];
   const cachedProfile = getCachedProfileByResolvedUser(resolved);
   const gameHistoryAvailable = Array.isArray(cachedProfile?.punishments);
   const gamePunishments = gameHistoryAvailable
     ? cachedProfile.punishments.filter(item => item !== null && item !== "") : [];
-  const banCount = banHistory.available ? banHistory.count : (gameRestriction.banned ? 1 : 0);
-  const punishmentCount = gamePunishments.length + blacklistRecords.length + banCount;
+  const punishmentCount = gamePunishments.length + blacklistRecords.length;
   const divisions = groupsAvailable ? getDivisionsFromGroupRoles(groupRoles) : [];
   const mainRank = groupsAvailable ? getMainGroupRoleFromGroupRoles(groupRoles) : "";
   const mainRankNumber = groupsAvailable ? getMainGroupRankNumber(groupRoles) : 0;
@@ -1230,12 +1145,8 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   const review = [];
   const missing = [];
   if (userDetails.isBanned) severe.push("Roblox account banned");
-  if (gameRestriction.banned) severe.push("Banned from TARC");
   if (discordBan.banned) severe.push("Discord server ban");
   if (gamePunishments.length) review.push(`${gamePunishments.length} reported game punishment record${gamePunishments.length === 1 ? "" : "s"}`);
-  if (banHistory.available && banHistory.count) {
-    review.push(`${banHistory.count} TARC BanService record${banHistory.count === 1 ? "" : "s"}`);
-  }
   if (ageDays !== null && ageDays < 90) review.push("Roblox account under 90 days old");
   else if (ageDays !== null && ageDays < 365) review.push("Roblox account under one year old");
   if (groupsAvailable && !isMultiMainAllowed(mainRank, mainRankNumber)) {
@@ -1247,7 +1158,6 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
   if (results[3].status !== "fulfilled" || social.friends == null) missing.push("friends");
   // Badge inventories can be restricted by the player's Roblox privacy settings.
   // That should not turn an otherwise valid background check into "Incomplete".
-  if (!gameRestriction.available || !banHistory.available) missing.push("BanService access");
   if (verifiedDiscordId && !discordBan.available) missing.push("Discord ban status");
   if (!blacklistAvailable) missing.push("Trello blacklists");
   if (ageDays === null) missing.push("account creation date");
@@ -1264,13 +1174,13 @@ async function buildBGCEmbed({ usernameInput, discordUser, guildId }) {
     ...review
   ];
   const missingNote = missing.length ? `\n-# Checks unavailable: ${missing.join(", ")}` : "";
-  const sourcesComplete = blacklistAvailable && banHistory.available && gameHistoryAvailable;
-  const punishmentValue = sourcesComplete
-    ? (punishmentCount ? `${punishmentCount} recorded` : "0")
-    : `${punishmentCount} known`;
+  // Trello blacklist cards are counted even without any in-game cache.
+  const punishmentValue = blacklistAvailable || gameHistoryAvailable
+    ? `${punishmentCount} found`
+    : "Unavailable";
 
   const embed = new EmbedBuilder()
-    .setColor(status === "Flagged" ? 0xe5484d : status === "Review" ? 0xe6a23c : status === "Partial" ? 0x9297a0 : 0x2b7fff)
+    .setColor(0x2b7fff)
     .setTitle(resolved.username)
     .setURL(`https://www.roblox.com/users/${resolved.userId}/profile`)
     .setDescription(`Background Check  |  **${status}**${missingNote}`)
@@ -1814,31 +1724,66 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// Reply directly to an assistant answer to continue the conversation.
+// /ask can be continued by replying to the bot in servers/regular bot DMs.
+// In group DMs, Discord user-installed apps receive interactions but not normal
+// chat message events. The Continue button + modal is the supported alternative.
 const assistantReplyBusy = new Set();
+const assistantMessages = new Map();
+const ASSISTANT_MESSAGE_TTL_MS = 2 * 60 * 60 * 1000;
+
+function askContinueRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("tarc_ask_continue").setLabel("Continue conversation").setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function rememberAssistantMessage(message, question, answer) {
+  if (!message?.id) return;
+  const now = Date.now();
+  for (const [id, entry] of assistantMessages) {
+    if (now - entry.at > ASSISTANT_MESSAGE_TTL_MS) assistantMessages.delete(id);
+  }
+  assistantMessages.set(message.id, {
+    question: String(question || "").slice(0, 1000),
+    answer: String(answer || "").slice(0, 1950),
+    channelId: message.channelId,
+    at: now
+  });
+  if (assistantMessages.size > 600) assistantMessages.delete(assistantMessages.keys().next().value);
+}
+
 client.on(Events.MessageCreate, async message => {
-  if (message.author.bot || !message.reference?.messageId) return;
-  if (!message.content?.trim()) return;
+  if (message.author.bot || !message.reference?.messageId || !message.content?.trim()) return;
   const key = message.author.id + ":" + message.channelId;
   if (assistantReplyBusy.has(key)) return;
   try {
     const referenced = await message.fetchReference().catch(() => null);
     if (!referenced || referenced.author?.id !== client.user.id) return;
-    // Only continue conversations started by /ask or the bot's own reply responses.
+    const previous = assistantMessages.get(referenced.id);
     const isAsk = referenced.interactionMetadata?.name === "ask" || referenced.interaction?.commandName === "ask";
     const isFollowUp = referenced.content?.startsWith("🤖 ");
-    if (!isAsk && !isFollowUp) return;
+    if (!previous && !isAsk && !isFollowUp) return;
     assistantReplyBusy.add(key);
     await message.channel.sendTyping().catch(() => {});
+    const question = message.content.slice(0, 1000);
+    const replyContext = previous
+      ? `Previous question: ${previous.question}\nPrevious answer: ${previous.answer}`
+      : String(referenced.content || "").slice(0, 1600);
     const answer = await askTarcAssistant({
-      question: message.content.slice(0, 1000),
-      interaction: { user: message.author },
-      client
+      question,
+      interaction: { user: message.author, channelId: message.channelId, guildId: message.guildId },
+      client,
+      replyContext
     });
-    await message.reply({content: "🤖 " + String(answer).slice(0, 1950), allowedMentions: {repliedUser:false, parse:[]}});
+    const sent = await message.reply({
+      content: "🤖 " + String(answer).slice(0, 1950),
+      components: [askContinueRow()],
+      allowedMentions: { repliedUser: false, parse: [] }
+    });
+    rememberAssistantMessage(sent, question, answer);
   } catch (error) {
     console.error("[ASK REPLY]", error);
-    await message.reply({content:"I couldn't answer that just now. Try again shortly.",allowedMentions:{repliedUser:false,parse:[]}}).catch(() => {});
+    await message.reply({ content: "I couldn't answer that just now. Try again shortly.", allowedMentions: { repliedUser: false, parse: [] } }).catch(() => {});
   } finally {
     assistantReplyBusy.delete(key);
   }
@@ -1866,6 +1811,55 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
 
+  if (interaction.isButton() && interaction.customId === "tarc_ask_continue") {
+    try {
+      const modal = new ModalBuilder()
+        .setCustomId(`tarc_ask_followup:${interaction.message.id}`)
+        .setTitle("TARC Assistant")
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("question")
+              .setLabel("Your follow-up question")
+              .setPlaceholder("Ask about TARC or continue the conversation")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
+          )
+        );
+      return await interaction.showModal(modal);
+    } catch (error) {
+      console.error("[ASK CONTINUE BUTTON]", error);
+      if (!interaction.replied && !interaction.deferred) return interaction.reply({ content: "Couldn't open the question form. Try /ask again.", ephemeral: true });
+    }
+    return;
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("tarc_ask_followup:")) {
+    try {
+      const previousId = interaction.customId.slice("tarc_ask_followup:".length);
+      const previous = assistantMessages.get(previousId);
+      const question = interaction.fields.getTextInputValue("question").trim();
+      await interaction.deferReply();
+      const replyContext = previous
+        ? `Previous question: ${previous.question}\nPrevious answer: ${previous.answer}`
+        : String(interaction.message?.content || "").slice(0, 1600);
+      const answer = await askTarcAssistant({ question, interaction, client, replyContext });
+      const sent = await interaction.editReply({
+        content: String(answer).slice(0, 1950),
+        components: [askContinueRow()],
+        allowedMentions: { parse: [] }
+      });
+      rememberAssistantMessage(sent, question, answer);
+    } catch (error) {
+      console.error("[ASK CONTINUE MODAL]", error);
+      const payload = { content: "I couldn't continue that conversation. Please try /ask again.", allowedMentions: { parse: [] } };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => {});
+      else await interaction.reply({ ...payload, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "ask") {
@@ -1879,10 +1873,13 @@ client.on(Events.InteractionCreate, async interaction => {
         client
       });
 
-      return interaction.editReply({
+      const sent = await interaction.editReply({
         content: answer,
+        components: [askContinueRow()],
         allowedMentions: { parse: [] }
       });
+      rememberAssistantMessage(sent, question, answer);
+      return;
     } catch (err) {
       console.error("[DISCORD] /ask failed:", err);
       const message = "I couldn't reach the TARC Assistant right now. Please try again shortly.";
