@@ -2,6 +2,7 @@ import { getBlacklistCommands, handleBlacklistInteraction, blacklistSnapshot } f
 import { handleWorldInteraction } from "./game/worldSystem.js";
 import { getChannelFormatCommands, handleChannelFormatInteraction } from "./channelFormatter.js";
 import { getEventCommands, handleEventInteraction } from "./eventDM.js";
+import { getEmbedCommands, handleEmbedInteraction } from "./embedEditor.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
 import { randomUUID } from "node:crypto";
@@ -1510,6 +1511,7 @@ function getSlashCommands() {
   return [
     ...getEventCommands(),
     ...getChannelFormatCommands(),
+    ...getEmbedCommands(),
     ...["bgc", "bgcheck"].map(name =>
       new SlashCommandBuilder()
         .setName(name)
@@ -1777,6 +1779,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleEmbedInteraction(interaction)) return;
   if (await handleBlacklistInteraction(interaction)) return;
   if (await handleWorldInteraction(interaction)) return;
   if (await handleChannelFormatInteraction(interaction)) return;
