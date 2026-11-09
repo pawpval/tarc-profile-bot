@@ -1,15 +1,15 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
-import { ABILITIES, CARD_CATALOG, CRATES, FACTIONS, getCard, listCards, RARITIES } from "./galacticCatalog.js";
+import { CARD_CATALOG, CRATES, FACTIONS, getCard, listCards } from "./galacticCatalog.js";
 import {
-  adminGameAction, answerDuel, answerTrade, assignCard, attachDropMessage, claimQuest, attackBoss,
-  chooseFaction, configureDropChannel, createGuild, currentEvent, daily, buyDailyDeal, donateGuild, enterDrop,
-  finishDrop, guildDetails, hourlyIncome, joinGuild, leaders, leaveGuild, proposeDuel, proposeTrade, researchGuild, transferGuild, bossSnapshot,
-  raid, recycleCard, roll, runMission, salvage, scheduledGameState, snapshot, startAutomaticDrop, upgradeAttribute,
-  upgradeBase, upgradeCard, trainAbility, isDoubleXp, updateEventAnnouncement, markWeeklyAnnouncement
+  adminGameAction, answerDuel, answerTrade, assignCard, attachDropMessage, cancelUnsentTrade, claimQuest,
+  chooseFaction, configureDropChannel, createGuild, daily, buyDailyDeal, combatStats, donateGuild, enterDrop,
+  finishDrop, guildDetails, joinGuild, leaders, leaveGuild, proposeDuel, proposeTrade, researchGuild, transferGuild,
+  raid, recycleCard, roll, runMission, salvage, scheduledGameState, snapshot, startAutomaticDrop,
+  upgradeCard, trainAbility, markWeeklyAnnouncement
 } from "./galacticState.js";
 import {
-  BLUE, baseScreen, bossScreen, cardEmbed, cardOptionsScreen, collectionScreen, cratePreviewScreen, factionScreen, helpScreen, homeScreen, inspectScreen,
-  leaderboardScreen, missionsScreen, questsScreen, recycleConfirmScreen, rollScreen, shopScreen, upgradesScreen
+  BLUE, cardEmbed, cardOptionsScreen, collectionScreen, cratePreviewScreen, factionScreen, helpScreen, homeScreen, inspectScreen,
+  leaderboardScreen, missionsScreen, questsScreen, recycleConfirmScreen, rollScreen, shopScreen, tradeScreen, tradeOfferScreen, tradeWantedScreen
 } from "./galacticUI.js";
 
 const num = n => Number(n||0).toLocaleString("en-GB");
@@ -20,7 +20,7 @@ function row(...buttons){return new ActionRowBuilder().addComponents(...buttons)
 function plain(message){return {content:String(message),allowedMentions:{parse:[]}};}
 async function present(i, screen, { update = false, privateReply = false } = {}) {
   const payload = { ...screen, allowedMentions:screen.allowedMentions||{parse:[]} };
-  if (update && (i.isButton() || i.isStringSelectMenu())) return i.deferred ? i.editReply(payload) : i.update(payload);
+  if (update && (i.isButton() || i.isStringSelectMenu() || i.isUserSelectMenu?.())) return i.deferred ? i.editReply(payload) : i.update(payload);
   if (i.deferred || i.replied) return i.editReply(payload);
   return i.reply({...payload,...(privateReply?ephemeral:{})});
 }
@@ -28,7 +28,7 @@ async function sendError(i,error) {
   const payload = { ...plain(error), ...ephemeral };
   // A deferred component update belongs to the existing game panel. Never
   // replace the panel with error text; send a private notice alongside it.
-  if (i.deferred && (i.isButton?.() || i.isStringSelectMenu?.())) return i.followUp(payload);
+  if (i.deferred && (i.isButton?.() || i.isStringSelectMenu?.() || i.isUserSelectMenu?.())) return i.followUp(payload);
   if (i.deferred && !i.replied) return i.editReply(plain(error));
   if (i.replied) return i.followUp(payload);
   return i.reply(payload);
@@ -37,6 +37,15 @@ function displayName(i) { return i.member?.displayName || i.user.globalName || i
 function avatarURL(i) { return typeof i.user?.displayAvatarURL==="function" ? i.user.displayAvatarURL({size:128}) : null; }
 function gameEntry(p,note="",username="Commander",avatar=null) {return p.faction ? homeScreen(p,Date.now(),note,username,avatar) : factionScreen(p.id);}
 async function showHome(i, note = "", update = false) {
+  // The old Daily Pack button is gone. Returning via /game quietly earns the
+  // daily card and Credits once per 20 hours instead of adding another menu.
+  if (!update) {
+    const {profile:before}=await snapshot(i.user.id);
+    if (before.faction) {
+      const reward=await daily(i.user.id);
+      if (reward.ok) note = `Daily reward: +${num(reward.credits)} Credits and ${reward.card.name}!`;
+    }
+  }
   const { profile } = await snapshot(i.user.id);
   return present(i, gameEntry(profile,note,displayName(i),avatarURL(i)),{update});
 }
@@ -45,16 +54,15 @@ export function getGalacticCommands() {
   const crateOptions = Object.entries(CRATES).sort((a,b)=>a[1].price-b[1].price)
     .map(([value,c])=>({name:`${c.name} — ${num(c.price)} Credits`.slice(0,100),value}));
   return [
-    new SlashCommandBuilder().setName("game").setDescription("Build a Star Wars army, collect cards and run your own outpost"),
+    new SlashCommandBuilder().setName("game").setDescription("Collect Star Wars cards, build a deck and battle other players"),
     new SlashCommandBuilder().setName("roll").setDescription("Roll for a Star Wars card or open a supply crate")
       .addStringOption(o=>o.setName("crate").setDescription("Optional crate; default roll is 300 Credits").setRequired(false).addChoices(...crateOptions)),
     new SlashCommandBuilder().setName("cards").setDescription("Browse and manage your card collection")
       .addStringOption(o=>o.setName("id").setDescription("Optional card ID from your collection").setRequired(false)),
     new SlashCommandBuilder().setName("catalog").setDescription("Search the 350+ card catalogue")
       .addStringOption(o=>o.setName("search").setDescription("Character, division, company or card ID").setRequired(false)),
-    new SlashCommandBuilder().setName("raid").setDescription("Attack another player's outpost")
+    new SlashCommandBuilder().setName("raid").setDescription("Battle another player's five-card deck")
       .addUserOption(o=>o.setName("player").setDescription("Player to raid").setRequired(true)),
-    new SlashCommandBuilder().setName("boss").setDescription("Fight this week's community boss"),
     new SlashCommandBuilder().setName("duel").setDescription("Challenge another player to a squad battle")
       .addUserOption(o=>o.setName("player").setDescription("Player to duel").setRequired(true))
       .addBooleanOption(o=>o.setName("ranked").setDescription("Compete for ranked rating (default is casual)").setRequired(false)),
@@ -111,7 +119,7 @@ function makeBattleEmbed(title, result, attackerId, defenderId, label="Raid") {
       result.win ? `**${attackerId === result.winner || !result.winner ? "Victory" : "Defeat"}**` : "**Defeat**",
       `Attack strength **${num(result.attackerPower)}** · Defence strength **${num(result.defenderPower)}**`,
       result.rewards ? `Rewards: +${num(result.rewards.credits)} Credits · +${num(result.rewards.xp)} XP · +${num(result.rewards.points)} Command Points` : null,
-      "No cards or Credits are taken from the defender."
+      "You battle their equipped deck. Defenders keep their cards and Credits."
     ].filter(Boolean).join("\n"));
 }
 
@@ -143,14 +151,23 @@ async function handleSlash(i,options) {
   }
   if (name === "raid") {
     if (!target || target.bot) return sendError(i,"Choose a real player.");
+    const [attacker,defender]=await Promise.all([snapshot(i.user.id),snapshot(target.id)]);
+    if (attacker.profile.faction && defender.profile.faction) {
+      const a=combatStats(attacker.profile,"attack"),d=combatStats(defender.profile,"defense");
+      const own=a.attack+a.defense*.22+a.hp*.14,enemy=d.defense+d.attack*.35+d.hp*.22;
+      if (enemy>own*1.45) return present(i,{embeds:[new EmbedBuilder().setColor(0xdf9c40).setTitle("TOUGH DECK RAID")
+        .setDescription(`<@${target.id}>'s fighting deck looks much stronger than yours.\n\n**Your strength:** ${num(Math.round(own))}\n**Their strength:** ${num(Math.round(enemy))}\n\nYou can still win with luck, but your odds are low. Continue?`)],components:[row(
+          new ButtonBuilder().setCustomId(`ga:${i.user.id}:confirmraid:${target.id}`).setLabel("Raid Anyway").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`ga:${i.user.id}:home`).setLabel("Cancel").setStyle(ButtonStyle.Secondary))]});
+    }
     const result = await raid(i.user.id,target.id);
     if (!result.ok) return sendError(i,result.error);
-    return present(i,{embeds:[makeBattleEmbed(result.win?"OUTPOST RAID SUCCESS":"OUTPOST RAID FAILED",result,i.user.id,target.id)],components:[]});
+    return present(i,{embeds:[makeBattleEmbed(result.win?"DECK RAID WON":"DECK RAID LOST",result,i.user.id,target.id)],components:[row(new ButtonBuilder().setCustomId(`ga:${i.user.id}:home`).setLabel("Home").setStyle(ButtonStyle.Primary))]});
   }
   if (name === "boss") {
     const {profile}=await snapshot(i.user.id);
     if (!profile.faction) return present(i,factionScreen(i.user.id));
-    return present(i,bossScreen(profile,await bossSnapshot()));
+    return present(i,missionsScreen(profile)); // Graceful recovery for stale Discord registrations.
   }
   if (name === "duel") {
     if (!target || target.bot) return sendError(i,"Choose a real player.");
@@ -248,7 +265,7 @@ async function handleOwnerComponent(i) {
   // Acknowledge the click before disk I/O. Discord invalidates unacknowledged
   // interactions after three seconds, even if the action itself succeeded.
   if (!i.deferred && !i.replied) await i.deferUpdate();
-  const value=i.isStringSelectMenu()?i.values[0]:null;
+  const value=(i.isStringSelectMenu() || i.isUserSelectMenu?.())?i.values[0]:null;
   if (action==="faction") {
     const result=await chooseFaction(owner,value);
     if (!result.ok) return sendError(i,result.error);
@@ -257,26 +274,62 @@ async function handleOwnerComponent(i) {
   const {profile:p}=await snapshot(owner);
   if (!p.faction) return present(i,factionScreen(owner),{update:true});
   if (action==="home") return present(i,homeScreen(p,Date.now(),"",displayName(i),avatarURL(i)),{update:true});
-  if (action==="base") return present(i,baseScreen(p),{update:true});
+  if (action.startsWith("confirmraid:")) {
+    const target=action.split(":")[1],result=await raid(owner,target);
+    if (!result.ok) return sendError(i,result.error);
+    return present(i,{embeds:[makeBattleEmbed(result.win?"DECK RAID WON":"DECK RAID LOST",result,owner,target)],components:[row(new ButtonBuilder().setCustomId(`ga:${owner}:home`).setLabel("Home").setStyle(ButtonStyle.Primary))]},{update:true});
+  }
+  if (action==="base") return present(i,collectionScreen(p,0,"Your five-card deck and workers are managed here now."),{update:true});
   if (action==="cards") return present(i,collectionScreen(p),{update:true});
   if (action.startsWith("page:")) return present(i,collectionScreen(p,Number(action.split(":")[1])),{update:true});
   if (action==="inspect") return present(i,inspectScreen(p,value),{update:true});
   if (action.startsWith("inspect:")) return present(i,inspectScreen(p,action.split(":")[1]),{update:true});
-  if (action==="upgrades") return present(i,upgradesScreen(p),{update:true});
+  if (action==="upgrades") return present(i,collectionScreen(p,0,"Base Training was retired. Upgrade individual cards instead."),{update:true});
   if (action==="shop" || action==="market") return present(i,shopScreen(p),{update:true});
   if (action==="missions") return present(i,missionsScreen(p),{update:true});
-  if (action==="boss") return present(i,bossScreen(p,await bossSnapshot()),{update:true});
+  if (action==="boss") return present(i,missionsScreen(p),{update:true});
+  if (action==="trade") return present(i,tradeScreen(p),{update:true});
   if (action==="help") return present(i,helpScreen(p),{update:true});
   if (action==="leaderboard") return present(i,leaderboardScreen(await leaders(),undefined,owner),{update:true});
   if (action==="navigate") {
     if (value==="missions") return present(i,missionsScreen(p),{update:true});
-    if (value==="boss") return present(i,bossScreen(p,await bossSnapshot()),{update:true});
+    if (value==="trade") return present(i,tradeScreen(p),{update:true});
+    if (value==="boss") return present(i,missionsScreen(p),{update:true});
     if (value==="quests") return present(i,questsScreen(p),{update:true});
     if (value==="shop") return present(i,shopScreen(p),{update:true});
     if (value==="leaderboard") return present(i,leaderboardScreen(await leaders(),undefined,owner),{update:true});
     return present(i,helpScreen(p),{update:true});
   }
   if (action.startsWith("quests")) return present(i,questsScreen(p,action.split(":")[1]||"daily"),{update:true});
+  if (action==="tradetarget") {
+    const target=value;
+    if (target===owner) return sendError(i,"Choose another player.");
+    const {profile:other}=await snapshot(target);
+    if (!other.faction) return sendError(i,"That player hasn't started /game yet.");
+    return present(i,tradeOfferScreen(p,target),{update:true});
+  }
+  if (action.startsWith("tradetargetback:")) return present(i,tradeOfferScreen(p,action.split(":")[1]),{update:true});
+  if (action.startsWith("tradeoffer:")) {
+    const target=action.split(":")[1],{profile:other}=await snapshot(target);
+    return present(i,tradeWantedScreen(p,target,value,other),{update:true});
+  }
+  if (action.startsWith("tradewant:")) {
+    const [,target,offer]=action.split(":");
+    const result=await proposeTrade(owner,target,offer,value);
+    if (!result.ok) return sendError(i,result.error);
+    const embed=new EmbedBuilder().setColor(BLUE).setTitle("CARD TRADE REQUEST")
+      .setDescription(`<@${owner}> offers **${result.offer.name}** for <@${target}>'s **${result.wanted.name}**.\n\nOnly <@${target}> can accept. Expires in 10 minutes.`);
+    try {
+      if (!i.channel?.send) throw Error("Channel is unavailable");
+      await i.channel.send({content:`<@${target}>`,embeds:[embed],components:[row(
+        new ButtonBuilder().setCustomId(`gb:trade:${result.id}:yes`).setLabel("Accept Trade").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`gb:trade:${result.id}:no`).setLabel("Decline").setStyle(ButtonStyle.Danger))],allowedMentions:{users:[target]}});
+    } catch (err) {
+      await cancelUnsentTrade(owner,result.id);
+      return sendError(i,"Couldn't post the trade request in this channel. Please use /trade directly.");
+    }
+    return present(i,tradeScreen((await snapshot(owner)).profile,`Trade request sent to <@${target}>. Waiting for their answer.`),{update:true});
+  }
   if (action.startsWith("cardoptions:")) return present(i,cardOptionsScreen(p,action.split(":")[1]),{update:true});
   if (action.startsWith("discard:")) return present(i,recycleConfirmScreen(p,action.split(":")[1]),{update:true});
   if (action.startsWith("confirmdiscard:")) {
@@ -313,16 +366,8 @@ async function handleOwnerComponent(i) {
     // Compatibility for buttons still visible in older messages.
     return present(i,homeScreen(p,Date.now(),"Income is now paid automatically when you return to the game.",displayName(i),avatarURL(i)),{update:true});
   }
-  if (action==="upgradebase") {
-    const result=await upgradeBase(owner);
-    if (!result.ok) return sendError(i,result.error);
-    return present(i,baseScreen((await snapshot(owner)).profile,`Base upgraded to level ${result.level}.`),{update:true});
-  }
-  if (action==="research") {
-    const result=await upgradeAttribute(owner,value);
-    if (!result.ok) return sendError(i,result.error);
-    return present(i,upgradesScreen((await snapshot(owner)).profile,`Upgraded ${value} to level ${result.rank}.`),{update:true});
-  }
+  if (action==="upgradebase") return present(i,collectionScreen(p,0,"Base upgrades were retired. Use Upgrade Card to improve your squad."),{update:true});
+  if (action==="research") return present(i,collectionScreen(p,0,"Base research was retired. Upgrade your squad's individual cards here."),{update:true});
   if (action.startsWith("set:")) {
     const [,uid,role]=action.split(":");
     const result=await assignCard(owner,uid,role);
@@ -357,11 +402,7 @@ async function handleOwnerComponent(i) {
     if (!result.ok) return sendError(i,result.error);
     return present(i,missionsScreen((await snapshot(owner)).profile,Date.now(),`Salvaged ${result.scrap} Scrap and 85 Credits.`),{update:true});
   }
-  if (action==="attackboss") {
-    const result=await attackBoss(owner);
-    if (!result.ok) return sendError(i,result.error);
-    return present(i,bossScreen((await snapshot(owner)).profile,await bossSnapshot(),`Dealt **${num(result.damage)} damage**. +${result.defeated?"The boss was defeated! ":""}Rewards have been added.`),{update:true});
-  }
+  if (action==="attackboss") return present(i,missionsScreen(p,Date.now(),"The separate weekly boss was retired. Play missions for rewards."),{update:true});
   if (action.startsWith("claimquest:")) {
     const period=action.split(":")[1],result=await claimQuest(owner,period,value);
     if (!result.ok) return sendError(i,result.error);
@@ -374,14 +415,23 @@ async function handleOwnerComponent(i) {
 async function handlePublicComponent(i) {
   const [,type,token,decision]=i.customId.split(":");
   if (type==="drop") {
+    if (!i.deferred && !i.replied) await i.deferUpdate();
     const result=await enterDrop(token,i.user.id);
-    return sendError(i,result.ok?`You're entered for this card drop (${result.entered} entrants so far). Winners are picked when the timer ends.`:result.error);
+    if (!result.ok) return sendError(i,result.error);
+    if (!result.claimed) return sendError(i,`You're entered (${result.entered} entrants).`); // Previously issued raffle messages.
+    const embed=EmbedBuilder.from(i.message.embeds[0]);
+    embed.setFooter({text:`${result.count}/${result.maxClaims} claimed${result.complete?" · Drop finished":" · First come, first served"}`});
+    embed.setFields({name:"Claimed by",value:result.claimers.map(id=>`<@${id}>`).join(", ")});
+    await i.editReply({embeds:[embed],components:result.complete?[]:[row(new ButtonBuilder().setCustomId(i.customId).setLabel("Claim This Card").setStyle(ButtonStyle.Success))],allowedMentions:{parse:[]}});
+    if (i.channel?.send) await i.channel.send({content:`🎴 <@${i.user.id}> claimed **${getCard(result.cardId)?.name||"a Star Wars card"}**!${result.complete?" All copies claimed.":""}`,allowedMentions:{parse:[]}}).catch(()=>{});
+    return;
   }
   if (!["trade","duel"].includes(type)) return sendError(i,"Unknown button.");
+  if (!i.deferred && !i.replied) await i.deferUpdate();
   const result=type==="trade" ? await answerTrade(token,i.user.id,decision==="yes") : await answerDuel(token,i.user.id,decision==="yes");
   if (!result.ok) return sendError(i,result.error);
   const message=result.declined?`${type==="trade"?"Trade":"Duel"} declined.`:type==="trade"?`Trade completed. Both cards have been transferred.`:`Duel complete. Winner: <@${result.winner}>.`;
-  return i.update({content:message,embeds:[],components:[],allowedMentions:{parse:[]}});
+  return i.editReply({content:message,embeds:[],components:[],allowedMentions:{parse:[]}});
 }
 
 export async function handleGalacticInteraction(i,options={}) {
@@ -390,7 +440,7 @@ export async function handleGalacticInteraction(i,options={}) {
       await i.deferReply(["cards","catalog"].includes(i.commandName)?{flags:MessageFlags.Ephemeral}:{});
     await handleSlash(i,options);return true;
   }
-  if ((i.isButton() || i.isStringSelectMenu()) && i.customId?.startsWith("ga:")) {
+  if ((i.isButton() || i.isStringSelectMenu() || i.isUserSelectMenu?.()) && i.customId?.startsWith("ga:")) {
     await handleOwnerComponent(i);return true;
   }
   if (i.isButton() && i.customId?.startsWith("gb:")) {
@@ -402,14 +452,14 @@ export async function handleGalacticInteraction(i,options={}) {
 let timer;
 async function publishCardDrop(channel,drop) {
   const card=getCard(drop.cardId),embed=cardEmbed(card,null,"GALACTIC CARD DROP");
-  embed.setFooter({text:"Enter within 2 minutes. Up to 3 winners are picked randomly."});
-  const sent=await channel.send({embeds:[embed],components:[row(new ButtonBuilder().setCustomId(`gb:drop:${drop.id}:enter`).setLabel("Enter Card Drop").setStyle(ButtonStyle.Success))]});
+  embed.setFooter({text:`Limited drop · ${drop.maxClaims} ${drop.maxClaims===1?"copy":"copies"} · First to click claim · Expires in 6 hours`});
+  const sent=await channel.send({embeds:[embed],components:[row(new ButtonBuilder().setCustomId(`gb:drop:${drop.id}:enter`).setLabel("Claim This Card").setStyle(ButtonStyle.Success))]});
   await attachDropMessage(drop.id,sent.id);
 }
 export function startGalacticScheduler(client) {
   if (timer) return;
   const tick = async () => {
-    const {config,event,doubleXp,week,winners}=await scheduledGameState();
+    const {config,winners}=await scheduledGameState();
     if (!config.dropChannelId) return;
     const channel=await client.channels.fetch(config.dropChannelId).catch(()=>null);
     if (!channel?.isTextBased() || !channel?.send) return;
@@ -424,21 +474,22 @@ export function startGalacticScheduler(client) {
     }
     if (config.activeDrop && Date.now() >= config.activeDrop.expiresAt) {
       const done=await finishDrop();
-      if (done) {
+      if (done && !done.announced) {
         const list=done.winners.length ? done.winners.map(id=>`<@${id}>`).join(", ") : "No entrants this time";
         await channel.send({content:`**Card drop finished:** ${getCard(done.cardId)?.name || "Card"}\nWinners: ${list}`,allowedMentions:{parse:[]}}).catch(console.error);
+      } else if (done?.messageId) {
+        // Disable the claim button on a now-expired daily drop, including a drop
+        // with zero claimants. The profile award itself was immediate.
+        const original=await channel.messages?.fetch(done.messageId).catch(()=>null);
+        if (original) await original.edit({components:[],allowedMentions:{parse:[]}}).catch(()=>{});
       }
     }
     if (!config.activeDrop && config.nextDropAt <= Date.now()) {
       const drop=await startAutomaticDrop(channel.id);
       if (drop) await publishCardDrop(channel,drop);
     }
-    const eventKey=`${week}:${event.id}:${doubleXp?"xp":"normal"}`;
-    if (config.announcedEvent!==eventKey) {
-      // Avoid announcement spam after restarts and only announce active events.
-      await updateEventAnnouncement(eventKey);
-      if (event.active) await channel.send({embeds:[new EmbedBuilder().setColor(BLUE).setTitle(`LIVE EVENT: ${event.name}`).setDescription("Open /game → Missions → Join Live Event. Event missions award 1.5x rewards."+(doubleXp?"\nWeekend 2x XP is active.":""))]}).catch(console.error);
-    }
+    // Live mission modifiers are shown inside Missions. Keep the card-drop
+    // channel focused on actual cards and weekly leaderboard results.
   };
   timer=setInterval(()=>tick().catch(err=>console.error("[GALACTIC SCHEDULER]",err)),60000);
   timer.unref();

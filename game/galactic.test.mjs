@@ -46,15 +46,16 @@ test("home screen puts the roll loop first and removes unnecessary stats and dup
   const screen=ui.homeScreen(profile,Date.now(),"","Pawpval");
   assert.equal(screen.embeds[0].data.title,"Pawpval's Galactic Command");
   const content=screen.embeds[0].data.description;
-  for(const item of ["Credits:","Cards:","Income:","Base:","Level"])
+  for(const item of ["Credits:","Cards:","Auto-income:","Squad:","Level"])
     assert.ok(content.includes(item));
   for(const unwanted of ["Ranked duels","Command Points","Events:","Income ready:"])
     assert.ok(!content.includes(unwanted));
   assert.equal(screen.components[0].components[0].data.label,"Roll Card");
   assert.deepEqual(screen.components.slice(0,2).flatMap(row=>row.components.map(b=>b.data.label)),
-    ["Roll Card","My Cards","My Base","Daily Pack","Quests","Shop"]);
+    ["Roll Card","My Cards","Missions","Shop"]);
   assert.ok(!screen.components.flatMap(row=>row.components).some(c=>c.data.label==="Claim Income"));
   assert.ok(!screen.components[2].components[0].toJSON().options.some(o=>o.value==="quests"));
+  assert.deepEqual(screen.components[2].components[0].toJSON().options.map(o=>o.value),["leaderboard","trade","help"]);
 
   const shop=ui.shopScreen(profile);
   const prices=shop.components[0].components[0].toJSON().options.map(o=>Number(o.label.match(/[\d,]+(?= Credits)/)[0].replace(/,/g,"")));
@@ -83,8 +84,8 @@ test("roll, crates, collection cards and assignments cost Credits atomically",as
   assert.equal(single.credits,before.credits-300);
   const found=single.found[0];
   const production=await state.assignCard("123",found.uid,"production");
-  assert.equal(production.ok,false); // Default starting production slots are full.
-  assert.equal((await state.assignCard("123",found.uid,"combat")).ok,false);
+  assert.equal(production.ok,true); // Can use up to five workers without base upgrades.
+  assert.equal((await state.assignCard("123",found.uid,"combat")).ok,true);
   assert.equal((await state.assignCard("123",found.uid,"reserve")).ok,true);
   await state.transact(({player})=>{player("123").credits=20000;player("123").scrap=200;});
   const pack=await state.roll("123","republic");
@@ -159,12 +160,18 @@ test("guilds, drops, quests and weekly prizes are persisted",async()=>{
   await state.transact(({s})=>{s.config.nextDropAt=0;});
   const drop=await state.startAutomaticDrop("123456789");
   assert.ok(drop?.cardId);
+  assert.equal(drop.mode,"first-come");
+  assert.ok(drop.maxClaims===1||drop.maxClaims===2);
+  assert.ok((await state.scheduledGameState()).config.nextDropAt>Date.now()+20*3600000);
+  const beforeCards=(await state.snapshot("123")).profile.cards.length;
   assert.equal((await state.enterDrop(drop.id,"123")).ok,true);
+  assert.equal((await state.snapshot("123")).profile.cards.length,beforeCards+1,"Claim grants card immediately");
   assert.equal((await state.enterDrop(drop.id,"123")).ok,false);
-  assert.equal((await state.enterDrop(drop.id,"456")).ok,true);
+  assert.equal((await state.enterDrop(drop.id,"456")).ok,drop.maxClaims===2);
   await state.transact(({s})=>{s.config.activeDrop.expiresAt=0;});
   const ended=await state.finishDrop();
-  assert.equal(ended.winners.length,2);
+  assert.equal(ended.winners.length,drop.maxClaims);
+  assert.equal((await state.snapshot("123")).profile.cards.length,beforeCards+1,"Finishing drop must not duplicate prizes");
   const forced=await state.startAutomaticDrop("123456789",{force:true,actor:"admin"});
   assert.ok(forced?.cardId,"Ownership should bypass the waiting timer for one immediate drop");
   assert.equal(await state.startAutomaticDrop("123456789",{force:true,actor:"admin"}),null,"Cannot overwrite an active drop");
@@ -190,6 +197,7 @@ test("slash command trees validate; public game commands route separately from l
   assert.ok(global.length>=8);
   assert.ok(!global.some(c=>guild.some(g=>g.name===c.name)),"Global and guild game commands must not overlap");
   assert.ok(global.every(c=>c.integration_types.includes(1)));
+  assert.ok(!global.some(c=>c.name==="boss"),"Retired boss must not appear as its own slash command");
   for(const c of commands) assert.ok(c.name.length<=32);
 });
 
@@ -240,7 +248,7 @@ test("Discord onboarding UI, roll action and ownership protections work end to e
   assert.match(outsider.sent[0].content,/someone else's game panel/i);
   const owns=fakeCommand("cards","789",{id:cardId});
   await command.handleGalacticInteraction(owns);
-  assert.match(owns.sent[0].embeds[0].data.title,/MANAGE CARD/);
+  assert.match(owns.sent[0].embeds[0].data.title,/MY CARD/);
 });
 
 test("every core menu validates and displays a clear way home",async()=>{
@@ -251,7 +259,7 @@ test("every core menu validates and displays a clear way home",async()=>{
     ui.recycleConfirmScreen(p,p.cards[0].uid),ui.shopScreen(p),
     ui.cratePreviewScreen(p,"standard"),ui.cratePreviewScreen(p,null,true),
     ui.missionsScreen(p),ui.questsScreen(p),ui.bossScreen(p,await state.bossSnapshot()),
-    ui.leaderboardScreen(await state.leaders(),undefined,p.id),ui.helpScreen(p)
+    ui.leaderboardScreen(await state.leaders(),undefined,p.id),ui.helpScreen(p),ui.tradeScreen(p),ui.tradeOfferScreen(p,"456"),ui.tradeWantedScreen(p,"456",p.cards[0].uid,(await state.snapshot("456")).profile)
   ];
   for(const view of views) {
     assert.ok(view.embeds.length,"Menu needs a readable embed");
@@ -291,6 +299,50 @@ test("buttons acknowledge first and route through collection, card management, b
   const stale=fakeButton(id,`ga:${id}:old-deleted-button`);
   await command.handleGalacticInteraction(stale);
   assert.match(stale.sent[0].embeds[0].data.title,/Galactic Command/);
+});
+
+test("trade menu selects recipient and both stored cards before posting an accept/decline request",async()=>{
+  const id="789",target="456",sent=[];
+  const own=(await state.snapshot(id)).profile,other=(await state.snapshot(target)).profile;
+  const offer=own.cards.find(c=>!own.combat.includes(c.uid)&&!own.production.includes(c.uid));
+  const wanted=other.cards.find(c=>!other.combat.includes(c.uid)&&!other.production.includes(c.uid));
+  assert.ok(offer && wanted,"Test needs a stored card from each player");
+  const starting=fakeButton(id,`ga:${id}:trade`);
+  await command.handleGalacticInteraction(starting);
+  assert.match(starting.sent[0].embeds[0].data.title,/TRADE CARDS/);
+  const chooseUser=fakeButton(id,`ga:${id}:tradetarget`,[target]);
+  chooseUser.isStringSelectMenu=()=>false;
+  chooseUser.isUserSelectMenu=()=>true;
+  await command.handleGalacticInteraction(chooseUser);
+  assert.match(chooseUser.sent[0].embeds[0].data.title,/YOUR CARD/);
+  const chooseOffer=fakeButton(id,`ga:${id}:tradeoffer:${target}`,[offer.uid]);
+  await command.handleGalacticInteraction(chooseOffer);
+  assert.match(chooseOffer.sent[0].embeds[0].data.title,/THEIR CARD/);
+  const chooseWanted=fakeButton(id,`ga:${id}:tradewant:${target}:${offer.uid}`,[wanted.uid]);
+  chooseWanted.channel={send:async p=>{sent.push(p);}};
+  await command.handleGalacticInteraction(chooseWanted);
+  assert.match(chooseWanted.sent[0].embeds[0].data.title,/TRADE CARDS/);
+  assert.equal(sent.length,1);
+  assert.deepEqual(sent[0].components[0].components.map(c=>c.data.label),["Accept Trade","Decline"]);
+  const idFromButton=sent[0].components[0].components[0].data.custom_id.split(":")[2];
+  assert.equal((await state.answerTrade(idFromButton,target,false)).declined,true);
+});
+
+test("a published daily card can only be claimed once per eligible user",async()=>{
+  await state.configureDropChannel("123456789","admin");
+  const drop=await state.startAutomaticDrop("123456789",{force:true});
+  const profile=(await state.snapshot("789")).profile;
+  const claim=await state.enterDrop(drop.id,"789");
+  assert.equal(claim.ok,true);
+  assert.equal(claim.claimed,true);
+  assert.equal((await state.snapshot("789")).profile.cards.length,profile.cards.length+1);
+  assert.equal((await state.enterDrop(drop.id,"789")).ok,false);
+  if (drop.maxClaims===2) {
+    assert.equal((await state.enterDrop(drop.id,"456")).ok,true);
+    assert.equal((await state.enterDrop(drop.id,"123")).ok,false);
+  } else assert.equal((await state.enterDrop(drop.id,"456")).ok,false);
+  await state.transact(({s})=>{s.config.activeDrop.expiresAt=0;});
+  await state.finishDrop();
 });
 
 test("recycling requires storage, confirmation and never affects another card",async()=>{

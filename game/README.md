@@ -1,28 +1,28 @@
 # Galactic Command — TARC Discord card game (V2)
 
-This update replaces the old `/game` quiz hub with **Galactic Command**, a persistent Star Wars card collection and outpost simulator. It deliberately starts every player fresh. It does **not** erase or import the former quiz/game database, and all assistant, moderation, blacklist and Roblox HTTP services remain separate.
+Galactic Command is a Star Wars card-collection game built around a five-card fighting deck, missions and weekly leaderboards. The V2 game originally started players fresh; this menu update preserves existing V2 cards and Credits. The old quiz/game database, assistant, moderation, blacklist and Roblox HTTP services remain separate.
 
 ## First-time experience
 
 1. `/game` → choose **Republic**, **CIS** or **Independent**. Each player is an independent commander and receives 5 starter cards, a combat squad and working production units. They can collect cards from *any* faction later.
-2. Press **Roll Card** (300 Credits) or `/roll`, open crates under **Shop**, or claim the **Daily Pack**. There are 357 catalogued units with six rarity tiers. Card images use real Star Wars movie, series or game imagery, with representative unit photos for the custom TARC roles.
-3. Open **My Cards** and select a card to place it in your Fighting Squad, as an Income Worker, or in Storage. More Options lets you fuse, train an ability or confirm recycling a stored card for Scrap.
-4. Credits from workers accrue automatically on the next game interaction (up to 12 hours offline); there is **no Claim Income button**. Run **Missions**, fight the weekly boss, upgrade your base and its training, raid other outposts and trade with consenting players.
-5. Complete daily/weekly/monthly quests and compete for the weekly Command Points ranking. See `/rankings`.
+2. Press **Roll Card** (300 Credits) or `/roll`, or open 3-card crates in **Shop**. There are 380+ collectible units with six rarities and real Star Wars film, series and game imagery. Opening `/game` gives the daily reward automatically when available; there is no Daily Pack button.
+3. Open **My Cards** to see your **five-card fighting deck** at the top and a short, paginated collection underneath. Copies of the same card appear as `×N`. Select a card, then **Upgrade Card**, **Add to Deck**, **Make Worker** or **Delete Card**. Upgrades include ability improvement and merging a stored duplicate.
+4. Cards assigned as workers earn Credits automatically, up to 12 hours offline. No Base or Base Training screen is needed. Your fighting deck handles missions, duels and raids; challenging a much stronger deck warns you first.
+5. Missions include daily, weekly and monthly objectives. Every Monday, the weekly leaderboard resets and awards in-game prizes. More Activities contains **Leaderboards**, **Trade Cards** and **How to Play**.
 
-`/game` opens with exactly six actions, in this order: Roll Card, My Cards, My Base, Daily Pack, Quests, Shop. The small **More activities** menu holds Missions & Events, Weekly Boss, Leaderboards and How to Play. Every deeper screen offers Home. Extended gameplay is available through `/roll`, `/cards`, `/catalog`, `/raid @player`, `/boss`, `/duel @player [ranked]`, `/trade`, `/rankings` and `/guild`.
+`/game` opens with just four primary actions: **Roll Card**, **My Cards**, **Missions**, **Shop**. The Trade flow picks a player, one stored card of yours and one of theirs, then posts an accept/decline request in the channel. Extended commands include `/roll`, `/cards`, `/catalog`, `/raid @player`, `/duel @player [ranked]`, `/trade`, `/rankings` and `/guild`.
 
 `/quiz` and `/quizleaderboard` remain as **optional** trivia games. Quiz correctness contributes small daily-capped Galactic Command rewards; the quiz is no longer the main progression loop.
 
 ## Economy and competitive rules
 
-- Every roll draws a card; it is *not* a claim-or-lose roll. Credits are deducted first. Crates contain 3 cards with different rarity weights; the shop now shows prices and offers a purchase confirmation before spending. The daily shop has a discount and the daily reward grants a free pack.
+- Every roll draws a card; it is *not* a claim-or-lose roll. Credits are deducted first. Crates contain three cards with different rarity weights, and the shop previews prices before charging. There is a discounted daily deal. The daily reward grants a free card and Credits on the next `/game` visit when eligible.
 - Rarities: Common (grey), Uncommon (green), Rare (blue), Epic (purple), Legendary (gold) and Mythical (pink/cyan).
-- Card attacks, defences, passive income and abilities scale with upgrades. Outposts can be raised to level 30, and Luck/Assault/Fortify/Logistics research to level 10.
-- Raids have a one-hour attacker cooldown, six-hour target cooldown and 24-hour protection for new players. Defenders never lose cards or Credits for being attacked. Duel invitations and trades require the recipient to accept; ranked rematches are limited per pair per day.
-- Dynamic events rotate every four hours, active for one hour. Saturdays and Sundays UTC award double XP. There is a fresh co-operative boss each Monday.
-- Daily, weekly and monthly quests rotate and give Credits, XP, Scrap and Command Points. Passively produced income is credited automatically on profile access, with a 12-hour offline accrual limit.
-- Automatically announced random card drops run roughly every 40–85 minutes in the configured channel. People enter with a button; up to three randomized winners receive the card.
+- Card HP, attack, defence and special abilities affect combat. Level and ability upgrades strengthen individual cards; storage duplicates can be fused for two extra levels. Legacy Base/Research values remain in old V2 saves for compatibility but are not new gameplay requirements.
+- Raids have a one-hour attacker cooldown, six-hour target cooldown and 24-hour protection for new players. Defenders never lose cards or Credits for being attacked. Duel invitations and trades require consent; ranked rematches are limited per pair per day.
+- Dynamic mission bonus events rotate automatically. Saturdays and Sundays UTC award double XP. Daily, weekly and monthly objectives rotate with rewards.
+- Passive worker income is credited automatically on profile access with a 12-hour offline accrual limit.
+- **One daily public card drop** appears in channel `1556794160865091695` (or the owner-configured override). The first one or two eligible members to click **Claim This Card** receive a card immediately. Drops expire after six hours, and double claims are prevented transactionally.
 - Weekly leaderboard resets are Monday 00:00 UTC. Top three players with at least 25 CP automatically receive in-game Credits, XP and 1–3 elite card draws. The previous week's results appear in the configured drops channel. **Nitro, Robux or other physical/external prizes are NOT automatically purchased or delivered; ownership distributes them and records fulfilment manually.**
 - Repetitive ranked opponents, daily quiz farming and same-target raid repeats have safeguards; these are not a substitute for moderator judgement when valuable external prizes are at stake.
 
@@ -32,7 +32,7 @@ This update replaces the old `/game` quiz hub with **Galactic Command**, a persi
 
 | Command | Effect |
 | --- | --- |
-| `/gameadmin drops #channel` | Set the guild's auto card-drop and event channel; first drop after ~3 minutes. |
+| `/gameadmin drops #channel` | Override the default daily card-drop channel; first drop after ~3 minutes. |
 | `/gameadmin dropnow` | Trigger an extra card drop immediately, provided one is not already active. |
 | `/gameadmin grantcard @player card_id [amount]` | Grant one to 20 cards listed by `/catalog search`. |
 | `/gameadmin set @player stat value` | Set Credits, XP, Scrap, weekly CP or base level. Marks the player ineligible for this week's competitive prizes. |
@@ -57,7 +57,7 @@ The old save `tarc-game-state.json` is **never overwritten** by Galactic Command
 
 - Artwork URLs in `galacticImages.js` reference external Star Wars film/series/game images; the bot no longer uses any of the generated vector illustrations. Several fictional TARC company/rank variants share an authentic image of their parent Star Wars unit. The external hosts control image availability.
 - Player commands (`/game`, `/roll`, `/cards`, etc. and `/quiz`) are registered **globally only**, not duplicated in each guild. `/gameadmin` is registered only in the main server.
-- Optional `GALACTIC_DROP_CHANNEL_ID` seeds a default channel ID on the first run. The normal configuration is `/gameadmin drops #channel`; the saved channel persists in the volume.
+- `GALACTIC_DROP_CHANNEL_ID` overrides the initial dedicated daily-drop channel, if set. `/gameadmin drops #channel` can change it thereafter; the saved choice persists in the volume.
 - `GAME_OWNER_DISCORD_IDS` accepts comma-separated authorized Discord IDs; the existing group-owner verification continues to work.
 - Railway must use just **one bot instance** with this JSON backend. Multiple instances would not share transaction locks. Back up the V2 file before migrations or changing the deployment.
 
