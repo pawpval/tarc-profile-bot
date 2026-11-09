@@ -51,7 +51,9 @@ test("home screen puts the roll loop first and removes unnecessary stats and dup
   for(const unwanted of ["Ranked duels","Command Points","Events:","Income ready:"])
     assert.ok(!content.includes(unwanted));
   assert.equal(screen.components[0].components[0].data.label,"Roll Card");
-  assert.equal(screen.components[1].components[2].data.label,"Quests");
+  assert.deepEqual(screen.components.slice(0,2).flatMap(row=>row.components.map(b=>b.data.label)),
+    ["Roll Card","My Cards","My Base","Daily Pack","Quests","Shop"]);
+  assert.ok(!screen.components.flatMap(row=>row.components).some(c=>c.data.label==="Claim Income"));
   assert.ok(!screen.components[2].components[0].toJSON().options.some(o=>o.value==="quests"));
 
   const shop=ui.shopScreen(profile);
@@ -98,9 +100,11 @@ test("roll, crates, collection cards and assignments cost Credits atomically",as
 });
 
 test("income, salvage, dailies and missions work with cooldowns",async()=>{
+  const before=(await state.snapshot("123")).profile.credits;
   await state.transact(({player})=>{player("123").incomeAt=Date.now()-2*3600000;});
-  assert.ok((await state.claimIncome("123")).credits>0);
-  assert.equal((await state.claimIncome("123")).ok,false);
+  const paid=(await state.snapshot("123")).profile;
+  assert.ok(paid.credits>before,"Production income should arrive automatically on visit");
+  assert.equal((await state.claimIncome("123")).automatic,true);
   assert.equal((await state.salvage("123")).ok,true);
   assert.equal((await state.salvage("123")).ok,false);
   assert.equal((await state.daily("123")).ok,true);
@@ -190,21 +194,28 @@ test("slash command trees validate; public game commands route separately from l
 });
 
 function fakeCommand(name,user="789",values={}) {
-  const sent=[];
+  const sent=[]; let deferred=false;
   return {
     user:{id:user,bot:false},commandName:name,client:{user:{id:"bot"}},guildId:"1",
     isChatInputCommand:()=>true,isButton:()=>false,isStringSelectMenu:()=>false,
+    get deferred(){return deferred;},get replied(){return false;},
+    deferReply:async()=>{deferred=true;},
     options:{getUser:k=>values[k]??null,getString:k=>values[k]??null,getInteger:k=>values[k]??null,getBoolean:k=>values[k]??null,getSubcommand:()=>values.subcommand},
     reply:async payload=>{sent.push(payload);return payload},
+    editReply:async payload=>{sent.push(payload);return payload},
     get sent(){return sent}
   };
 }
 function fakeButton(user,customId,values=[]) {
-  const sent=[];
+  const sent=[]; let deferred=false;
   return {
     user:{id:user},customId,values,
+    get deferred(){return deferred;},get replied(){return false;},
     isChatInputCommand:()=>false,isButton:()=>values.length===0,isStringSelectMenu:()=>values.length>0,
+    deferUpdate:async()=>{deferred=true;},
     update:async payload=>{sent.push(payload);return payload},
+    editReply:async payload=>{sent.push(payload);return payload},
+    followUp:async payload=>{sent.push(payload);return payload},
     reply:async payload=>{sent.push(payload);return payload},
     get sent(){return sent}
   };
@@ -221,7 +232,7 @@ test("Discord onboarding UI, roll action and ownership protections work end to e
   assert.ok(join.sent[0].components.length<=5);
   const rollCommand=fakeCommand("roll");
   assert.equal(await command.handleGalacticInteraction(rollCommand),true);
-  assert.equal(rollCommand.sent[0].embeds[0].data.title,"NEW CARD ACQUIRED");
+  assert.equal(rollCommand.sent[0].embeds[0].data.title,"NEW CARD!");
   assert.ok(rollCommand.sent[0].embeds[0].data.image.url.startsWith("https://"));
   const cardId=(await state.snapshot("789")).profile.cards.at(-1).uid;
   const outsider=fakeButton("987",`ga:789:upgrade:${cardId}`);
@@ -229,7 +240,87 @@ test("Discord onboarding UI, roll action and ownership protections work end to e
   assert.match(outsider.sent[0].content,/someone else's game panel/i);
   const owns=fakeCommand("cards","789",{id:cardId});
   await command.handleGalacticInteraction(owns);
-  assert.match(owns.sent[0].embeds[0].data.title,/CARD DETAILS/);
+  assert.match(owns.sent[0].embeds[0].data.title,/MANAGE CARD/);
+});
+
+test("every core menu validates and displays a clear way home",async()=>{
+  const p=(await state.snapshot("789")).profile;
+  const views=[
+    ui.homeScreen(p),ui.baseScreen(p),ui.upgradesScreen(p),ui.collectionScreen(p),
+    ui.inspectScreen(p,p.cards[0].uid),ui.cardOptionsScreen(p,p.cards[0].uid),
+    ui.recycleConfirmScreen(p,p.cards[0].uid),ui.shopScreen(p),
+    ui.cratePreviewScreen(p,"standard"),ui.cratePreviewScreen(p,null,true),
+    ui.missionsScreen(p),ui.questsScreen(p),ui.bossScreen(p,await state.bossSnapshot()),
+    ui.leaderboardScreen(await state.leaders(),undefined,p.id),ui.helpScreen(p)
+  ];
+  for(const view of views) {
+    assert.ok(view.embeds.length,"Menu needs a readable embed");
+    for(const embed of view.embeds) {
+      assert.ok((embed.data.description||"").length<=4096,"Embed must respect Discord's description limit");
+      assert.doesNotThrow(()=>embed.toJSON());
+    }
+    const components=view.components.flatMap(r=>r.components);
+    assert.ok(components.some(c=>c.data.custom_id===`ga:${p.id}:home`) || view===views[0],"Every sub-screen needs Home");
+    for(const component of view.components) assert.doesNotThrow(()=>component.toJSON());
+    assert.ok(view.components.length<=5,"Discord supports at most five action rows");
+  }
+});
+
+test("buttons acknowledge first and route through collection, card management, base and shop",async()=>{
+  const id="789";
+  const actions=[
+    ["cards"], ["base"], ["upgrades"], ["shop"], ["previewcrate",["standard"]],
+    ["quests"], ["missions"], ["help"], ["home"]
+  ];
+  for(const [action,selection] of actions){
+    const i=fakeButton(id,`ga:${id}:${action}`,selection||[]);
+    assert.equal(await command.handleGalacticInteraction(i),true);
+    assert.equal(i.deferred,true,`Action ${action} must immediately defer interaction`);
+    assert.ok(i.sent[0]?.embeds?.length,`Action ${action} must show a game screen`);
+  }
+  const uid=(await state.snapshot(id)).profile.cards[0].uid;
+  for(const [action,selection] of [
+    [`inspect:${uid}`], [`cardoptions:${uid}`], [`discard:${uid}`],
+    [`assign:${uid}`,["reserve"]], [`inspect:${uid}`]
+  ]) {
+    const i=fakeButton(id,`ga:${id}:${action}`,selection||[]);
+    await command.handleGalacticInteraction(i);
+    assert.equal(i.deferred,true);
+    assert.ok(i.sent[0]?.embeds?.length,`Card action ${action} must not throw`);
+  }
+  const stale=fakeButton(id,`ga:${id}:old-deleted-button`);
+  await command.handleGalacticInteraction(stale);
+  assert.match(stale.sent[0].embeds[0].data.title,/Galactic Command/);
+});
+
+test("recycling requires storage, confirmation and never affects another card",async()=>{
+  const id="789",profile=(await state.snapshot(id)).profile;
+  const first=profile.cards.find(c=>c.uid===profile.combat[0]);
+  assert.equal((await state.recycleCard(id,first.uid)).ok,false,"Deployed cards are protected");
+  assert.equal((await state.assignCard(id,first.uid,"reserve")).ok,true);
+  const before=(await state.snapshot(id)).profile;
+  const recycled=await state.recycleCard(id,first.uid);
+  assert.equal(recycled.ok,true);
+  const after=(await state.snapshot(id)).profile;
+  assert.equal(after.cards.length,before.cards.length-1);
+  assert.ok(after.scrap>before.scrap);
+  assert.ok(!after.cards.some(c=>c.uid===first.uid));
+  assert.equal((await state.recycleCard(id,first.uid)).ok,false,"Card cannot be recycled twice");
+});
+
+test("shop selection previews prices without charging and confirm opens the crate",async()=>{
+  const id="789",before=(await state.snapshot(id)).profile;
+  const preview=fakeButton(id,`ga:${id}:previewcrate`,["standard"]);
+  await command.handleGalacticInteraction(preview);
+  assert.match(preview.sent[0].embeds[0].data.title,/OPEN CRATE/);
+  assert.match(preview.sent[0].embeds[0].data.description,/900 Credits/);
+  assert.equal((await state.snapshot(id)).profile.credits,before.credits);
+  const confirm=fakeButton(id,`ga:${id}:opencrate:standard`);
+  await command.handleGalacticInteraction(confirm);
+  assert.match(confirm.sent[0].embeds[0].data.title,/NEW CARDS/);
+  const after=(await state.snapshot(id)).profile;
+  assert.equal(after.cards.length,before.cards.length+3);
+  assert.equal(after.credits,before.credits-900);
 });
 
 test("boss fights, daily shop and ranked duels are available",async()=>{

@@ -123,7 +123,25 @@ function ensurePlayer(s, id, now) {
       p.questClaimed[period] = [];
     }
   }
+  // Production pays automatically whenever this profile is accessed. Players
+  // never need to press a separate Claim Income button.
+  settleIncome(p, now);
   return p;
+}
+function settleIncome(p, now) {
+  if (!p.faction) { p.incomeAt = now; return 0; }
+  const elapsed = Math.min(12 * HOUR, Math.max(0, now - number(p.incomeAt || now)));
+  const credits = Math.floor(hourlyIncome(p) * elapsed / HOUR);
+  if (credits > 0) {
+    award(p, { credits });
+    record(p, "income");
+  }
+  // Keep the fraction of an hour when under the 12-hour offline limit so that
+  // checking a profile frequently never wipes away small earnings.
+  const rate = hourlyIncome(p);
+  const consumed = rate > 0 ? credits * HOUR / rate : 0;
+  p.incomeAt = elapsed >= 12 * HOUR ? now : Math.min(now, number(p.incomeAt || now) + consumed);
+  return credits;
 }
 function award(p, { credits = 0, xp = 0, scrap = 0, points = 0 } = {}) {
   p.credits = Math.max(0, p.credits + Math.round(credits));
@@ -332,13 +350,8 @@ export async function daily(userId) {
 
 export async function claimIncome(userId) {
   return transact(({ player, now }) => {
-    const p = player(userId), rate = hourlyIncome(p);
-    if (!p.faction || rate < 1) return { ok: false, error: "Assign a card to production in My Base first." };
-    const elapsed = Math.min(12 * HOUR, Math.max(0, now - p.incomeAt));
-    const credits = Math.floor(rate * elapsed / HOUR);
-    if (!credits) return { ok: false, error: "Your outpost hasn't generated a full Credit yet." };
-    award(p, { credits }); p.incomeAt = now; record(p, "income");
-    return { ok: true, credits, rate };
+    const p = player(userId);
+    return { ok: true, credits: 0, rate: hourlyIncome(p), automatic: true };
   });
 }
 
@@ -353,9 +366,7 @@ export async function assignCard(userId, uid, role) {
     const remainingProduction = p.production.filter(x => x !== uid);
     if (role === "combat" && remainingCombat.length >= combatSlots(p)) return { ok: false, error: "Squad is full. Upgrade your base or put a card in reserve." };
     if (role === "production" && remainingProduction.length >= productionSlots(p)) return { ok: false, error: "Production is full. Upgrade your base or put a card in reserve." };
-    // Settle passive income before changing production rate, preventing backdated earnings.
-    const elapsed = Math.min(12 * HOUR, Math.max(0, Date.now() - p.incomeAt));
-    award(p, { credits: Math.floor(hourlyIncome(p) * elapsed / HOUR) });
+    // Income is settled by ensurePlayer before changing the production rate.
     p.incomeAt = Date.now(); p.combat = remainingCombat; p.production = remainingProduction;
     if (role === "combat") p.combat.push(uid);
     if (role === "production") p.production.push(uid);
@@ -380,8 +391,24 @@ export async function upgradeCard(userId, uid, fuse = false) {
       if (p.credits < cost || p.scrap < scrap) return { ok: false, error: `Need ${cost} Credits and ${scrap} Scrap for the upgrade.` };
       p.credits -= cost; p.scrap -= scrap; owned.level++;
     }
+    if (p.production.includes(uid)) p.incomeAt = now;
     record(p, "upgrade"); award(p, { xp: 55 * xpMultiplier(now), points: 4 });
     return { ok: true, level: owned.level, card };
+  });
+}
+
+export async function recycleCard(userId, uid) {
+  return transact(({player}) => {
+    const p = player(userId), owned = p.cards.find(c => c.uid === uid);
+    if (!owned) return {ok:false,error:"That card is no longer in your collection."};
+    if (p.combat.includes(uid) || p.production.includes(uid))
+      return {ok:false,error:"Move this card to Storage before recycling it."};
+    const card = getCard(owned.cardId);
+    if (!card) return {ok:false,error:"That card is no longer available."};
+    const scrap = Math.max(1,Math.round(RARITIES[card.rarity].multiplier * 2));
+    p.cards = p.cards.filter(c=>c.uid!==uid);
+    award(p,{scrap});
+    return {ok:true,scrap,name:card.name};
   });
 }
 
@@ -405,8 +432,6 @@ export async function upgradeBase(userId) {
     if (!p.faction) return { ok: false, error: "Choose your faction first." };
     if (p.baseLevel >= 30) return { ok: false, error: "Your base is fully upgraded." };
     if (p.credits < cost || p.scrap < scrap) return { ok: false, error: `Base level ${p.baseLevel + 1} requires ${cost} Credits and ${scrap} Scrap.` };
-    const oldRate = hourlyIncome(p);
-    award(p, { credits: Math.floor(oldRate * Math.min(12 * HOUR, now - p.incomeAt) / HOUR) });
     p.incomeAt = now; p.credits -= cost; p.scrap -= scrap; p.baseLevel++;
     addActionReward(p, "base", { xp: 120, points: 12 }, now);
     return { ok: true, level: p.baseLevel };
@@ -422,6 +447,7 @@ export async function upgradeAttribute(userId, type) {
     const cost = Math.round(700 * (rank + 1) ** 1.45);
     if (p.credits < cost) return { ok: false, error: `Need ${cost} Credits.` };
     p.credits -= cost; p.upgrades[type]++;
+    if (type === "logistics") p.incomeAt = now;
     addActionReward(p, "upgrade", { xp: 75, points: 6 }, now);
     return { ok: true, rank: p.upgrades[type], cost };
   });

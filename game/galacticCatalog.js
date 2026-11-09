@@ -55,7 +55,7 @@ export const QUESTS = [
   { id: "win", action: "win", label: "Win raids", target: 1, credits: 550, xp: 150 },
   { id: "upgrade", action: "upgrade", label: "Upgrade cards", target: 1, credits: 320, xp: 120 },
   { id: "base", action: "base", label: "Improve your base", target: 1, credits: 420, xp: 150 },
-  { id: "claim", action: "income", label: "Collect command income", target: 1, credits: 200, xp: 90 },
+  { id: "claim", action: "income", label: "Earn Credits from workers", target: 1, credits: 200, xp: 90 },
   { id: "crate", action: "crate", label: "Open supply crates", target: 1, credits: 450, xp: 160 },
   { id: "duel", action: "duel", label: "Fight duels", target: 1, credits: 340, xp: 140 },
   { id: "boss", action: "boss", label: "Attack the weekly boss", target: 1, credits: 450, xp: 170 },

@@ -1,34 +1,34 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { ABILITIES, CARD_CATALOG, CRATES, FACTIONS, getCard, listCards, RARITIES } from "./galacticCatalog.js";
 import {
-  adminGameAction, answerDuel, answerTrade, assignCard, attachDropMessage, claimIncome, claimQuest, attackBoss,
+  adminGameAction, answerDuel, answerTrade, assignCard, attachDropMessage, claimQuest, attackBoss,
   chooseFaction, configureDropChannel, createGuild, currentEvent, daily, buyDailyDeal, donateGuild, enterDrop,
   finishDrop, guildDetails, hourlyIncome, joinGuild, leaders, leaveGuild, proposeDuel, proposeTrade, researchGuild, transferGuild, bossSnapshot,
-  raid, roll, runMission, salvage, scheduledGameState, snapshot, startAutomaticDrop, upgradeAttribute,
+  raid, recycleCard, roll, runMission, salvage, scheduledGameState, snapshot, startAutomaticDrop, upgradeAttribute,
   upgradeBase, upgradeCard, trainAbility, isDoubleXp, updateEventAnnouncement, markWeeklyAnnouncement
 } from "./galacticState.js";
 import {
-  BLUE, baseScreen, bossScreen, cardEmbed, collectionScreen, factionScreen, helpScreen, homeScreen, inspectScreen,
-  leaderboardScreen, missionsScreen, questsScreen, rollScreen, shopScreen, upgradesScreen
+  BLUE, baseScreen, bossScreen, cardEmbed, cardOptionsScreen, collectionScreen, cratePreviewScreen, factionScreen, helpScreen, homeScreen, inspectScreen,
+  leaderboardScreen, missionsScreen, questsScreen, recycleConfirmScreen, rollScreen, shopScreen, upgradesScreen
 } from "./galacticUI.js";
 
 const num = n => Number(n||0).toLocaleString("en-GB");
-const ephemeral = { ephemeral: true };
+const ephemeral = { flags: MessageFlags.Ephemeral };
 const idPattern = /^[a-f0-9]{8}$/i;
 
-function ownerButton(id,action,label,style=ButtonStyle.Secondary) {
-  return new ButtonBuilder().setCustomId(`ga:${id}:${action}`).setLabel(label).setStyle(style);
-}
 function row(...buttons){return new ActionRowBuilder().addComponents(...buttons);}
 function plain(message){return {content:String(message),allowedMentions:{parse:[]}};}
 async function present(i, screen, { update = false, privateReply = false } = {}) {
-  const payload = { ...screen, allowedMentions:screen.allowedMentions||{parse:[]}, ...(privateReply?ephemeral:{}) };
-  if (update && (i.isButton() || i.isStringSelectMenu())) return i.update(payload);
+  const payload = { ...screen, allowedMentions:screen.allowedMentions||{parse:[]} };
+  if (update && (i.isButton() || i.isStringSelectMenu())) return i.deferred ? i.editReply(payload) : i.update(payload);
   if (i.deferred || i.replied) return i.editReply(payload);
-  return i.reply(payload);
+  return i.reply({...payload,...(privateReply?ephemeral:{})});
 }
 async function sendError(i,error) {
-  const payload = { ...plain(error), ephemeral:true };
+  const payload = { ...plain(error), ...ephemeral };
+  // A deferred component update belongs to the existing game panel. Never
+  // replace the panel with error text; send a private notice alongside it.
+  if (i.deferred && (i.isButton?.() || i.isStringSelectMenu?.())) return i.followUp(payload);
   if (i.deferred && !i.replied) return i.editReply(plain(error));
   if (i.replied) return i.followUp(payload);
   return i.reply(payload);
@@ -120,6 +120,8 @@ async function handleSlash(i,options) {
   const target = i.options.getUser?.("player");
   if (name === "game") return showHome(i);
   if (name === "roll") {
+    const {profile:existing}=await snapshot(i.user.id);
+    if (!existing.faction) return present(i,factionScreen(i.user.id));
     const crate = i.options.getString("crate") || "single";
     const result = await roll(i.user.id,crate);
     if (!result.ok) return sendError(i,result.error);
@@ -243,6 +245,9 @@ async function handleAdminSlash(i,options) {
 async function handleOwnerComponent(i) {
   const pieces=i.customId.split(":"),owner=pieces[1],action=pieces.slice(2).join(":");
   if (owner!==i.user.id) return sendError(i,"This is someone else's game panel. Use /game to open yours.");
+  // Acknowledge the click before disk I/O. Discord invalidates unacknowledged
+  // interactions after three seconds, even if the action itself succeeded.
+  if (!i.deferred && !i.replied) await i.deferUpdate();
   const value=i.isStringSelectMenu()?i.values[0]:null;
   if (action==="faction") {
     const result=await chooseFaction(owner,value);
@@ -272,13 +277,25 @@ async function handleOwnerComponent(i) {
     return present(i,helpScreen(p),{update:true});
   }
   if (action.startsWith("quests")) return present(i,questsScreen(p,action.split(":")[1]||"daily"),{update:true});
+  if (action.startsWith("cardoptions:")) return present(i,cardOptionsScreen(p,action.split(":")[1]),{update:true});
+  if (action.startsWith("discard:")) return present(i,recycleConfirmScreen(p,action.split(":")[1]),{update:true});
+  if (action.startsWith("confirmdiscard:")) {
+    const result=await recycleCard(owner,action.split(":")[1]);
+    if (!result.ok) return sendError(i,result.error);
+    return present(i,collectionScreen((await snapshot(owner)).profile,0,`Recycled ${result.name} for ${result.scrap} Scrap.`),{update:true});
+  }
   if (action==="roll" || action==="reroll") {
     const result=await roll(owner);
     if (!result.ok) return sendError(i,result.error);
     return present(i,rollScreen((await snapshot(owner)).profile,result.found,result.spent),{update:true});
   }
-  if (action==="buycrate") {
-    const result=await roll(owner,value);
+  if (action==="buycrate" || action==="previewcrate")
+    return present(i,cratePreviewScreen(p,value),{update:true});
+  if (action==="previewdeal") return present(i,cratePreviewScreen(p,null,true),{update:true});
+  if (action.startsWith("opencrate:")) {
+    const crate=action.split(":")[1];
+    if (!CRATES[crate]) return sendError(i,"That crate isn't available. Return to the shop.");
+    const result=await roll(owner,crate);
     if (!result.ok) return sendError(i,result.error);
     return present(i,rollScreen((await snapshot(owner)).profile,result.found,result.spent),{update:true});
   }
@@ -293,9 +310,8 @@ async function handleOwnerComponent(i) {
     return present(i,rollScreen((await snapshot(owner)).profile,[result.card],0),{update:true});
   }
   if (action==="income") {
-    const result=await claimIncome(owner);
-    if (!result.ok) return sendError(i,result.error);
-    return present(i,homeScreen((await snapshot(owner)).profile,Date.now(),`Collected **${num(result.credits)} Credits** from production.`,displayName(i),avatarURL(i)),{update:true});
+    // Compatibility for buttons still visible in older messages.
+    return present(i,homeScreen(p,Date.now(),"Income is now paid automatically when you return to the game.",displayName(i),avatarURL(i)),{update:true});
   }
   if (action==="upgradebase") {
     const result=await upgradeBase(owner);
@@ -312,6 +328,13 @@ async function handleOwnerComponent(i) {
     const result=await assignCard(owner,uid,role);
     if (!result.ok) return sendError(i,result.error);
     return present(i,inspectScreen((await snapshot(owner)).profile,uid,`Assigned to ${role}.`),{update:true});
+  }
+  if (action.startsWith("assign:")) {
+    const uid=action.split(":")[1];
+    const result=await assignCard(owner,uid,value);
+    if (!result.ok) return sendError(i,result.error);
+    const location={combat:"Fighting Squad",production:"Income Workers",reserve:"Storage"}[value]||"Storage";
+    return present(i,inspectScreen((await snapshot(owner)).profile,uid,`Moved to ${location}.`),{update:true});
   }
   if (action.startsWith("upgrade:") || action.startsWith("fuse:")) {
     const [op,uid]=action.split(":");
@@ -344,7 +367,8 @@ async function handleOwnerComponent(i) {
     if (!result.ok) return sendError(i,result.error);
     return present(i,questsScreen((await snapshot(owner)).profile,period,Date.now(),`Quest complete: +${num(result.rewards.credits)} Credits, +${num(result.rewards.xp)} XP, +${num(result.points)} CP.`),{update:true});
   }
-  return sendError(i,"That game action isn't available. Reopen /game.");
+  // Stale buttons from before a deployment should recover into a valid menu.
+  return showHome(i,"This menu has been updated. You can continue here.",true);
 }
 
 async function handlePublicComponent(i) {
@@ -362,6 +386,8 @@ async function handlePublicComponent(i) {
 
 export async function handleGalacticInteraction(i,options={}) {
   if (i.isChatInputCommand() && ["game","roll","cards","catalog","raid","boss","duel","trade","rankings","guild","gameadmin"].includes(i.commandName)) {
+    if (i.commandName!=="gameadmin" && !i.deferred && !i.replied)
+      await i.deferReply(["cards","catalog"].includes(i.commandName)?{flags:MessageFlags.Ephemeral}:{});
     await handleSlash(i,options);return true;
   }
   if ((i.isButton() || i.isStringSelectMenu()) && i.customId?.startsWith("ga:")) {
