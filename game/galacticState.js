@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { CARD_BY_ID, CRATES, FACTIONS, MISSIONS, QUESTS, RARITIES, dailyContract, drawCard, getCard } from "./galacticCatalog.js";
+import { CARD_BY_ID, CRATES, FACTIONS, MISSIONS, QUESTS, RARITIES, dailyContract, drawCard, getCard, migrateCardId } from "./galacticCatalog.js";
 
 // New game, new save. Never overwrite the V1 file during the fresh launch.
 // Railway exposes the mount path automatically when a persistent volume is attached.
@@ -123,6 +123,9 @@ async function persist() {
 function ensurePlayer(s, id, now) {
   if (!s.players[id]) s.players[id] = createPlayer(id, now);
   const p = s.players[id];
+  // Retired rank labels are converted in place; retain the actual card copies,
+  // levels, assigned squad slots and ownership records when upgrading the game.
+  for (const owned of p.cards) owned.cardId = migrateCardId(owned.cardId);
   for (const period of ["daily", "weekly", "monthly"]) {
     const key = period === "daily" ? utcDay(now) : period === "weekly" ? utcWeek(now) : utcMonth(now);
     if (p.questKeys[period] !== key) {
@@ -164,7 +167,7 @@ function record(p, action, count = 1) {
 function addCard(p, cardId, source = "roll") {
   const card = getCard(cardId);
   if (!card) throw new Error(`Unknown card: ${cardId}`);
-  const owned = { uid: randomUUID().slice(0, 8), cardId, level: 1, abilityLevel: 1, acquiredAt: Date.now(), source };
+  const owned = { uid: randomUUID().slice(0, 8), cardId: card.id, level: 1, abilityLevel: 1, acquiredAt: Date.now(), source };
   p.cards.push(owned);
   return owned;
 }
