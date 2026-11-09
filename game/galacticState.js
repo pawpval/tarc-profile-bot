@@ -304,7 +304,10 @@ export async function roll(userId, crateId = "single", { free = false } = {}) {
     p.credits -= cost; p.cooldowns.roll = now;
     const found = [];
     for (let i = 0; i < (crateId === "single" ? 1 : crate.count); i++) {
-      const card = drawCard(crateId === "single" ? "standard" : crateId, p.upgrades.luck);
+      // The everyday /roll follows the faction chosen during onboarding;
+      // mixed-faction cards remain obtainable from the Galactic/Elite crates.
+      const pool = crateId === "single" ? (p.faction === "independent" ? "outlaw" : p.faction) : crateId;
+      const card = drawCard(pool, p.upgrades.luck);
       const owned = addCard(p, card.id, crateId);
       found.push({ ...card, uid: owned.uid });
     }
