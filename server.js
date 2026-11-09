@@ -5,6 +5,7 @@ import { getEventCommands, handleEventInteraction } from "./eventDM.js";
 import { getEmbedCommands, handleEmbedInteraction } from "./embedEditor.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
+import { getGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,6 +27,8 @@ import {
 } from "discord.js";
 
 const app = express();
+// Art for cards is served from the same Railway domain as the bot.
+app.use("/game-art", express.static(join(process.cwd(), "game", "assets")));
 
 // ==================== ENV ====================
 const PORT = Number(process.env.PORT || 8080);
@@ -1483,11 +1486,9 @@ function getGlobalTeachCommand() {
 
 function getGlobalGameCommands() {
   return [
-    makeEverywhereCommand(
-      new SlashCommandBuilder()
-        .setName("game")
-        .setDescription("Open the TARC game hub")
-    ),
+    ...getGalacticCommands().filter(c=>c.name!=="gameadmin").map(c=>({
+      ...c, integration_types:[0,1], contexts:[0,1,2]
+    })),
     makeEverywhereCommand(
       new SlashCommandBuilder()
         .setName("quiz")
@@ -1646,7 +1647,8 @@ function getSlashCommands() {
       .addStringOption(option => option.setName("confirmation").setDescription("Type CONFIRM to run the server-wide update").setRequired(true))
       .toJSON(),
 
-    ...getGameCommands(),
+    ...getGameCommands().filter(c=>!["game","gameadmin"].includes(c.name)),
+    ...getGalacticCommands(),
 
     new SlashCommandBuilder()
       .setName("help")
@@ -1680,6 +1682,7 @@ function getHelpCommandLines() {
 
 client.once(Events.ClientReady, async () => {
   console.log(`[DISCORD] Logged in as ${client.user.tag}`);
+  startGalacticScheduler(client);
 
   setBotStatus();
   setInterval(setBotStatus, 5 * 60 * 1000);
@@ -1785,6 +1788,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (await handleChannelFormatInteraction(interaction)) return;
   if (await handleEventInteraction(interaction)) return;
   try {
+    if (await handleGalacticInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
     if (await handleGameInteraction(interaction, { isGameOwner: hasGameOwnerAccess })) return;
   } catch (err) {
     const action = String(interaction.customId || interaction.commandName || "game").split(":").slice(0,2).join(":");
