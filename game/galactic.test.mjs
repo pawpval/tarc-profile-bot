@@ -122,6 +122,7 @@ test("roll, crates, collection cards and assignments cost Credits atomically",as
   const single=await state.roll("123");
   assert.equal(single.ok,true);
   assert.equal(single.found.length,1);
+  assert.equal(single.found[0].faction,"republic","Normal rolls should respect the selected Republic faction");
   assert.equal(single.spent,300);
   assert.equal(single.credits,before.credits-300);
   const found=single.found[0];
@@ -140,6 +141,21 @@ test("roll, crates, collection cards and assignments cost Credits atomically",as
   assert.equal((await state.assignCard("123",found.uid,"combat")).ok,true);
   const current=(await state.snapshot("123")).profile;
   assert.ok(current.combat.includes(found.uid));
+});
+
+test("single rolls follow faction while mixed Galactic crates remain available",async()=>{
+  await state.chooseFaction("outlaw-starter","independent");
+  for(let i=0;i<12;i++) {
+    const roll=await state.roll("outlaw-starter","single",{free:true});
+    assert.equal(roll.ok,true);
+    assert.equal(roll.found[0].faction,"independent");
+  }
+  await state.chooseFaction("cis-starter","cis");
+  for(let i=0;i<12;i++) {
+    const roll=await state.roll("cis-starter","single",{free:true});
+    assert.equal(roll.ok,true);
+    assert.equal(roll.found[0].faction,"cis");
+  }
 });
 
 test("income, salvage, dailies and missions work with cooldowns",async()=>{
