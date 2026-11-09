@@ -24,10 +24,39 @@ test("large catalog has distinct IDs, matching images and six rarities",()=>{
     assert.ok(catalog.RARITIES[card.rarity]);
     assert.ok(card.imageKey);
     assert.ok(ui.cardImage(card).startsWith("https://"));
+    assert.ok(!ui.cardImage(card).includes("/game-art/"),"Card art must not use generated illustrations");
   }
   for (const crate of Object.keys(catalog.CRATES)) {
     for(let i=0;i<500;i++) assert.ok(catalog.drawCard(crate).id);
   }
+});
+
+test("cards use recognizable real Star Wars unit images instead of generic robot drawings",()=>{
+  const byName=name=>catalog.CARD_CATALOG.find(c=>c.name===name);
+  const picture=name=>ui.cardImage(byName(name));
+  assert.match(picture("B1 Droid Army Unit"),/lumiere-a\.akamaihd\.net/);
+  assert.notEqual(picture("B1 Droid Army Unit"),picture("BX Commando Droids Unit"));
+  assert.notEqual(picture("Droideka Corps Unit"),picture("MagnaGuard Corps Unit"));
+  assert.notEqual(picture("501st Legion Trooper"),picture("212th Attack Battalion Trooper"));
+  assert.notEqual(picture("Coruscant Guard Trooper"),picture("Senate Guard Trooper"));
+});
+
+test("home screen puts the roll loop first and removes unnecessary stats and duplicate quest menu",async()=>{
+  const {profile}=await state.snapshot("123");
+  const screen=ui.homeScreen(profile,Date.now(),"","Pawpval");
+  assert.equal(screen.embeds[0].data.title,"Pawpval's Galactic Command");
+  const content=screen.embeds[0].data.description;
+  for(const item of ["Credits:","Cards:","Income:","Base:","Level"])
+    assert.ok(content.includes(item));
+  for(const unwanted of ["Ranked duels","Command Points","Events:","Income ready:"])
+    assert.ok(!content.includes(unwanted));
+  assert.equal(screen.components[0].components[0].data.label,"Roll Card");
+  assert.equal(screen.components[1].components[2].data.label,"Quests");
+  assert.ok(!screen.components[2].components[0].toJSON().options.some(o=>o.value==="quests"));
+
+  const shop=ui.shopScreen(profile);
+  const prices=shop.components[0].components[0].toJSON().options.map(o=>Number(o.label.match(/[\d,]+(?= Credits)/)[0].replace(/,/g,"")));
+  assert.deepEqual(prices,[...prices].sort((a,b)=>a-b));
 });
 
 test("new-game faction grants real five-card starter roster without importing old progress",async()=>{
@@ -152,6 +181,11 @@ test("slash command trees validate; public game commands route separately from l
   const commands=command.getGalacticCommands();
   assert.equal(new Set(commands.map(c=>c.name)).size,commands.length);
   assert.ok(commands.find(c=>c.name==="gameadmin").options.length>=4);
+  const global=command.getGlobalGalacticCommands(),guild=command.getGuildGalacticCommands();
+  assert.deepEqual(guild.map(c=>c.name),["gameadmin"]);
+  assert.ok(global.length>=8);
+  assert.ok(!global.some(c=>guild.some(g=>g.name===c.name)),"Global and guild game commands must not overlap");
+  assert.ok(global.every(c=>c.integration_types.includes(1)));
   for(const c of commands) assert.ok(c.name.length<=32);
 });
 

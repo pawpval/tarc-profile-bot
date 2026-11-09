@@ -5,7 +5,7 @@ This update replaces the old `/game` quiz hub with **Galactic Command**, a persi
 ## First-time experience
 
 1. `/game` → choose **Republic**, **CIS** or **Independent**. Each player is an independent commander and receives 5 starter cards, a combat squad and working production units. They can collect cards from *any* faction later.
-2. Press **Roll Card** (300 Credits) or `/roll`, open crates under **Crates & Shop**, or claim the **Daily Pack**. There are 357 catalogued units with six rarity tiers and an image or faction-art portrait on the card embed.
+2. Press **Roll Card** (300 Credits) or `/roll`, open crates under **Crates & Shop**, or claim the **Daily Pack**. There are 357 catalogued units with six rarity tiers. Card images use real Star Wars movie, series or game imagery, with representative unit photos for the custom TARC roles.
 3. Open **My Cards** to equip cards to your squad or assign them to production. Unassigned cards stay in reserve for trading, fusing or later use.
 4. **Claim Income**, run **Missions**, fight the weekly boss, upgrade your base and research, raid other outposts and trade with consenting players.
 5. Complete daily/weekly/monthly quests and compete for the weekly Command Points ranking. See `/rankings`.
@@ -55,13 +55,13 @@ The old save `tarc-game-state.json` is **never overwritten** by Galactic Command
 
 ### Images and drop scheduling
 
-- Bundled original faction illustrations are served at `/game-art/*.png` from the Express service. Named-character portrait URLs are attempted where provided; faction art remains available for the rest of the catalogue.
-- Railway normally provides `RAILWAY_PUBLIC_DOMAIN` if a public domain exists. If not, set `GALACTIC_ART_BASE_URL=https://your-actual-railway-domain` (include `https://`) so Discord can load the fallback art.
+- Artwork URLs in `galacticImages.js` reference external Star Wars film/series/game images; the bot no longer uses any of the generated vector illustrations. Several fictional TARC company/rank variants share an authentic image of their parent Star Wars unit. The external hosts control image availability.
+- Player commands (`/game`, `/roll`, `/cards`, etc. and `/quiz`) are registered **globally only**, not duplicated in each guild. `/gameadmin` is registered only in the main server.
 - Optional `GALACTIC_DROP_CHANNEL_ID` seeds a default channel ID on the first run. The normal configuration is `/gameadmin drops #channel`; the saved channel persists in the volume.
 - `GAME_OWNER_DISCORD_IDS` accepts comma-separated authorized Discord IDs; the existing group-owner verification continues to work.
 - Railway must use just **one bot instance** with this JSON backend. Multiple instances would not share transaction locks. Back up the V2 file before migrations or changing the deployment.
 
-`npm test` validates the catalog, core economy, anti-abuse limits, transactions, Discord command schemas and persistence. `npm run art` regenerates the seven bundled original PNG illustrations when developer dependencies are installed.
+`npm test` validates the catalog, core economy, anti-abuse limits, transactions, Discord command schemas, UI and persistence.
 
 ## Release guardrail
 
