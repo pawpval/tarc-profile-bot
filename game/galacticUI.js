@@ -46,13 +46,18 @@ export function homeScreen(p, now = Date.now(), note = "", displayName = "Comman
   const faction = FACTIONS[p.faction];
   const embed = new EmbedBuilder().setColor(BLUE).setTitle(`${clean(displayName)}'s Galactic Command`)
     .setDescription([
-      note || null,
-      `**${faction?.name}**  ·  Level ${playerLevel(p.xp)}  ·  ${rankFromLevel(playerLevel(p.xp))}`,
-      `**Credits:** ${n(p.credits)}  ·  **Cards:** ${n(p.cards.length)}  ·  **Squad:** ${p.combat.length}/5`,
-      `**Auto-income:** +${n(hourlyIncome(p))} Credits/hr`,
+      note ? `${note}\n` : null,
+      `**${faction?.name}**`,
+      `Level ${playerLevel(p.xp)} · ${rankFromLevel(playerLevel(p.xp))}`,
       "",
-      "**Start here:** Roll a card → add your best five to your squad → play missions."
-    ].filter(Boolean).join("\n"));
+      `**Credits:** ${n(p.credits)}`,
+      "",
+      `**Cards:** ${n(p.cards.length)} collected`,
+      `**Squad:** ${p.combat.length}/5 fighters equipped`,
+      "",
+      `**Auto-income:** +${n(hourlyIncome(p))} Credits/hour`
+    ].filter(line=>line!==null).join("\n"))
+    .setFooter({text:"Roll cards, equip your strongest five, then play missions."});
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   const more = [
     { label: "Leaderboards", value:"leaderboard", description:"Compete for weekly rewards" },
@@ -60,8 +65,7 @@ export function homeScreen(p, now = Date.now(), note = "", displayName = "Comman
     { label: "How to Play", value:"help", description:"A quick guide to your next steps" }
   ];
   return { embeds:[embed], components:[
-    row(ownerButton(p.id,"roll","Roll Card",ButtonStyle.Success),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary)),
-    row(ownerButton(p.id,"missions","Missions",ButtonStyle.Primary),ownerButton(p.id,"shop","Shop",ButtonStyle.Primary)),
+    row(ownerButton(p.id,"roll","Roll Card",ButtonStyle.Success),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary),ownerButton(p.id,"missions","Missions",ButtonStyle.Primary),ownerButton(p.id,"shop","Shop",ButtonStyle.Primary)),
     ownerSelect(p.id,"navigate","More activities",more)
   ] };
 }
