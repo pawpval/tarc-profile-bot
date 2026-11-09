@@ -51,7 +51,7 @@ This game writes JSON transactionally to:
 
 `$TARC_DATA_DIR/tarc-quiz-v2.json` (separate new quiz progress)
 
-The old save `tarc-game-state.json` is **never overwritten** by Galactic Command. To make progression survive Railway redeployments, mount a **persistent Railway Volume** and set `TARC_DATA_DIR` to its *absolute* mount path (example `/data`). If Railway still uses its ephemeral container filesystem, do **not** announce the game as persistent or give out real-world prizes until the volume is confirmed.
+The old save `tarc-game-state.json` is **never overwritten** by Galactic Command. To make progression survive Railway redeployments, attach a **persistent Railway Volume**. Railway automatically exposes `RAILWAY_VOLUME_MOUNT_PATH`, which the V2 game uses unless an existing `TARC_DATA_DIR` has already been set. If `TARC_DATA_DIR` exists, it must match the volume's absolute mount path (example `/data`). Without a volume, the game can be used for testing, but progress may disappear during a restart or redeployment.
 
 ### Images and drop scheduling
 

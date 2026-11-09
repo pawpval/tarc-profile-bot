@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { CARD_BY_ID, CRATES, FACTIONS, MISSIONS, QUESTS, RARITIES, dailyContract, drawCard, getCard } from "./galacticCatalog.js";
 
 // New game, new save. Never overwrite the V1 file during the fresh launch.
-const ROOT = process.env.TARC_DATA_DIR || "./data";
+// Railway exposes the mount path automatically when a persistent volume is attached.
+// An explicit TARC_DATA_DIR still takes precedence for existing deployments.
+const ROOT = process.env.TARC_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "./data";
 const FILE = path.join(ROOT, "tarc-galactic-v2.json");
 const HOUR = 3600000, DAY = 24 * HOUR;
 const STARTING_CREDITS = 1600;

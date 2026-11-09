@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { awardQuizTraining } from "./galacticState.js";
 
-const DATA_DIR = String(process.env.TARC_DATA_DIR || "./data");
+const DATA_DIR = String(process.env.TARC_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "./data");
 // Quiz progression starts fresh with Galactic Command V2. The V1 file is retained as a backup.
 const FILE = path.join(DATA_DIR, "tarc-quiz-v2.json");
 
