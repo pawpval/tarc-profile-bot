@@ -7,16 +7,20 @@
 const gallery = id => `https://starwarsgallery.netlify.app/assets/people/${id}.jpg`;
 
 const IMAGES = Object.freeze({
+  // Official Databank portraits. See web/DEPLOY.md for their source pages.
+  coburn: "https://lumiere-a.akamaihd.net/v1/images/databank_admiralcoburn_01_169_8db29cff.jpeg?region=0%2C0%2C1560%2C878&width=640",
+  marTuuk: "https://lumiere-a.akamaihd.net/v1/images/mar-tuuk_f6186b0c.jpeg?region=127%2C0%2C1176%2C660&width=640",
+  sugi: "https://lumiere-a.akamaihd.net/v1/images/databank_sugi_01_169_cce41af2.jpeg?region=0%2C0%2C1560%2C878&width=640",
   clone: "https://lumiere-a.akamaihd.net/v1/images/1-clone-armor-bio-1_copy_54d62ee1.jpeg?region=0%2C0%2C863%2C486",
   // Group/unit photos are deliberately distinct from their named commanders.
   legion501: "https://lumiere-a.akamaihd.net/v1/images/501st-stormtroopers-main_525e6786.jpeg?region=0%2C0%2C1252%2C704&width=768",
   battalion212: "https://lumiere-a.akamaihd.net/v1/images/open-uri20150608-27674-1sikt4d_aef465fa.jpeg?region=0%2C0%2C1280%2C720",
   corps41: "https://i.pinimg.com/originals/fa/a4/05/faa40583b02983d0ebb00f98b87007df.jpg",
   corps327: "https://i.imgur.com/XNbAWK8.jpeg",
-  corps91: "https://vignette4.wikia.nocookie.net/starwars/images/3/3d/BARCspeeder_DB.png/revision/latest?cb=20140907234057",
-  battalion104: "https://images.beastsofwar.com/2021/06/83338611-48014867-5f1ffb2dd4506Wolfpack.png-999-999.png",
+  corps91: "https://staticdelivery.nexusmods.com/mods/2229/images/10370/10370-1708632921-1888912678.png",
+  battalion104: "https://media.moddb.com/images/mods/1/18/17435/20190331013311_1.jpg",
   corps187: "https://media.moddb.com/images/mods/1/43/42611/cxz.png",
-  corps552: "https://vignette3.wikia.nocookie.net/theclonewiki/images/a/a4/DoomUnit-Improved.jpg/revision/latest?cb=20141031221447",
+  corps552: "https://lumiere-a.akamaihd.net/v1/images/open-uri20150608-27674-3fnnku_6cec09f8.jpeg?region=0%2C0%2C1200%2C674&width=640",
   fleet5: "https://media.moddb.com/images/mods/1/42/41197/20181210150503_1.jpg",
   marines: "https://media.moddb.com/images/downloads/1/271/270097/GalacticMarines.jpg",
   shock: "https://imgix.ranker.com/user_node_img/50127/1002527746/original/1002527746-photo-u3?auto=format&dpr=2&fit=crop&fm=pjpg&q=60&w=500",
@@ -25,7 +29,7 @@ const IMAGES = Object.freeze({
   tup: "https://lumiere-a.akamaihd.net/v1/images/tup_1de373c2.jpeg?region=41%2C0%2C1618%2C809",
   jesse: "https://lumiere-a.akamaihd.net/v1/images/jesse_677c22e2.jpeg?region=0%2C40%2C1463%2C732",
   hardcase: "https://www.jedipedia.net/w/images/5/5d/Hardcase-Enc.jpg",
-  waxer: "https://img4.wikia.nocookie.net/__cb20121004230504/starwars/images/a/a5/Waxer_Numa.png",
+  waxer: "https://lumiere-a.akamaihd.net/v1/images/waxer_ca041ec3.jpeg?region=277%2C0%2C2850%2C1603&width=640",
   boil: "https://lumiere-a.akamaihd.net/v1/images/open-uri20150608-27674-1sikt4d_aef465fa.jpeg?region=0%2C0%2C1280%2C720",
   fives: "https://lumiere-a.akamaihd.net/v1/images/open-uri20150608-27674-1rcmkgo_14e28c21.jpeg?region=0%2C0%2C1280%2C720",
   echo: "https://i.pinimg.com/originals/4b/13/09/4b13090fc301ab364c6076702a281cb4.jpg",
@@ -41,7 +45,7 @@ const IMAGES = Object.freeze({
   doom: "https://lumiere-a.akamaihd.net/v1/images/image_947960d1.jpeg?region=0%2C40%2C1200%2C676",
   arc: "https://lumiere-a.akamaihd.net/v1/images/5eb94de87c708e0001dbb570-image_d68992e0.jpeg?region=0%2C0%2C1536%2C864",
   commando: "https://www.nintendo.com/eu/media/images/06_screenshots/games_5/nintendo_switch_download_software_2/nswitchds_starwarsrepubliccommando/NSwitchDS_STARWARSRepublicCommando_01.jpg",
-  deltaBoss: "https://www.figurerealm.com/userimages/characterprofiles/3000/2591-1-5781792f078da.jpg",
+  deltaBoss: "https://galacticfigures.com/images/actionFigures/Shadow-Of-The-Dark-Side/Shadow-Of-The-Dark-Side-Boss-Republic-Commando_Big_2.webp",
   deltaFixer: "https://crls.501st.com/images/d/9/3/0/1/d930167adb969405071e4e17917959b3df611564-fixerfullbodyiso.png",
   deltaScorch: "https://www.ossus.pl/images/6/65/DS_Scorch.png",
   deltaSev: "https://rpggamer.org/uploaded_images/Sev.jpg",
@@ -49,14 +53,16 @@ const IMAGES = Object.freeze({
   senate: "https://lumiere-a.akamaihd.net/v1/images/captain_arygyus_8885ae02.jpeg?region=78%2C0%2C2162%2C1620",
   redGuard: "https://lumiere-a.akamaihd.net/v1/images/databank_emperorsroyalguard_01_169_4a88ce6c.jpeg?region=60%2C70%2C1435%2C808",
   jedi: "https://lumiere-a.akamaihd.net/v1/images/59baf71e315e1300012a9aaa-image_d030b37e.jpeg?region=0%2C0%2C1536%2C864",
-  temple: "https://images.wallpapersden.com/image/download/jedi-temple-guard-hd-star-wars-battlefront-2_bmVoZmmUmZqaraWkpJRmZ21lrWZlZWU.jpg",
+  temple: "https://lumiere-a.akamaihd.net/v1/images/databank_jeditempleguard_01_169_3416bea1.jpeg?region=0%2C0%2C1560%2C878&width=640",
   b1: "https://lumiere-a.akamaihd.net/v1/images/image_75457486.jpeg",
   b2: "https://lumiere-a.akamaihd.net/v1/images/sbd-bio-2_65b809aa.jpeg?region=0%2C0%2C1280%2C720",
-  bx: "https://www.manu-jdr.fr/images/star_wars/Droids/BX%20Commando%20Droid.jpg",
-  droideka: "https://vignette.wikia.nocookie.net/starwars/images/7/70/Destroyer_Droid.jpg/revision/latest?cb=20091202142140",
+  bx: "https://lumiere-a.akamaihd.net/v1/images/commando_droids_4c52e273.jpeg?region=0%2C0%2C1429%2C803&width=640",
+  droideka: "https://lumiere-a.akamaihd.net/v1/images/databank_droideka_01_169_48a22970.jpeg?region=0%2C0%2C1560%2C878&width=640",
   magnaguard: "https://lumiere-a.akamaihd.net/v1/images/databank_electrostaff_01_169_16d9e207.jpeg?region=0%2C0%2C1560%2C878",
   tactical: "https://lumiere-a.akamaihd.net/v1/images/5eb407e70d4d270001649ed8-image_7dd5423e.jpeg?region=0%2C125%2C1536%2C614",
   vulture: "https://vignette.wikia.nocookie.net/battlefront/images/c/c1/VultureDroid_Main.jpg/revision/latest/scale-to-width-down/2000?cb=20200424053442",
+  hyena: "https://lumiere-a.akamaihd.net/v1/images/databank_hyenabomberdroid_01_169_38b46a66.jpeg?region=0%2C0%2C1560%2C878&width=640",
+  triFighter: "https://pbs.twimg.com/media/FsgRzUpWIAMazEo.jpg",
   deathWatch: "https://lumiere-a.akamaihd.net/v1/images/Death-Watch_624f6efa.jpeg?region=1%2C0%2C1228%2C614",
   mandalorian: "https://lumiere-a.akamaihd.net/v1/images/the-mandalorian-main_b842cedf.jpeg?region=0%2C0%2C1280%2C640",
   ahsoka: "https://lumiere-a.akamaihd.net/v1/images/5ea99a6e4e4371000161d27a-image_4255dd6b.jpeg?region=336%2C0%2C864%2C864",
@@ -77,7 +83,7 @@ const IMAGES = Object.freeze({
   cadBane: "https://lumiere-a.akamaihd.net/v1/images/who-is-cad-bane-feature_76d4f760.jpeg?region=0%2C0%2C1600%2C900",
   armorer: "https://imgix.bustle.com/uploads/image/2020/4/13/67d28b97-8b45-4538-b82a-54564cdf9176-the-mandalorian-the-armorer-emily-swallow-1576510182.jpg",
   thrawn: "https://lumiere-a.akamaihd.net/v1/images/grand-admiral-thrawn-main_d5ea2b8c.jpeg?region=245%2C0%2C1429%2C804",
-  purge: "https://images.hdqwalls.com/wallpapers/star-wars-jedi-fallen-order-2019-game-4k-0y.jpg",
+  purge: "https://lumiere-a.akamaihd.net/v1/images/purge-trooper-main_ff6e52d7.jpeg?region=0%2C85%2C1619%2C911&width=640",
   death: "https://lumiere-a.akamaihd.net/v1/images/death-troopers_f2f9b53f.jpeg?region=0%2C0%2C1560%2C780",
   imperialShock: "https://static.thcdn.com/images/large/original/productimg/960/960/11176407-1564330624356960.jpg",
   jango: "https://img.lum.dolimg.com/v1/images/databank_jangofett_01_169_884cefab.jpeg?region=0%2C49%2C1560%2C780"
@@ -85,6 +91,7 @@ const IMAGES = Object.freeze({
 
 // Characters with their own source photographs take priority over division art.
 const NAMED = Object.freeze({
+  "Admiral Coburn": "coburn", "Mar Tuuk": "marTuuk", Sugi: "sugi",
   "Captain Rex": "rex", "Commander Cody": "cody", "Commander Gree": "gree",
   "Commander Fox": "fox", "Commander Thorn": "thorn", "Commander Bacara": "bacara",
   "Commander Doom": "doom", "Commander Bly": "bly", "Commander Wolffe": "wolffe",
@@ -119,7 +126,7 @@ const UNITS = [
   [/Jedi.*Temple Guard/, "temple"], [/Jedi /, "jedi"],
   [/B2 /, "b2"], [/BX Commando/, "bx"],
   [/Droideka/, "droideka"], [/MagnaGuard/, "magnaguard"],
-  [/Tactical Droid/, "tactical"], [/Droid Starfighter|Droid Bomber|Droid Tri-fighter/, "vulture"],
+  [/Tactical Droid/, "tactical"], [/Hyena-class Droid Bomber/, "hyena"], [/Droid Tri-fighter/, "triFighter"], [/Droid Starfighter/, "vulture"],
   [/B1 |OOM-series/, "b1"], [/Death Watch/, "deathWatch"],
   [/Mandalorian/, "mandalorian"]
 ];

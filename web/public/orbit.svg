@@ -1,0 +1,23 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 540">
+ <defs>
+  <radialGradient id="sky"><stop stop-color="#153962"/><stop offset="1" stop-color="#080f21" stop-opacity="0"/></radialGradient>
+  <radialGradient id="world" cx=".32" cy=".18" r=".82"><stop stop-color="#76bcd3"/><stop offset=".35" stop-color="#265983"/><stop offset=".7" stop-color="#112641"/><stop offset="1" stop-color="#050c19"/></radialGradient>
+  <clipPath id="disc"><circle cx="470" cy="248" r="132"/></clipPath>
+  <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M0 32V0h32" stroke="#80cafa" opacity=".10" fill="none"/></pattern>
+ </defs>
+ <rect width="800" height="540" fill="url(#sky)"/>
+ <rect width="800" height="540" fill="url(#grid)"/>
+ <g fill="#a8e9ff" opacity=".55"><circle cx="120" cy="94" r="1"/><circle cx="215" cy="152" r="2"/><circle cx="153" cy="315" r="1"/><circle cx="638" cy="83" r="2"/><circle cx="726" cy="312" r="1"/><circle cx="677" cy="408" r="2"/><circle cx="283" cy="434" r="1"/><circle cx="347" cy="57" r="1"/><circle cx="607" cy="467" r="1"/><circle cx="750" cy="135" r="1"/></g>
+ <g fill="none" stroke="#87dbff" transform="rotate(-22 470 248)">
+  <ellipse cx="470" cy="248" rx="257" ry="85" opacity=".26"/><ellipse cx="470" cy="248" rx="222" ry="65" opacity=".27" stroke-dasharray="3 8"/>
+  <ellipse cx="470" cy="248" rx="324" ry="119" opacity=".18"/>
+ </g>
+ <circle cx="470" cy="248" r="132" fill="url(#world)" stroke="#98e9ff" stroke-opacity=".6"/>
+ <g clip-path="url(#disc)" fill="none" stroke="#9cdeed" stroke-opacity=".26">
+  <path d="M311 197c84 14 124-42 262-37s155 25 169 36m-437 41c106 37 166-28 258-18s86 16 119 34m-374 8c89 46 150 5 241 13s100 20 144 48m-404-7c60 35 128 44 227 34s110 9 152 31"/>
+  <ellipse cx="470" cy="248" rx="66" ry="132" transform="rotate(22 470 248)"/>
+  <ellipse cx="470" cy="248" rx="105" ry="132" transform="rotate(22 470 248)"/>
+ </g>
+ <g fill="none" stroke="#8ce9ff"><circle cx="470" cy="248" r="152" opacity=".28" stroke-dasharray="2 8"/><path opacity=".45" d="M311 129v-22h22m274 0h22v22m0 237v22h-22m-274 0h-22v-22M469 67v15m0 335v15M291 248h14m331 0h14"/><path d="M546 194h35l40-35h59M366 305h-32l-44 41h-63" opacity=".65"/><circle cx="546" cy="194" r="4"/><circle cx="366" cy="305" r="4"/></g>
+</svg>

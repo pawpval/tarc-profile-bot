@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { CARD_BY_ID, CRATES, FACTIONS, MISSIONS, QUESTS, RARITIES, dailyContract, drawCard, getCard, migrateCardId } from "./galacticCatalog.js";
@@ -15,6 +16,8 @@ export const ROLL_PRICE = 300;
 const PRIZE_TABLE = [{ credits: 7500, packs: 3 }, { credits: 5000, packs: 2 }, { credits: 3000, packs: 1 }];
 const BOSS_NAMES = ["Separatist Command Dreadnought", "Mandalorian Warlord", "Rogue MagnaGuard General", "Droid Foundry Titan", "Coruscant Shadow Syndicate"];
 let state = null, loading = null, chain = Promise.resolve();
+const webAction = new AsyncLocalStorage();
+const WEB_RETRY_WINDOW = 15 * 60000;
 
 const number = n => Number.isFinite(Number(n)) ? Number(n) : 0;
 export const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -42,14 +45,22 @@ export function hourlyIncome(p) {
   const logistic = 1 + number(p.upgrades.logistics) * 0.09;
   return Math.round(income * logistic);
 }
+export function cardStrength(owned, card) {
+  const scale = 1 + (owned.level - 1) * 0.13;
+  return {
+    attack: card.attack * scale,
+    defense: card.defense * scale,
+    hp: (card.defense * 2 + card.attack * 0.55) * scale
+  };
+}
 export function combatStats(p, type = "attack") {
   let attack = 0, defense = 0, hp = 0, tactics = 0, command = 0;
   for (const uid of p.combat) {
     const owned = p.cards.find(c => c.uid === uid), card = owned && getCard(owned.cardId);
     if (!card) continue;
-    const scale = 1 + (owned.level - 1) * 0.13;
+    const stats = cardStrength(owned, card);
     const abilityPower = 1 + ((owned.abilityLevel || 1) - 1) * 0.15;
-    let a = card.attack * scale, d = card.defense * scale;
+    let a = stats.attack, d = stats.defense;
     if (card.ability === "assault") a *= 1 + 0.12 * abilityPower;
     if (card.ability === "guardian") d *= 1 + 0.18 * abilityPower;
     if (card.ability === "fortify" && type === "defense") d *= 1 + 0.14 * abilityPower;
@@ -57,7 +68,7 @@ export function combatStats(p, type = "attack") {
     if (card.ability === "tactics") tactics += 0.07 * abilityPower;
     if (card.ability === "command") command += 0.10 * abilityPower;
     attack += a; defense += d;
-    hp += (card.defense * 2 + card.attack * 0.55) * scale;
+    hp += stats.hp;
   }
   const aura = 1 + Math.min(0.30, tactics + command);
   attack *= aura * (1 + p.upgrades.assault * 0.055);
@@ -200,16 +211,47 @@ function rotateWeek(s, now) {
   s.boss = newBoss(current);
 }
 // All actions, including two-player actions, are serialized before their first await.
-export async function transact(callback, now = Date.now()) {
+export async function transact(callback, at) {
+  const request = webAction.getStore();
   await readState();
   const job = chain.then(async () => {
-    rotateWeek(state, now);
-    const result = await callback({ s: state, player: id => ensurePlayer(state, String(id), now), now });
-    await persist();
-    return result;
+    const now = at ?? Date.now();
+    if (request) {
+      if (request.at > now + 60000 || request.at + WEB_RETRY_WINDOW < now) {
+        return { ok: false, error: "This request expired. Refresh your profile before trying again." };
+      }
+      const prior = state.webRequests?.[request.key];
+      if (prior) return prior.signature === request.signature
+        ? structuredClone(prior.result)
+        : { ok: false, error: "That request was already used for another action." };
+    }
+    const previous = structuredClone(state);
+    try {
+      rotateWeek(state, now);
+      const result = await callback({ s: state, player: id => ensurePlayer(state, String(id), now), now });
+      if (request) {
+        state.webRequests ||= {};
+        for (const [key, receipt] of Object.entries(state.webRequests)) {
+          if (receipt.until < now) delete state.webRequests[key];
+        }
+        state.webRequests[request.key] = {
+          signature: request.signature, until: request.at + WEB_RETRY_WINDOW, result: structuredClone(result)
+        };
+      }
+      await persist();
+      return result;
+    } catch (error) {
+      state = previous;
+      throw error;
+    }
   });
   chain = job.catch(() => {});
   return job;
+}
+// Each web operation invokes exactly one existing action. Its receipt and
+// gameplay effects are saved together through the same queue used by Discord.
+export function runWebAction(userId, key, at, signature, execute) {
+  return webAction.run({ key: userId + ":" + key, at, signature }, execute);
 }
 export async function snapshot(userId) {
   return transact(({ s, player }) => ({ profile: structuredClone(player(userId)),
@@ -330,9 +372,10 @@ export function dailyDeal(now=Date.now()) {
   const id=ids[value%ids.length];
   return { id, crate:CRATES[id], price:Math.round(CRATES[id].price*0.7), key };
 }
-export async function buyDailyDeal(userId) {
+export async function buyDailyDeal(userId, expectedDay) {
   return transact(({player,now})=>{
     const p=player(userId),offer=dailyDeal(now);
+    if (expectedDay && offer.key !== expectedDay) return {ok:false,error:"The daily offer changed. Review the new offer before buying."};
     if (!p.faction) return {ok:false,error:"Choose a faction first."};
     if (p.cooldowns.dailyDeal===offer.key) return {ok:false,error:"You've already bought today's special offer."};
     if (p.credits<offer.price) return {ok:false,error:`Today's offer costs ${offer.price} Credits.`};
@@ -372,6 +415,15 @@ export async function claimIncome(userId) {
 // A fixed five-card deck keeps combat understandable without base upgrades.
 export const combatSlots = () => 5;
 export const productionSlots = () => 5;
+export function cardCosts(owned, card) {
+  const rarity = RARITIES[card.rarity].multiplier;
+  const ability = owned.abilityLevel || 1;
+  return {
+    upgrade: { credits: Math.round(260 * owned.level * rarity), scrap: Math.max(1, Math.ceil(owned.level / 2)) },
+    train: { credits: Math.round(800 * ability * rarity), scrap: ability * 4 },
+    recycle: Math.max(1, Math.round(rarity * 2))
+  };
+}
 export async function assignCard(userId, uid, role) {
   return transact(({ player }) => {
     const p = player(userId);
@@ -389,14 +441,15 @@ export async function assignCard(userId, uid, role) {
   });
 }
 
-export async function upgradeCard(userId, uid, fuse = false) {
+export async function upgradeCard(userId, uid, fuse = false, expectedLevel) {
   return transact(({ player, now }) => {
     const p = player(userId), owned = p.cards.find(c => c.uid === uid);
     if (!owned) return { ok: false, error: "Card not found." };
+    if (expectedLevel !== undefined && expectedLevel !== owned.level)
+      return { ok: false, error: "This card's level changed. Review the updated card before upgrading." };
     if (owned.level >= 20) return { ok: false, error: "This card is already level 20." };
     const card = getCard(owned.cardId);
-    const cost = Math.round(260 * owned.level * RARITIES[card.rarity].multiplier);
-    const scrap = Math.max(1, Math.ceil(owned.level / 2));
+    const { credits: cost, scrap } = cardCosts(owned, card).upgrade;
     if (fuse) {
       const duplicate = p.cards.find(c => c.uid !== uid && c.cardId === owned.cardId && !p.combat.includes(c.uid) && !p.production.includes(c.uid));
       if (!duplicate) return { ok: false, error: "You need an unequipped duplicate to fuse." };
@@ -420,20 +473,22 @@ export async function recycleCard(userId, uid) {
       return {ok:false,error:"Move this card to Storage before recycling it."};
     const card = getCard(owned.cardId);
     if (!card) return {ok:false,error:"That card is no longer available."};
-    const scrap = Math.max(1,Math.round(RARITIES[card.rarity].multiplier * 2));
+    const { recycle: scrap } = cardCosts(owned, card);
     p.cards = p.cards.filter(c=>c.uid!==uid);
     award(p,{scrap});
     return {ok:true,scrap,name:card.name};
   });
 }
 
-export async function trainAbility(userId, uid) {
+export async function trainAbility(userId, uid, expectedLevel) {
   return transact(({ player, now }) => {
     const p=player(userId), owned=p.cards.find(c=>c.uid===uid);
     if (!owned) return { ok:false,error:"Card not found." };
     const card=getCard(owned.cardId), rank=owned.abilityLevel||1;
+    if (expectedLevel !== undefined && expectedLevel !== rank)
+      return { ok: false, error: "This ability's level changed. Review the updated card before training." };
     if (rank>=5) return { ok:false,error:"Ability is already max level." };
-    const cost=Math.round(800*rank*RARITIES[card.rarity].multiplier),scrap=rank*4;
+    const { credits: cost, scrap } = cardCosts(owned, card).train;
     if (p.credits<cost||p.scrap<scrap) return { ok:false,error:`Ability training requires ${cost} Credits and ${scrap} Scrap.` };
     p.credits-=cost;p.scrap-=scrap;owned.abilityLevel=rank+1;
     addActionReward(p,"upgrade",{xp:90,points:5},now);
@@ -533,11 +588,15 @@ export async function awardQuizTraining(userId, correct = 0) {
   });
 }
 
-function battleAttack(attacker, defender, { isRaid = false } = {}) {
+export function battlePower(attacker, defender, { isRaid = false } = {}) {
   const a = combatStats(attacker, "attack"), d = combatStats(defender, "defense");
   const base = isRaid ? 1 : 0.7;
   const aScore = a.attack + a.defense * 0.22 + a.hp * .14;
   const dScore = d.defense + d.attack * base * 0.35 + d.hp * .22;
+  return { aScore, dScore };
+}
+function battleAttack(attacker, defender, options) {
+  const { aScore, dScore } = battlePower(attacker, defender, options);
   // A strong deck should be favoured, but small underdogs can still pull off
   // occasional wins; match outcomes should not be a pure stat comparison.
   const aRoll = aScore * (0.72 + Math.random() * 0.66);
@@ -605,18 +664,20 @@ export async function answerDuel(duelId, userId, accept) {
     const result = battleAttack(p,d);
     const victor = result.win ? p : d, loser = result.win ? d : p;
     victor.duelsWon++;
-    let ratingChange=0;
+    let ratingChange=0, ratingLoss=0;
     if (duel.ranked) {
       const key=`${utcDay(now)}:${loser.id}`;
       const otherKey=`${utcDay(now)}:${victor.id}`;
       victor.rankedTargets[key]=now;loser.rankedTargets[otherKey]=now;
       ratingChange=22;
+      ratingLoss = Math.min(18, Math.max(0, loser.rankedRating - 100));
       victor.rankedRating+=22;loser.rankedRating=Math.max(100,loser.rankedRating-18);
       victor.rankedWins++;loser.rankedLosses++;
     }
-    addActionReward(victor, "duel", { credits: 180, xp: 110, points: 15 }, now);
-    addActionReward(loser, "duel", { credits: 65, xp: 45, points: 4 }, now);
-    return { ok: true, ...result, winner: victor.id, loser: loser.id, ranked:duel.ranked, ratingChange };
+    const winnerRewards = addActionReward(victor, "duel", { credits: 180, xp: 110, points: 15 }, now);
+    const loserRewards = addActionReward(loser, "duel", { credits: 65, xp: 45, points: 4 }, now);
+    return { ok: true, ...result, winner: victor.id, loser: loser.id, ranked:duel.ranked,
+      ratingChange, ratingLoss, winnerRewards, loserRewards };
   });
 }
 
@@ -651,15 +712,26 @@ export async function answerTrade(tradeId, userId, accept) {
     if (!trade) return { ok: false, error: "Trade expired or already resolved." };
     if (trade.recipient !== String(userId)) return { ok: false, error: "Only the other trader can respond." };
     delete s.trades[tradeId];
-    if (!accept) return { ok: true, declined: true };
-    if (now > trade.expiresAt) return { ok: false, error: "This offer expired." };
+    const remember = status => {
+      for (const id of [trade.sender, trade.recipient]) {
+        const profile = s.players[id];
+        if (!profile) continue;
+        profile.tradeHistory = [{ id: trade.id, other: id === trade.sender ? trade.recipient : trade.sender, status, at: now },
+          ...(profile.tradeHistory || [])].slice(0, 12);
+      }
+    };
+    if (!accept) { remember("Declined"); return { ok: true, declined: true }; }
+    if (now > trade.expiresAt) { remember("Expired"); return { ok: false, error: "This offer expired." }; }
     const a = player(trade.sender), b = player(trade.recipient);
     const ac = a.cards.find(c => c.uid === trade.offerUid), bc = b.cards.find(c => c.uid === trade.wantedUid);
-    if (!ac || !bc || a.combat.includes(ac.uid) || a.production.includes(ac.uid) || b.combat.includes(bc.uid) || b.production.includes(bc.uid))
+    if (!ac || !bc || a.combat.includes(ac.uid) || a.production.includes(ac.uid) || b.combat.includes(bc.uid) || b.production.includes(bc.uid)) {
+      remember("Cancelled");
       return { ok: false, error: "The cards were moved or equipped. Trade cancelled." };
+    }
     a.cards = a.cards.filter(c => c.uid !== ac.uid); b.cards = b.cards.filter(c => c.uid !== bc.uid);
     a.cards.push(bc); b.cards.push(ac);
     record(a,"trade"); record(b,"trade");
+    remember("Completed");
     return { ok: true, from: ac.cardId, to: bc.cardId, sender: a.id, recipient: b.id };
   });
 }
