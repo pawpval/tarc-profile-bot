@@ -7,6 +7,7 @@ import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { handleGameInteraction } from "./game/gameSystem.js";
 import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { randomUUID } from "node:crypto";
+import { createGalacticWebRouter } from "./game/galacticWeb.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import express from "express";
@@ -199,6 +200,10 @@ const CHAIN_OF_COMMAND_ROLES = [
 // ==================== SAFETY / LOGGING ====================
 process.on("uncaughtException", (err) => console.error("[FATAL] uncaughtException:", err));
 process.on("unhandledRejection", (reason) => console.error("[FATAL] unhandledRejection:", reason));
+
+app.use("/api/galactic", createGalacticWebRouter({
+  discordUser: id => client.users.cache.get(id)
+}));
 
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);

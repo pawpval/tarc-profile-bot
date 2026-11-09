@@ -173,6 +173,9 @@ for (const [name, rarity, role, key, ability] of separatistUnits) put(name, "cis
 
 // Individual characters: known film-era portraits use reliable SWAPI-indexed character IDs.
 const characters = [
+  ["Admiral Coburn", "republic", "Rare", "Commander", "coburn", "tactics"],
+  ["Mar Tuuk", "cis", "Rare", "Commander", "marTuuk", "tactics"],
+  ["Sugi", "independent", "Rare", "Bounty", "sugi", "guardian"],
   ["Captain Rex", "republic", "Legendary", "Commander", "commander", "command"],
   ["Commander Cody", "republic", "Legendary", "Commander", "commander", "command"],
   ["Commander Gree", "republic", "Epic", "Commander", "commander", "tactics"],
@@ -335,8 +338,16 @@ export const CARD_CATALOG = Object.freeze([...cards.values()]);
 export const CARD_BY_ID = new Map(CARD_CATALOG.map(c => [c.id, c]));
 
 const rankOrder = Object.keys(RARITIES);
+function adjustedWeights(weights, luck) {
+  return weights.map((w, i) => w * (i <= 1 ? 1 : 1 + Math.min(0.6, Math.max(0, luck) * 0.065 * (i - 1))));
+}
+export function crateOdds(crate, luck) {
+  const weights = adjustedWeights(crate.weights, luck);
+  const total = weights.reduce((a, b) => a + b, 0);
+  return Object.fromEntries(weights.map((weight, i) => [rankOrder[i], weight / total]));
+}
 export function rollRarity(weights, luck = 0, rng = Math.random) {
-  const shifted = weights.map((w, i) => w * (i <= 1 ? 1 : 1 + Math.min(0.6, Math.max(0, luck) * 0.065 * (i - 1))));
+  const shifted = adjustedWeights(weights, luck);
   const total = shifted.reduce((a, b) => a + b, 0);
   let n = rng() * total;
   for (let i = 0; i < shifted.length; i++) if ((n -= shifted[i]) < 0) return rankOrder[i];

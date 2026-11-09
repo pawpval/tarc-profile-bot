@@ -5,7 +5,7 @@ Galactic Command is a Star Wars card-collection game built around a five-card fi
 ## First-time experience
 
 1. `/game` → choose **Republic**, **CIS** or **Independent**. Each player is an independent commander and receives 5 starter cards, a combat squad and working production units. They can collect cards from *any* faction later.
-2. Press **Roll Card** (300 Credits) or `/roll`, or open 3-card crates in **Shop**. There are 380+ collectible units with six rarities and real Star Wars film, series and game imagery. Opening `/game` gives the daily reward automatically when available; there is no Daily Pack button.
+2. Press **Roll Card** (300 Credits) or `/roll`, or open 3-card crates in **Shop**. There are hundreds of collectible units across six rarities. Opening `/game` gives the daily reward automatically when available.
 3. Open **My Cards** to see your **five-card fighting deck** at the top and a short, paginated collection underneath. Copies of the same card appear as `×N`. Select a card, then **Upgrade Card**, **Add to Deck**, **Make Worker** or **Delete Card**. Upgrades include ability improvement and merging a stored duplicate.
 4. Cards assigned as workers earn Credits automatically, up to 12 hours offline. No Base or Base Training screen is needed. Your fighting deck handles missions, duels and raids; challenging a much stronger deck warns you first.
 5. Missions include daily, weekly and monthly objectives. Every Monday, the weekly leaderboard resets and awards in-game prizes. More Activities contains **Leaderboards**, **Trade Cards** and **How to Play**.
@@ -42,6 +42,8 @@ Galactic Command is a Star Wars card-collection game built around a five-card fi
 Owner actions are audit-logged in the V2 save. Avoid changing competitive players' rankings mid-week if an external prize is on offer.
 
 ## Deployment / persistence
+
+See [Browser deployment](../web/DEPLOY.md) for the Cloudflare Pages build settings, Discord OAuth setup and the isolated browser test. The browser API runs inside the same Railway process and uses the existing V2 save.
 
 ### Required: Railway volume
 
