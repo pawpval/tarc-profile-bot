@@ -16,8 +16,10 @@ const state = await import("./galacticState.js");
 const ui = await import("./galacticUI.js");
 const command = await import("./galacticCommands.js");
 
-test("large catalog has distinct IDs, matching images and six rarities",()=>{
-  assert.ok(catalog.CARD_CATALOG.length >= 350);
+test("curated catalog has distinct IDs, images and six rarities",()=>{
+  // Quality of ranks and portraits matters more than padding the collection
+  // with fabricated Jedi sergeants and MagnaGuard officers.
+  assert.ok(catalog.CARD_CATALOG.length >= 275);
   assert.equal(new Set(catalog.CARD_CATALOG.map(c=>c.id)).size,catalog.CARD_CATALOG.length);
   for (const card of catalog.CARD_CATALOG) {
     assert.ok(catalog.FACTIONS[card.faction]);
@@ -31,14 +33,50 @@ test("large catalog has distinct IDs, matching images and six rarities",()=>{
   }
 });
 
-test("cards use recognizable real Star Wars unit images instead of generic robot drawings",()=>{
+test("specific unit portraits are not replaced with their commander's portrait",()=>{
   const byName=name=>catalog.CARD_CATALOG.find(c=>c.name===name);
   const picture=name=>ui.cardImage(byName(name));
-  assert.match(picture("B1 Droid Army Unit"),/lumiere-a\.akamaihd\.net/);
-  assert.notEqual(picture("B1 Droid Army Unit"),picture("BX Commando Droids Unit"));
-  assert.notEqual(picture("Droideka Corps Unit"),picture("MagnaGuard Corps Unit"));
+  assert.match(picture("B1 Battle Droid"),/lumiere-a\.akamaihd\.net/);
+  assert.notEqual(picture("B1 Battle Droid"),picture("BX Commando Droid"));
+  assert.notEqual(picture("Droideka"),picture("IG-100 MagnaGuard"));
   assert.notEqual(picture("501st Legion Trooper"),picture("212th Attack Battalion Trooper"));
-  assert.notEqual(picture("Coruscant Guard Trooper"),picture("Senate Guard Trooper"));
+  assert.notEqual(picture("Coruscant Guard Shock Trooper"),picture("Senate Guardsman"));
+  assert.notEqual(picture("501st Legion Trooper"),picture("Captain Rex"));
+  assert.notEqual(picture("212th Attack Battalion Trooper"),picture("Commander Cody"));
+  assert.notEqual(picture("Coruscant Guard Shock Trooper"),picture("Commander Fox"));
+  assert.notEqual(picture("Clone Trooper Kix"),picture("Clone Trooper Tup"));
+  assert.notEqual(picture("Commander Fox"),picture("Commander Thorn"));
+});
+
+test("organizations use real roles and named characters are actually rollable",()=>{
+  const names=new Set(catalog.CARD_CATALOG.map(c=>c.name));
+  for(const nonexistent of ["Jedi Order Sergeant","Red Guard Trooper","Republic Intelligence Trooper", "MagnaGuard Corps Unit", "Droideka Corps Officer", "Republic Navy Trooper"])
+    assert.equal(names.has(nonexistent),false,`Invented role: ${nonexistent}`);
+  for(const actual of ["Jedi Padawan","Jedi Knight","Senate Guardsman","Coruscant Guard Shock Trooper","Red Guard Shadow Guard","Republic Intelligence Field Agent","IG-100 MagnaGuard","Captain Rex","Clone Trooper Kix","General Kalani"])
+    assert.ok(names.has(actual),`Missing real card: ${actual}`);
+  // The standard faction pool's common tier can now produce a unique clone.
+  const threeZeros=[0,0,0];
+  const result=catalog.drawCard("republic",0,()=>threeZeros.shift()??0);
+  assert.equal(result.name,"Clone Trooper Tup");
+  assert.equal(result.named,true);
+  assert.equal(catalog.drawCard("cis").faction,"cis");
+});
+
+test("legacy fabricated ranks migrate without losing copies or squad assignments",async()=>{
+  assert.equal(catalog.getCard("republic_jedi_order_sergeant").name,"Jedi Padawan");
+  assert.equal(catalog.getCard("republic_red_guard_trooper").name,"Red Guard Guardsman");
+  assert.equal(catalog.getCard("cis_magnaguard_corps_unit").name,"IG-100 MagnaGuard");
+  assert.equal(catalog.getCard("republic_501st_legion_company_officer").name,"501st Legion Lieutenant");
+  await state.transact(({player})=>{
+    const p=player("legacy-user");
+    p.cards.push({uid:"legacy001",cardId:"republic_jedi_order_sergeant",level:9,abilityLevel:3,acquiredAt:1});
+    p.combat.push("legacy001");
+  });
+  const {profile}=await state.snapshot("legacy-user");
+  assert.equal(profile.cards[0].cardId,"republic_jedi_padawan");
+  assert.equal(profile.cards[0].level,9);
+  assert.equal(profile.cards[0].abilityLevel,3);
+  assert.ok(profile.combat.includes("legacy001"));
 });
 
 test("home screen puts the roll loop first and removes unnecessary stats and duplicate quest menu",async()=>{

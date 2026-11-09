@@ -1,5 +1,7 @@
 // Galactic Command V2. Card IDs, not display names, are the permanent identifiers.
-// TARC-inspired ranks and companies are game cards, not claims about canon lore.
+// Only clone military units receive clone military ranks. Custom TARC companies
+// may exist in the game, but Jedi, guards, intelligence and droids use their own
+// real unit designations rather than invented cross-division military ranks.
 export const RARITIES = {
   Common: { color: 0x92969c, weight: 54, multiplier: 1 },
   Uncommon: { color: 0x37b96e, weight: 27, multiplier: 1.3 },
@@ -71,7 +73,7 @@ function put(name, faction, rarity, role, imageKey, ability = "assault", extras 
   cards.set(id, Object.freeze({ id, name, faction, rarity, role, ability, imageKey, attack: Math.round(roleBase[0] * m), defense: Math.round(roleBase[1] * m), income: Math.round(roleBase[2] * m), ...extras }));
 }
 
-const republic = [
+const cloneDivisions = [
   ["501st Legion", ["Torrent Company", "332nd Company", "Triton Company", "Phalanx Company"]],
   ["212th Attack Battalion", ["Ghost Company", "Airborne Company", "Paratrooper Company"]],
   ["41st Elite Corps", ["Green Company", "Ranger Corps", "Sarlacc Company", "Zeus Company"]],
@@ -81,53 +83,93 @@ const republic = [
   ["187th Legion", ["Magenta Company", "Wraith Company", "Airborne Company"]],
   ["552nd Legion", ["Doom Company"]],
   ["5th Fleet Security", ["Fleet Guard", "Bridge Security"]],
-  ["Galactic Marines", ["Marine Guard", "Marine Heavy Weapons"]],
-  ["Republic Commandos", ["Delta Squad", "Omega Squad", "Yayax Squad"]],
-  ["Advanced Recon Commandos", ["Null Squad", "Alpha Squad", "Onyx Squad"]],
-  ["Coruscant Guard", ["Shock Troopers", "Riot Company", "Hound Company"]],
-  ["Senate Guard", ["Honor Guard", "Commando Guard"]],
-  ["Red Guard", ["Sovereign Protectors", "Shadow Guard"]],
-  ["Republic Intelligence", ["Internal Affairs", "Covert Operations", "Field Agents"]],
-  ["Republic Navy", ["Fleet Command", "Starfighter Corps"]],
-  ["Jedi Order", ["Temple Guard", "Jedi Sentinels", "Jedi Consulars"]]
+  ["Galactic Marines", ["Marine Guard", "Marine Heavy Weapons"]]
 ];
 
-for (const [division, companies] of republic) {
-  const special = /Jedi/.test(division), naval = /Navy/.test(division);
-  put(`${division} Trooper`, "republic", "Common", special ? "Jedi" : "Infantry", special ? "jedi" : "clone");
-  put(`${division} Sergeant`, "republic", "Uncommon", special ? "Jedi" : "Infantry", special ? "jedi" : "clone", "fortify");
-  put(`${division} Company Officer`, "republic", "Rare", "Specialist", special ? "jedi" : "commander", "tactics");
-  put(`${division} Company Commander`, "republic", "Epic", "Commander", special ? "jedi" : "commander", "command");
-  put(`${division} Commanding Officer`, "republic", "Legendary", "Commander", special ? "jedi" : "commander", "command");
-  if (naval) put(`${division} Starfighter`, "republic", "Rare", "Vehicle", "vehicle", "assault");
+for (const [division, companies] of cloneDivisions) {
+  put(`${division} Trooper`, "republic", "Common", "Infantry", "clone");
+  put(`${division} Sergeant`, "republic", "Uncommon", "Infantry", "clone", "fortify");
+  put(`${division} Lieutenant`, "republic", "Rare", "Specialist", "clone", "tactics");
+  put(`${division} Captain`, "republic", "Epic", "Commander", "clone", "command");
+  put(`${division} Commander`, "republic", "Legendary", "Commander", "clone", "command");
   for (const company of companies) {
-    put(`${division} ${company} Trooper`, "republic", "Uncommon", "Infantry", special ? "jedi" : "clone", "assault");
-    put(`${division} ${company} Officer`, "republic", "Rare", "Specialist", special ? "jedi" : "commander", "tactics");
-    put(`${division} ${company} Commander`, "republic", "Epic", "Commander", special ? "jedi" : "commander", "command");
+    put(`${division} ${company} Trooper`, "republic", "Uncommon", "Infantry", "clone", "assault");
+    put(`${division} ${company} Officer`, "republic", "Rare", "Specialist", "clone", "tactics");
+    put(`${division} ${company} Commander`, "republic", "Epic", "Commander", "clone", "command");
   }
 }
 
-const cis = [
-  ["B1 Droid Army", ["Security Droid", "Pilot Droid", "Heavy Droid", "Officer Droid"]],
-  ["B2 Super Battle Droids", ["Heavy Assault", "Security Unit"]],
-  ["BX Commando Droids", ["Stealth Unit", "Squad Leader"]],
-  ["Droideka Corps", ["Shield Unit", "Assault Unit"]],
-  ["MagnaGuard Corps", ["Electrostaff Guard", "Elite Guard"]],
-  ["Tactical Droids", ["Battlefield Coordinator", "Strategic Officer"]],
-  ["Separatist Navy", ["Vulture Fighter", "Hyena Bomber"]],
-  ["Death Watch", ["Jetpack Warrior", "Death Watch Captain"]]
+// These entries represent distinct roles, orders and unit types, not an
+// automatic Sergeant/Officer/Commander progression stamped onto everything.
+const specializedRepublic = [
+  ["Republic Commando", "Common", "Specialist", "commando", "assault"],
+  ["Republic Commando Squad Leader", "Rare", "Commander", "commando", "command"],
+  ["Delta Squad Commando", "Uncommon", "Specialist", "commando", "tactics"],
+  ["Omega Squad Commando", "Uncommon", "Specialist", "commando", "tactics"],
+  ["Yayax Squad Commando", "Uncommon", "Specialist", "commando", "ambush"],
+  ["ARC Trooper", "Common", "Specialist", "arc", "assault"],
+  ["ARC Lieutenant", "Rare", "Commander", "arc", "tactics"],
+  ["ARC Captain", "Epic", "Commander", "arc", "command"],
+  ["Null-class ARC Trooper", "Epic", "Specialist", "arc", "ambush"],
+  ["Alpha-class ARC Trooper", "Rare", "Specialist", "arc", "assault"],
+  ["Coruscant Guard Shock Trooper", "Common", "Guardian", "shock", "fortify"],
+  ["Coruscant Guard Riot Trooper", "Uncommon", "Guardian", "shock", "fortify"],
+  ["Coruscant Guard Sergeant", "Uncommon", "Infantry", "shock", "tactics"],
+  ["Coruscant Guard Lieutenant", "Rare", "Specialist", "shock", "tactics"],
+  ["Coruscant Guard Captain", "Epic", "Commander", "shock", "command"],
+  ["Coruscant Guard Commander", "Legendary", "Commander", "shock", "command"],
+  ["Senate Guardsman", "Common", "Guardian", "senateGuard", "fortify"],
+  ["Senate Honor Guard", "Uncommon", "Guardian", "senateGuard", "guardian"],
+  ["Senate Commando", "Rare", "Specialist", "senateGuard", "assault"],
+  ["Senate Guard Captain", "Epic", "Commander", "senateGuard", "command"],
+  ["Red Guard Guardsman", "Common", "Guardian", "redGuard", "fortify"],
+  ["Red Guard Shadow Guard", "Rare", "Specialist", "redGuard", "ambush"],
+  ["Red Guard Sovereign Protector", "Epic", "Guardian", "redGuard", "guardian"],
+  ["Republic Intelligence Junior Agent", "Common", "Specialist", "intelligence", "ambush"],
+  ["Republic Intelligence Field Agent", "Uncommon", "Specialist", "intelligence", "tactics"],
+  ["Republic Intelligence Senior Agent", "Rare", "Specialist", "intelligence", "tactics"],
+  ["Republic Intelligence Field Officer", "Epic", "Commander", "intelligence", "command"],
+  ["Republic Intelligence Covert Operative", "Rare", "Specialist", "intelligence", "ambush"],
+  ["Republic Intelligence Internal Affairs Agent", "Uncommon", "Specialist", "intelligence", "tactics"],
+  ["Republic Navy Crewman", "Common", "Infantry", "navy", "economy"],
+  ["Republic Navy Starfighter Pilot", "Uncommon", "Specialist", "navy", "ambush"],
+  ["Republic Navy Lieutenant", "Rare", "Specialist", "navy", "tactics"],
+  ["Republic Navy Captain", "Epic", "Commander", "navy", "command"],
+  ["Republic Navy Admiral", "Legendary", "Commander", "navy", "command"],
+  ["Jedi Initiate", "Common", "Jedi", "jedi", "tactics"],
+  ["Jedi Padawan", "Uncommon", "Jedi", "jedi", "assault"],
+  ["Jedi Knight", "Rare", "Jedi", "jedi", "assault"],
+  ["Jedi Sentinel", "Rare", "Jedi", "jedi", "ambush"],
+  ["Jedi Consular", "Rare", "Jedi", "jedi", "guardian"],
+  ["Jedi Temple Guard", "Epic", "Guardian", "temple", "guardian"],
+  ["Jedi Master", "Legendary", "Jedi", "jedi", "command"],
+  ["Jedi High Council Member", "Legendary", "Jedi", "jedi", "command"]
 ];
-for (const [division, companies] of cis) {
-  const key = /Watch/.test(division) ? "outlaw" : "droid";
-  put(`${division} Unit`, "cis", "Common", "Droid", key);
-  put(`${division} Veteran`, "cis", "Uncommon", "Droid", key, "fortify");
-  put(`${division} Officer`, "cis", "Rare", "Specialist", key, "tactics");
-  put(`${division} Commander`, "cis", "Epic", "Commander", key, "command");
-  for (const company of companies) {
-    put(`${division} ${company}`, "cis", "Uncommon", "Droid", key);
-    put(`${division} ${company} Elite`, "cis", "Rare", "Specialist", key, "assault");
-  }
-}
+for (const [name, rarity, role, key, ability] of specializedRepublic) put(name, "republic", rarity, role, key, ability);
+
+const separatistUnits = [
+  ["B1 Battle Droid", "Common", "Droid", "b1", "assault"],
+  ["B1 Security Battle Droid", "Common", "Droid", "b1", "fortify"],
+  ["B1 Pilot Battle Droid", "Uncommon", "Droid", "b1", "tactics"],
+  ["B1 Battle Droid Commander", "Rare", "Commander", "b1", "command"],
+  ["OOM-series Command Battle Droid", "Epic", "Commander", "b1", "command"],
+  ["B2 Super Battle Droid", "Common", "Droid", "b2", "assault"],
+  ["B2 Rocket Droid", "Uncommon", "Droid", "b2", "assault"],
+  ["BX Commando Droid", "Uncommon", "Specialist", "bx", "ambush"],
+  ["BX Commando Droid Captain", "Rare", "Commander", "bx", "tactics"],
+  ["Droideka", "Uncommon", "Vehicle", "droideka", "guardian"],
+  ["IG-100 MagnaGuard", "Uncommon", "Guardian", "magnaguard", "guardian"],
+  ["IG-100 Electrostaff MagnaGuard", "Rare", "Guardian", "magnaguard", "assault"],
+  ["T-series Tactical Droid", "Rare", "Specialist", "tactical", "tactics"],
+  ["Super Tactical Droid", "Epic", "Commander", "tactical", "command"],
+  ["Vulture Droid Starfighter", "Common", "Vehicle", "vulture", "assault"],
+  ["Hyena-class Droid Bomber", "Rare", "Vehicle", "vulture", "assault"],
+  ["Droid Tri-fighter", "Epic", "Vehicle", "vulture", "ambush"],
+  ["Death Watch Warrior", "Common", "Infantry", "deathWatch", "assault"],
+  ["Death Watch Jetpack Warrior", "Uncommon", "Specialist", "deathWatch", "ambush"],
+  ["Death Watch Captain", "Epic", "Commander", "deathWatch", "command"]
+];
+for (const [name, rarity, role, key, ability] of separatistUnits) put(name, "cis", rarity, role, key, ability);
 
 // Individual characters: known film-era portraits use reliable SWAPI-indexed character IDs.
 const characters = [
@@ -143,6 +185,12 @@ const characters = [
   ["ARC Fives", "republic", "Epic", "Specialist", "commander", "ambush"],
   ["ARC Echo", "republic", "Epic", "Specialist", "commander", "tactics"],
   ["ARC Jesse", "republic", "Rare", "Specialist", "commander", "tactics"],
+  ["Clone Trooper Tup", "republic", "Common", "Infantry", "clone", "assault"],
+  ["Clone Trooper Hardcase", "republic", "Uncommon", "Infantry", "clone", "assault"],
+  ["Clone Trooper Kix", "republic", "Uncommon", "Specialist", "clone", "guardian"],
+  ["Clone Trooper Waxer", "republic", "Uncommon", "Infantry", "clone", "fortify"],
+  ["Clone Trooper Boil", "republic", "Uncommon", "Infantry", "clone", "assault"],
+  ["Clone Trooper Jesse", "republic", "Rare", "Specialist", "clone", "tactics"],
   ["Delta Boss", "republic", "Epic", "Specialist", "commander", "command"],
   ["Delta Fixer", "republic", "Rare", "Specialist", "commander", "tactics"],
   ["Delta Scorch", "republic", "Rare", "Specialist", "commander", "assault"],
@@ -169,8 +217,18 @@ const characters = [
   ["Asajj Ventress", "cis", "Legendary", "Jedi", "sith", "ambush"],
   ["Wat Tambor", "cis", "Epic", "Commander", "droid", "economy"],
   ["Nute Gunray", "cis", "Epic", "Commander", "droid", "economy", { portrait: 33 }],
+  ["Mina Bonteri", "cis", "Uncommon", "Specialist", "senate", "tactics"],
+  ["General Kalani", "cis", "Epic", "Commander", "tactical", "command"],
+  ["Admiral Trench", "cis", "Legendary", "Commander", "navy", "tactics"],
+  ["Poggle the Lesser", "cis", "Epic", "Commander", "droid", "economy"],
+  ["Lok Durd", "cis", "Rare", "Commander", "droid", "tactics"],
+  ["San Hill", "cis", "Epic", "Commander", "droid", "economy"],
+  ["Riff Tamson", "cis", "Rare", "Specialist", "outlaw", "ambush"],
   ["Boba Fett", "independent", "Mythical", "Bounty", "outlaw", "ambush", { portrait: 22 }],
   ["Jango Fett", "independent", "Mythical", "Bounty", "outlaw", "ambush", { portrait: 69 }],
+  ["Kuiil", "independent", "Common", "Specialist", "outlaw", "economy"],
+  ["Peli Motto", "independent", "Common", "Specialist", "outlaw", "economy"],
+  ["Greef Karga", "independent", "Rare", "Commander", "outlaw", "tactics"],
   ["Bo-Katan Kryze", "independent", "Legendary", "Bounty", "outlaw", "command"],
   ["Pre Vizsla", "independent", "Legendary", "Bounty", "outlaw", "command"],
   ["Cad Bane", "independent", "Legendary", "Bounty", "outlaw", "ambush"],
@@ -214,7 +272,64 @@ const characters = [
   ["Mandalorian Super Commando", "independent", "Epic", "Bounty", "outlaw", "assault"],
   ["Outlaw Mercenary", "independent", "Common", "Infantry", "outlaw", "ambush"]
 ];
-for (const args of characters) put(...args);
+const nonCharacterRoles = new Set([
+  "Vice Chancellor", "Grand Marshal", "Supreme Commander",
+  "Purge Trooper", "Death Trooper", "Imperial Shock Trooper",
+  "Mandalorian Warrior", "Mandalorian Super Commando", "Outlaw Mercenary"
+]);
+for (const [name, faction, rarity, role, key, ability, extras = {}] of characters)
+  put(name, faction, rarity, role, key, ability, { ...extras, named: !nonCharacterRoles.has(name) });
+
+// Existing saves and card drops retain their original IDs. The former catalogue
+// incorrectly stamped army ranks onto every organization; translate those old
+// IDs to a valid current card without destroying owned copies, levels or UIDs.
+const LEGACY_CARD_ALIASES = new Map();
+function alias(oldName, currentName, faction) {
+  const from = slug(`${faction}_${oldName}`), to = slug(`${faction}_${currentName}`);
+  if (from !== to) LEGACY_CARD_ALIASES.set(from, to);
+}
+for (const [division, companies] of cloneDivisions) {
+  alias(`${division} Company Officer`, `${division} Lieutenant`, "republic");
+  alias(`${division} Company Commander`, `${division} Captain`, "republic");
+  alias(`${division} Commanding Officer`, `${division} Commander`, "republic");
+}
+const formerSpecialDivisions = [
+  ["Republic Commandos", ["Delta Squad", "Omega Squad", "Yayax Squad"], ["Republic Commando", "Republic Commando", "Republic Commando Squad Leader", "Republic Commando Squad Leader", "Republic Commando Squad Leader"], ["Delta Squad Commando", "Omega Squad Commando", "Yayax Squad Commando"]],
+  ["Advanced Recon Commandos", ["Null Squad", "Alpha Squad", "Onyx Squad"], ["ARC Trooper", "ARC Trooper", "ARC Lieutenant", "ARC Captain", "ARC Captain"], ["Null-class ARC Trooper", "Alpha-class ARC Trooper", "ARC Trooper"]],
+  ["Coruscant Guard", ["Shock Troopers", "Riot Company", "Hound Company"], ["Coruscant Guard Shock Trooper", "Coruscant Guard Sergeant", "Coruscant Guard Lieutenant", "Coruscant Guard Captain", "Coruscant Guard Commander"], ["Coruscant Guard Shock Trooper", "Coruscant Guard Riot Trooper", "Coruscant Guard Shock Trooper"]],
+  ["Senate Guard", ["Honor Guard", "Commando Guard"], ["Senate Guardsman", "Senate Honor Guard", "Senate Commando", "Senate Guard Captain", "Senate Guard Captain"], ["Senate Honor Guard", "Senate Commando"]],
+  ["Red Guard", ["Sovereign Protectors", "Shadow Guard"], ["Red Guard Guardsman", "Red Guard Guardsman", "Red Guard Shadow Guard", "Red Guard Sovereign Protector", "Red Guard Sovereign Protector"], ["Red Guard Sovereign Protector", "Red Guard Shadow Guard"]],
+  ["Republic Intelligence", ["Internal Affairs", "Covert Operations", "Field Agents"], ["Republic Intelligence Junior Agent", "Republic Intelligence Field Agent", "Republic Intelligence Senior Agent", "Republic Intelligence Field Officer", "Republic Intelligence Field Officer"], ["Republic Intelligence Internal Affairs Agent", "Republic Intelligence Covert Operative", "Republic Intelligence Field Agent"]],
+  ["Republic Navy", ["Fleet Command", "Starfighter Corps"], ["Republic Navy Crewman", "Republic Navy Starfighter Pilot", "Republic Navy Lieutenant", "Republic Navy Captain", "Republic Navy Admiral"], ["Republic Navy Captain", "Republic Navy Starfighter Pilot"]],
+  ["Jedi Order", ["Temple Guard", "Jedi Sentinels", "Jedi Consulars"], ["Jedi Initiate", "Jedi Padawan", "Jedi Knight", "Jedi Master", "Jedi High Council Member"], ["Jedi Temple Guard", "Jedi Sentinel", "Jedi Consular"]]
+];
+for (const [division, companies, ranks, units] of formerSpecialDivisions) {
+  for (const [i, suffix] of ["Trooper", "Sergeant", "Company Officer", "Company Commander", "Commanding Officer"].entries())
+    alias(`${division} ${suffix}`, ranks[i], "republic");
+  for (const [i, company] of companies.entries()) {
+    for (const suffix of ["Trooper", "Officer", "Commander"])
+      alias(`${division} ${company} ${suffix}`, units[i], "republic");
+  }
+  if (division === "Republic Navy") alias(`${division} Starfighter`, "Republic Navy Starfighter Pilot", "republic");
+}
+const formerSeparatistDivisions = [
+  ["B1 Droid Army", ["Security Droid", "Pilot Droid", "Heavy Droid", "Officer Droid"], ["B1 Battle Droid", "B1 Security Battle Droid", "B1 Battle Droid Commander", "OOM-series Command Battle Droid"], ["B1 Security Battle Droid", "B1 Pilot Battle Droid", "B1 Battle Droid", "B1 Battle Droid Commander"]],
+  ["B2 Super Battle Droids", ["Heavy Assault", "Security Unit"], ["B2 Super Battle Droid", "B2 Rocket Droid", "B2 Rocket Droid", "B2 Super Battle Droid"], ["B2 Super Battle Droid", "B2 Rocket Droid"]],
+  ["BX Commando Droids", ["Stealth Unit", "Squad Leader"], ["BX Commando Droid", "BX Commando Droid", "BX Commando Droid Captain", "BX Commando Droid Captain"], ["BX Commando Droid", "BX Commando Droid Captain"]],
+  ["Droideka Corps", ["Shield Unit", "Assault Unit"], ["Droideka", "Droideka", "Droideka", "Droideka"], ["Droideka", "Droideka"]],
+  ["MagnaGuard Corps", ["Electrostaff Guard", "Elite Guard"], ["IG-100 MagnaGuard", "IG-100 MagnaGuard", "IG-100 Electrostaff MagnaGuard", "IG-100 Electrostaff MagnaGuard"], ["IG-100 Electrostaff MagnaGuard", "IG-100 MagnaGuard"]],
+  ["Tactical Droids", ["Battlefield Coordinator", "Strategic Officer"], ["T-series Tactical Droid", "T-series Tactical Droid", "T-series Tactical Droid", "Super Tactical Droid"], ["T-series Tactical Droid", "Super Tactical Droid"]],
+  ["Separatist Navy", ["Vulture Fighter", "Hyena Bomber"], ["Vulture Droid Starfighter", "Vulture Droid Starfighter", "Hyena-class Droid Bomber", "Droid Tri-fighter"], ["Vulture Droid Starfighter", "Hyena-class Droid Bomber"]],
+  ["Death Watch", ["Jetpack Warrior", "Death Watch Captain"], ["Death Watch Warrior", "Death Watch Warrior", "Death Watch Jetpack Warrior", "Death Watch Captain"], ["Death Watch Jetpack Warrior", "Death Watch Captain"]]
+];
+for (const [division, companies, ranks, units] of formerSeparatistDivisions) {
+  for (const [i, suffix] of ["Unit", "Veteran", "Officer", "Commander"].entries())
+    alias(`${division} ${suffix}`, ranks[i], "cis");
+  for (const [i, company] of companies.entries()) {
+    alias(`${division} ${company}`, units[i], "cis");
+    alias(`${division} ${company} Elite`, units[i], "cis");
+  }
+}
 
 export const CARD_CATALOG = Object.freeze([...cards.values()]);
 export const CARD_BY_ID = new Map(CARD_CATALOG.map(c => [c.id, c]));
@@ -233,10 +348,19 @@ export function drawCard(crateId = "standard", luck = 0, rng = Math.random) {
   const rarity = rollRarity(crate.weights, luck, rng);
   const eligible = CARD_CATALOG.filter(c => c.rarity === rarity && (!crate.pool || c.faction === crate.pool));
   if (!eligible.length) throw new Error(`Missing cards for ${crateId}/${rarity}`);
-  return eligible[Math.floor(rng() * eligible.length)];
+  // Named characters aren't just mythical collectibles: real lower-rarity
+  // characters can appear during normal rolling without changing rarity odds.
+  const named = eligible.filter(c => c.named);
+  const namedChance = rarity === "Common" ? 0.25 : rarity === "Uncommon" ? 0.30 : 0.35;
+  const pool = named.length && rng() < namedChance ? named : eligible;
+  return pool[Math.floor(rng() * pool.length)];
 }
 
-export function getCard(id) { return CARD_BY_ID.get(String(id)) || null; }
+export function migrateCardId(id) {
+  const raw = String(id);
+  return CARD_BY_ID.has(raw) ? raw : LEGACY_CARD_ALIASES.get(raw) || raw;
+}
+export function getCard(id) { return CARD_BY_ID.get(migrateCardId(id)) || null; }
 export function listCards({ faction, rarity, term } = {}) {
   const query = String(term || "").toLowerCase().trim();
   return CARD_CATALOG.filter(c => (!faction || c.faction === faction) && (!rarity || c.rarity === rarity) && (!query || c.name.toLowerCase().includes(query)));
