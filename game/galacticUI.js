@@ -7,6 +7,7 @@ export const BLUE = 0x2b7fff;
 const n = value => Number(value || 0).toLocaleString("en-GB");
 const ownerButton = (id, action, label, style = ButtonStyle.Secondary) =>
   new ButtonBuilder().setCustomId(`ga:${id}:${action}`).setLabel(label).setStyle(style);
+const homeButton = id => ownerButton(id,"home","Home",ButtonStyle.Primary).setEmoji("🏠");
 const row = (...components) => new ActionRowBuilder().addComponents(...components);
 const ownerSelect = (id, action, placeholder, entries) => row(new StringSelectMenuBuilder()
   .setCustomId(`ga:${id}:${action}`).setPlaceholder(placeholder).addOptions(entries.slice(0,25)));
@@ -17,14 +18,16 @@ export function cardImage(card) {
 }
 
 export function cardEmbed(card, owned = null, title = "CARD ACQUIRED") {
+  const level = owned?.level || 1;
+  const scale = 1 + (level - 1) * .13;
   const detail = [
     `**${card.name}**`,
-    `${FACTIONS[card.faction]?.name || "Unknown"}  |  ${card.role}`,
-    `**${card.rarity}**  |  ${ABILITIES[card.ability] || "No ability"}${owned ? ` · Ability Lv ${owned.abilityLevel||1}/5` : ""}`,
+    `${card.rarity}  ·  ${FACTIONS[card.faction]?.short || "Unknown"}  ·  ${card.role}`,
     "",
-    `Attack **${n(Math.round(card.attack * (1 + ((owned?.level || 1) - 1)*.13)))}**   Defence **${n(Math.round(card.defense * (1 + ((owned?.level || 1) - 1)*.13)))}**`,
-    `Income **${n(Math.round(card.income * (1 + ((owned?.level || 1)-1)*.13)))} Credits/hr**`,
-    ...(owned ? [`Level **${owned.level}**   ID: \`${owned.uid}\``] : [])
+    `**Attack:** ${n(Math.round(card.attack * scale))}     **Defence:** ${n(Math.round(card.defense * scale))}`,
+    `**Income:** ${n(Math.round(card.income * scale))} Credits/hr when assigned as a worker`,
+    `**Ability:** ${ABILITIES[card.ability] || "None"}`,
+    ...(owned ? ["",`**Level ${level}**${owned.uid ? `  ·  ID: \`${owned.uid}\`` : ""}`] : [])
   ];
   const embed = new EmbedBuilder().setColor(RARITIES[card.rarity]?.color || BLUE).setTitle(title).setDescription(detail.join("\n"));
   const image = cardImage(card);
@@ -46,14 +49,13 @@ export function homeScreen(p, now = Date.now(), note = "", displayName = "Comman
       note || null,
       `**${faction?.name}**`,
       `**Level ${playerLevel(p.xp)}** | ${rankFromLevel(playerLevel(p.xp))}`,
-      `**Credits:** ${n(p.credits)}     **Cards:** ${n(p.cards.length)}`,
-      `**Income:** ${n(hourlyIncome(p))}/hr     **Base:** Level ${p.baseLevel}`,
+      `**Credits:** ${n(p.credits)}   ·   **Cards:** ${n(p.cards.length)}`,
+      `**Income:** +${n(hourlyIncome(p))}/hr (automatic)   ·   **Base:** Lv ${p.baseLevel}`,
       "",
-      "*Roll a card to grow your collection, then equip it in My Cards.*"
+      "*Roll cards → put them in your squad or base → earn more Credits.*"
     ].filter(Boolean).join("\n"));
   if (avatarUrl) embed.setThumbnail(avatarUrl);
   const more = [
-    { label: "Crates & Shop", value:"shop", description:"Buy packs of cards" },
     { label: "Missions & Events", value:"missions", description:"Send your squad on operations" },
     { label: "Weekly Community Boss", value:"boss", description:"Fight together for special rewards" },
     { label: "Leaderboards", value:"leaderboard", description:"Compete for weekly rewards" },
@@ -61,7 +63,7 @@ export function homeScreen(p, now = Date.now(), note = "", displayName = "Comman
   ];
   return { embeds:[embed], components:[
     row(ownerButton(p.id,"roll","Roll Card",ButtonStyle.Success),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary),ownerButton(p.id,"base","My Base",ButtonStyle.Primary)),
-    row(ownerButton(p.id,"daily","Daily Pack",ButtonStyle.Success),ownerButton(p.id,"income","Claim Income"),ownerButton(p.id,"quests","Quests")),
+    row(ownerButton(p.id,"daily","Daily Pack",ButtonStyle.Success),ownerButton(p.id,"quests","Quests",ButtonStyle.Primary),ownerButton(p.id,"shop","Shop",ButtonStyle.Primary)),
     ownerSelect(p.id,"navigate","More activities",more)
   ] };
 }
@@ -69,102 +71,166 @@ export function homeScreen(p, now = Date.now(), note = "", displayName = "Comman
 export function baseScreen(p, note = "") {
   const stats = combatStats(p);
   const cost = p.baseLevel * 1500, scrap = p.baseLevel * 4;
-  const embed = new EmbedBuilder().setColor(BLUE).setTitle("YOUR OUTPOST")
+  const embed = new EmbedBuilder().setColor(BLUE).setTitle(`MY BASE  ·  LEVEL ${p.baseLevel}`)
     .setDescription([
       note || null,
-      `**Base level ${p.baseLevel}/30**  |  ${FACTIONS[p.faction]?.name}`,
-      `Combat squad **${p.combat.length}/${combatSlots(p)}**  |  Attack **${n(stats.attack)}**  Defence **${n(stats.defense)}**`,
-      `Production **${p.production.length}/${productionSlots(p)}**  |  **${n(hourlyIncome(p))} Credits/hr**`,
-      `Credits **${n(p.credits)}**  |  Scrap **${n(p.scrap)}**`,
-      "",
-      `**Upgrade base**  ·  ${n(cost)} Credits + ${scrap} Scrap`,
-      "Upgrades unlock slots, reinforce your defences and improve income. Each card can be assigned to combat or production, not both."
+      "Your cards can **fight**, **work**, or stay in **storage**. Manage them in My Cards."
     ].filter(Boolean).join("\n"));
+  embed.addFields(
+    {name:"Squad · Fights & raids",value:`${p.combat.length}/${combatSlots(p)} cards  ·  ${n(stats.attack)} attack  ·  ${n(stats.defense)} defence`,inline:false},
+    {name:"Workers · Earn Credits",value:`${p.production.length}/${productionSlots(p)} cards  ·  **+${n(hourlyIncome(p))}/hr automatically**`,inline:false},
+    {name:"Next base upgrade",value:p.baseLevel >= 30?"Your base is fully upgraded.":`${n(cost)} Credits + ${n(scrap)} Scrap · Unlocks stronger defences and more card slots`,inline:false}
+  ).setFooter({text:`Your balance: ${n(p.credits)} Credits  ·  ${n(p.scrap)} Scrap`});
   return { embeds:[embed], components:[
-    row(ownerButton(p.id,"upgradebase","Upgrade Base",ButtonStyle.Success),ownerButton(p.id,"upgrades","Research"),ownerButton(p.id,"income","Claim Income")),
-    row(ownerButton(p.id,"cards","Assign Cards"),ownerButton(p.id,"home","Home"))
+    row(ownerButton(p.id,"upgradebase","Upgrade Base",ButtonStyle.Success).setDisabled(p.baseLevel>=30),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary)),
+    row(ownerButton(p.id,"upgrades","Base Training"),homeButton(p.id))
   ] };
 }
 
 export function upgradesScreen(p, note = "") {
   const upgrades = [
-    ["luck","Luck","Improves high-rarity card chances"],
-    ["assault","Assault Training","Raises your squad attack"],
-    ["fortify","Defence Training","Raises your squad defence"],
-    ["logistics","Logistics","Improves passive production income"]
+    ["luck","Better Luck","Better chances of rare cards"],
+    ["assault","Squad Attack","Your fighters hit harder"],
+    ["fortify","Base Defence","Your fighters defend better"],
+    ["logistics","Worker Income","Your workers earn more Credits"]
   ];
   const desc = upgrades.map(([id,label,description]) => {
     const rank = p.upgrades[id], price = Math.round(700 * (rank+1)**1.45);
-    return `**${label}**  Lv ${rank}/10 · ${rank === 10 ? "MAX" : n(price) + " Credits"}\n${description}`;
+    return `**${label} · Level ${rank}/10**\n${description}  ·  ${rank === 10 ? "Max level" : n(price) + " Credits to upgrade"}`;
   }).join("\n\n");
-  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("RESEARCH & UPGRADES").setDescription((note?note+"\n\n":"")+desc)],components:[
-    ownerSelect(p.id,"research","Choose research",upgrades.map(([value,label])=>({value,label}))),
-    row(ownerButton(p.id,"base","Back to Base"),ownerButton(p.id,"home","Home"))
+  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("BASE TRAINING").setDescription((note?note+"\n\n":"")+"Choose one upgrade below. Each has a permanent bonus.\n\n"+desc)],components:[
+    ownerSelect(p.id,"research","Choose a training upgrade",upgrades.map(([value,label])=>({value,label}))),
+    row(ownerButton(p.id,"base","My Base",ButtonStyle.Primary),homeButton(p.id))
   ] };
 }
 
 export function collectionScreen(p, page = 0, note = "") {
-  const perPage = 10, pages = Math.max(1, Math.ceil(p.cards.length/perPage));
+  const perPage = 7, pages = Math.max(1, Math.ceil(p.cards.length/perPage));
   const current = Math.max(0, Math.min(pages-1, Number(page)||0));
   const list = [...p.cards].sort((a,b) => b.acquiredAt - a.acquiredAt).slice(current*perPage,(current+1)*perPage);
   const text = list.map((owned,i) => {
     const c = getCard(owned.cardId);
-    const assignment = p.combat.includes(owned.uid) ? "Squad" : p.production.includes(owned.uid) ? "Income" : "Reserve";
-    return `**${current*perPage + i + 1}.** ${clean(c?.name)}  ·  ${c?.rarity}  ·  Lv ${owned.level}  ·  ${assignment}\nID \`${owned.uid}\``;
-  }).join("\n") || "No cards yet. Use /roll or claim your starter pack.";
-  const options = list.map(owned => ({label:getCard(owned.cardId)?.name.slice(0,100)||"Unknown",description:`${owned.level} · ${getCard(owned.cardId)?.rarity} · ${owned.uid}`,value:owned.uid}));
-  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle(`YOUR CARDS  ${current+1}/${pages}`).setDescription((note?note+"\n\n":"")+text).setFooter({text:`${p.cards.length} owned  |  Select a card to assign, inspect, upgrade or fuse`})],components:[
-    ...(options.length ? [ownerSelect(p.id,"inspect","Inspect a card",options)] : []),
-    row(ownerButton(p.id,`page:${Math.max(0,current-1)}`,"Previous"),ownerButton(p.id,`page:${Math.min(pages-1,current+1)}`,"Next"),ownerButton(p.id,"home","Home"))
+    const assignment = p.combat.includes(owned.uid) ? "Fighting" : p.production.includes(owned.uid) ? "Working" : "Stored";
+    return `**${current*perPage + i + 1}. ${clean(c?.name || "Unknown card")}**\n${c?.rarity || "Unknown"} · Level ${owned.level} · ${assignment}`;
+  }).join("\n\n") || "No cards yet. Roll your first card to start collecting.";
+  const options = list.map(owned => ({label:(getCard(owned.cardId)?.name || "Unknown").slice(0,100),description:`Lv ${owned.level} · ${getCard(owned.cardId)?.rarity || "Unknown"} · ${owned.uid}`,value:owned.uid}));
+  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle(`MY CARDS  ·  ${p.cards.length} OWNED`).setDescription((note?note+"\n\n":"")+"Select any card below to manage it.\n\n"+text).setFooter({text:`Page ${current+1} of ${pages}  ·  Fighting, Working or Stored`})],components:[
+    ...(options.length ? [ownerSelect(p.id,"inspect","Choose a card to manage",options)] : []),
+    row(...(pages>1?[ownerButton(p.id,`page:${current-1}`,"Previous").setDisabled(current===0),ownerButton(p.id,`page:${current+1}`,"Next").setDisabled(current===pages-1)]:[]),ownerButton(p.id,"base","My Base",ButtonStyle.Primary),homeButton(p.id))
   ] };
 }
 
 export function inspectScreen(p, uid, note = "") {
   const owned = p.cards.find(c => c.uid === uid), card = owned && getCard(owned.cardId);
   if (!card) return collectionScreen(p,0,"Card no longer exists.");
-  const assignment = p.combat.includes(uid) ? "Combat" : p.production.includes(uid) ? "Production" : "Reserve";
-  const embed = cardEmbed(card,owned,`CARD DETAILS  ·  ${assignment}`);
-  if (note) embed.addFields({name:"Result",value:note.slice(0,1000)});
+  const assignment = p.combat.includes(uid) ? "Fighting" : p.production.includes(uid) ? "Working" : "Stored";
+  const copies = p.cards.filter(c=>c.cardId===owned.cardId).length;
+  const embed = cardEmbed(card,owned,"MANAGE CARD");
+  embed.addFields({name:"In your collection",value:`${copies} ${copies===1?"copy":"copies"}  ·  Currently: **${assignment}**`});
+  const cost=Math.round(260*owned.level*RARITIES[card.rarity].multiplier), scrap=Math.max(1,Math.ceil(owned.level/2));
+  embed.addFields({name:"Next level",value:owned.level>=20?"Maximum level reached":`${n(cost)} Credits + ${scrap} Scrap`});
+  if (note) embed.addFields({name:"Updated",value:note.slice(0,1000)});
   return { embeds:[embed],components:[
-    row(ownerButton(p.id,`set:${uid}:combat`,"Combat",ButtonStyle.Primary),ownerButton(p.id,`set:${uid}:production`,"Production",ButtonStyle.Success),ownerButton(p.id,`set:${uid}:reserve`,"Reserve")),
-    row(ownerButton(p.id,`upgrade:${uid}`,"Upgrade"),ownerButton(p.id,`ability:${uid}`,"Train Ability"),ownerButton(p.id,`fuse:${uid}`,"Fuse Duplicate"),ownerButton(p.id,"cards","Collection"))
+    ownerSelect(p.id,`assign:${uid}`,"Move card to...",[
+      {label:"Fighting Squad",value:"combat",description:"This card helps you battle and raid"},
+      {label:"Income Workers",value:"production",description:"This card earns Credits automatically"},
+      {label:"Storage",value:"reserve",description:"Keep card without using a slot"}
+    ]),
+    row(ownerButton(p.id,`upgrade:${uid}`,"Upgrade Card",ButtonStyle.Success).setDisabled(owned.level>=20),ownerButton(p.id,`cardoptions:${uid}`,"More Options")),
+    row(ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary),homeButton(p.id))
   ] };
+}
+
+export function cardOptionsScreen(p, uid, note = "") {
+  const owned=p.cards.find(c=>c.uid===uid), card=owned && getCard(owned.cardId);
+  if (!card) return collectionScreen(p,0,"Card no longer exists.");
+  const duplicate=p.cards.find(c=>c.uid!==uid && c.cardId===owned.cardId && !p.combat.includes(c.uid) && !p.production.includes(c.uid));
+  const rarity=RARITIES[card.rarity].multiplier;
+  const abilityCost=Math.round(800*(owned.abilityLevel||1)*rarity);
+  return {embeds:[new EmbedBuilder().setColor(BLUE).setTitle("CARD OPTIONS").setDescription([
+    note||null,`**${card.name} · Level ${owned.level}**`,"",
+    `**Train ability:** ${owned.abilityLevel>=5?"Max level":`${n(abilityCost)} Credits + ${(owned.abilityLevel||1)*4} Scrap`}`,
+    "Improves this card's special bonus.",
+    "",
+    `**Fuse duplicate:** ${duplicate?"Available":"Requires a second stored copy"}`,
+    "Use a duplicate to gain two card levels.",
+    "",
+    "**Recycle:** Permanently removes this card for Scrap."
+  ].filter(Boolean).join("\n"))],components:[
+    row(ownerButton(p.id,`ability:${uid}`,"Train Ability",ButtonStyle.Success),ownerButton(p.id,`fuse:${uid}`,"Fuse Copy").setDisabled(!duplicate),ownerButton(p.id,`discard:${uid}`,"Recycle",ButtonStyle.Danger)),
+    row(ownerButton(p.id,`inspect:${uid}`,"Back to Card",ButtonStyle.Primary),homeButton(p.id))
+  ]};
+}
+
+export function recycleConfirmScreen(p, uid) {
+  const owned=p.cards.find(c=>c.uid===uid), card=owned && getCard(owned.cardId);
+  if (!card) return collectionScreen(p,0,"Card no longer exists.");
+  return {embeds:[new EmbedBuilder().setColor(0xdb5454).setTitle("RECYCLE THIS CARD?").setDescription([
+    `**${card.name}** · ${card.rarity}`,
+    "",
+    "This permanently removes your copy. You will receive Scrap in return.",
+    "Move it to Storage first if it is fighting or working."
+  ].join("\n"))],components:[row(ownerButton(p.id,`confirmdiscard:${uid}`,"Yes, Recycle",ButtonStyle.Danger),ownerButton(p.id,`inspect:${uid}`,"Cancel",ButtonStyle.Primary),homeButton(p.id))]};
 }
 
 export function rollScreen(p, found, cost = 300) {
   const card = found[0];
-  const embed = cardEmbed(card,{level:1,uid:card.uid},found.length === 1 ? "NEW CARD ACQUIRED" : `${found.length} CARDS ACQUIRED`);
+  const embed = cardEmbed(card,{level:1,uid:card.uid},found.length === 1 ? "NEW CARD!" : `${found.length} NEW CARDS!`);
   if (found.length > 1) embed.addFields({name:"Pack contents",value:found.map(c=>`${c.rarity} · **${clean(c.name)}** · \`${c.uid}\``).join("\n").slice(0,1024)});
-  embed.setFooter({text:`${n(cost)} Credits spent  |  Balance: ${n(p.credits)} Credits  |  Cards are saved immediately`});
-  return { embeds:[embed],components:[row(ownerButton(p.id,"reroll","Re-roll (300)",ButtonStyle.Success),ownerButton(p.id,`inspect:${card.uid}`,"View Card"),ownerButton(p.id,"home","Home"))] };
+  embed.setFooter({text:`${cost?`${n(cost)} Credits spent`:"Free reward"}  ·  ${n(p.credits)} Credits left  ·  Saved to My Cards`});
+  return { embeds:[embed],components:[row(ownerButton(p.id,"reroll","Roll Again · 300",ButtonStyle.Success).setDisabled(p.credits<300),ownerButton(p.id,found.length===1?`inspect:${card.uid}`:"cards",found.length===1?"Manage Card":"My Cards",ButtonStyle.Primary),homeButton(p.id))] };
 }
 
 export function shopScreen(p,note = "") {
   const entries = Object.entries(CRATES).sort((a,b)=>a[1].price-b[1].price).map(([id,c])=>({
     label:`${c.name} — ${n(c.price)} Credits`,value:id,
-    description:(id === "elite" || id === "legendary") ? `${c.count} cards with better high-rarity odds` : `${c.count} cards${c.pool?` from ${FACTIONS[c.pool].short}`:" from any faction"}`
+    description:(id === "elite" || id === "legendary") ? `${c.count} cards · Improved rare card odds` : `${c.count} cards · ${c.pool?FACTIONS[c.pool].short:"All factions"}`
   }));
   const deal=dailyDeal();
-  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("CRATES & SHOP").setDescription([
+  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("CARD SHOP").setDescription([
     note || null,
-    `**Your Credits:** ${n(p.credits)}`,
+    `**You have ${n(p.credits)} Credits.**`,
     "",
-    "Choose a crate below to open **3 cards**. Prices are shown beside each name, cheapest first.",
+    "Each crate contains **3 random cards**. More expensive crates offer better chances of rare cards.",
     "",
-    `**Daily deal:** ${deal.crate.name} for ${n(deal.price)} Credits (30% off)${p.cooldowns.dailyDeal===deal.key?" — already purchased":""}`,
-    "A single card roll costs **300 Credits**."
-  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"buycrate","Choose a crate and see its price",entries),row(ownerButton(p.id,"deal","Daily Deal",ButtonStyle.Success),ownerButton(p.id,"roll","Roll Card (300)",ButtonStyle.Success),ownerButton(p.id,"upgrades","Research"),ownerButton(p.id,"home","Home"))] };
+    "**Choose a crate below** to see its price before buying.",
+    "",
+    `**Today's deal:** ${deal.crate.name} · ${n(deal.price)} Credits (30% off)${p.cooldowns.dailyDeal===deal.key?" · Sold out":""}`
+  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"previewcrate","Choose a crate (prices shown)",entries),row(ownerButton(p.id,"previewdeal","View Daily Deal",ButtonStyle.Success).setDisabled(p.cooldowns.dailyDeal===deal.key),ownerButton(p.id,"roll","Single Roll · 300",ButtonStyle.Success),homeButton(p.id))] };
+}
+
+export function cratePreviewScreen(p, crateId, isDeal = false) {
+  const deal = dailyDeal(), crate = isDeal ? deal.crate : CRATES[crateId];
+  if (!crate) return shopScreen(p,"That crate is unavailable.");
+  const price = isDeal ? deal.price : crate.price;
+  return {embeds:[new EmbedBuilder().setColor(BLUE).setTitle("OPEN CRATE?").setDescription([
+    `**${crate.name}**`,
+    "",
+    `**Cards inside:** ${crate.count} random cards`,
+    `**Price:** ${n(price)} Credits${isDeal?" (today's discount)":""}`,
+    `**Your balance:** ${n(p.credits)} Credits`,
+    "",
+    p.credits<price?`You need **${n(price-p.credits)} more Credits**. Complete missions to earn more.`:"Confirm to spend Credits and receive your cards immediately."
+  ].join("\n"))],components:[row(ownerButton(p.id,isDeal?"deal":`opencrate:${crateId}`,"Open Crate",ButtonStyle.Success).setDisabled(p.credits<price),ownerButton(p.id,"shop","Back to Shop",ButtonStyle.Primary),homeButton(p.id))]};
 }
 
 export function missionsScreen(p, now = Date.now(), note = "") {
   const event = currentEvent(now);
   const missions=[...MISSIONS,dailyContract(now)];
-  const text = missions.map(m => {const last = p.missions[m.id]||0;const left=m.cooldown-(now-last);
-    return `**${m.name}**  ·  ${left > 0 ? `Ready <t:${Math.floor((now+left)/1000)}:R>` : "Ready"}\n${n(m.credits[0])}–${n(m.credits[1])} Credits · ${m.xp} XP · ${m.scrap} Scrap`;}).join("\n\n");
+  const ready=missions.filter(m=>now-(p.missions[m.id]||0)>=m.cooldown).length;
+  const options=missions.map(m=>{const left=m.cooldown-(now-(p.missions[m.id]||0));return {
+    label:m.name,value:m.id,description:`${left>0?"On cooldown":"Ready"} · ${n(m.credits[0])}–${n(m.credits[1])} Credits · ${m.xp} XP`
+  };});
   return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("MISSIONS & LIVE EVENTS").setDescription([
-    note||null,event.active ? `**LIVE:** ${event.name} · 1.5x mission rewards` : "Dynamic event rotates every 4 hours (active for 1 hour).",
-    isDoubleXp(now)?"**2x XP weekend active**":null,"",text
-  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"mission","Deploy your squad",missions.map(m=>({label:m.name,value:m.id,description:`${m.xp} XP · ${m.scrap} Scrap`}))),row(ownerButton(p.id,"event","Join Live Event",ButtonStyle.Success),ownerButton(p.id,"boss","Weekly Boss"),ownerButton(p.id,"salvage","Collect Scrap"),ownerButton(p.id,"home","Home"))] };
+    note||null,
+    "Send your **Fighting Squad** on a mission to earn Credits, XP and Scrap.",
+    "",
+    `**Available missions:** ${ready}/${missions.length}`,
+    event.active ? `**Live now:** ${event.name} · 1.5x rewards` : "**Live event:** Next operation starts soon.",
+    isDoubleXp(now)?"**Weekend bonus:** 2x XP":null,
+    "",
+    "Choose a mission below to send your squad."
+  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"mission","Choose your mission",options),row(ownerButton(p.id,"event","Join Live Event",ButtonStyle.Success).setDisabled(!event.active),ownerButton(p.id,"salvage","Collect Scrap"),ownerButton(p.id,"boss","Weekly Boss")),row(homeButton(p.id))] };
 }
 
 export function bossScreen(p, boss, note="") {
@@ -175,44 +241,46 @@ export function bossScreen(p, boss, note="") {
     .setDescription([
       note||null,
       boss.defeated ? "**Boss defeated!** A new one appears next Monday." : `**Health: ${n(boss.hp)}/${n(boss.maxHp)}**  ·  ${progress}%`,
-      "Fight together using your equipped squad. Each player can attack every 30 minutes.",
-      "The top three contributors receive automatic special cards and Credits when the boss falls. All other contributors also receive rewards.",
+      "Fight with your squad every 30 minutes to earn rewards.",
+      "Top three damage dealers win bonus cards and Credits when the boss falls.",
       "",
       "**Top contributors**",
       ...leaders.map(([id,damage],i)=>`${i+1}. <@${id}>  ${n(damage)} damage`),
       leaders.length?null:"No attacks yet."
     ].filter(Boolean).join("\n"));
-  return {embeds:[embed],components:[row(ownerButton(p.id,"attackboss","Attack Boss",ButtonStyle.Danger),ownerButton(p.id,"missions","Missions"),ownerButton(p.id,"home","Home"))]};
+  return {embeds:[embed],components:[row(ownerButton(p.id,"attackboss","Attack Boss",ButtonStyle.Danger).setDisabled(boss.defeated),ownerButton(p.id,"missions","Missions",ButtonStyle.Primary),homeButton(p.id))]};
 }
 
 export function questsScreen(p, period = "daily", now = Date.now(), note = "") {
   const all = activeQuests(p,period,now);
-  const desc = all.map(q => `**${q.label}**  ${Math.min(q.progress,q.target)}/${q.target}${q.claimed?"  ·  Claimed":q.progress>=q.target?"  ·  READY":""}\n${n(q.credits)} Credits · ${n(q.xp)} XP`).join("\n\n");
-  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle(`${period.toUpperCase()} QUESTS`).setDescription((note?note+"\n\n":"")+desc)],components:[
-    ownerSelect(p.id,`claimquest:${period}`,"Claim a completed quest",all.map(q=>({label:q.label,value:q.id,description:`${Math.min(q.progress,q.target)}/${q.target}${q.claimed?" · Claimed":""}`}))),
-    row(ownerButton(p.id,"quests:daily","Daily"),ownerButton(p.id,"quests:weekly","Weekly"),ownerButton(p.id,"quests:monthly","Monthly"),ownerButton(p.id,"home","Home"))
+  const desc = all.map(q => `**${q.label}** · ${Math.min(q.progress,q.target)}/${q.target} ${q.claimed?"(Claimed)":q.progress>=q.target?"(Ready to claim)":""}\n${n(q.credits)} Credits + ${n(q.xp)} XP`).join("\n\n");
+  const claimable=all.filter(q=>!q.claimed && q.progress>=q.target);
+  const claimMenu=claimable.length ? [ownerSelect(p.id,`claimquest:${period}`,`Claim ${claimable.length} ready quests`,claimable.map(q=>({
+    label:q.label, value:q.id, description:`${n(q.credits)} Credits + ${n(q.xp)} XP`
+  })))] : [];
+  return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle(`${period.toUpperCase()} QUESTS`).setDescription((note?note+"\n\n":"")+"Complete tasks, then claim your rewards.\n\n"+desc)],components:[
+    ...claimMenu,
+    row(ownerButton(p.id,"quests:daily","Daily",period==="daily"?ButtonStyle.Success:ButtonStyle.Secondary),ownerButton(p.id,"quests:weekly","Weekly",period==="weekly"?ButtonStyle.Success:ButtonStyle.Secondary),ownerButton(p.id,"quests:monthly","Monthly",period==="monthly"?ButtonStyle.Success:ButtonStyle.Secondary),homeButton(p.id))
   ] };
 }
 
 export function leaderboardScreen(rows, title = "WEEKLY COMMAND RANKINGS", userId = null) {
-  const embed = new EmbedBuilder().setColor(BLUE).setTitle(title).setDescription(rows.length ? rows.map((p,i)=>`**${i+1}.** <@${p.id}> · **${n(p.weekScore)} CP** · ${getLeague(p.weekScore)}${i<3?" · Prize rank":""}`).join("\n") : "No active players yet.")
+  const embed = new EmbedBuilder().setColor(BLUE).setTitle(title).setDescription(rows.length ? rows.map((p,i)=>`**${i+1}.** <@${p.id}> · **${n(p.weekScore)} points** · ${getLeague(p.weekScore)}`).join("\n") : "No active players yet.")
     .setFooter({text:"Weekly scores reset every Monday (UTC). Cards, bases and Credits remain. Top 3 receive automatic in-game rewards."});
-  return { embeds:[embed],components:userId?[row(ownerButton(userId,"home","Back to Game"))]:[] };
+  return { embeds:[embed],components:userId?[row(homeButton(userId))]:[] };
 }
 
 export function helpScreen(p) {
   return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("HOW TO PLAY")
     .setDescription([
-      "**1. Build your squad.** Your first 5 cards are free. Use My Cards to set combat and production units.",
-      "**2. Collect more.** /roll costs 300 Credits. Daily packs, crates and channel drops offer more cards.",
-      "**3. Grow your base.** Production cards earn Credits each hour. Claim them before the 12h cap.",
-      "**4. Fight.** Use /raid @player to attack a base, /duel @player to challenge, or complete missions.",
-      "**5. Compete weekly.** Earn Command Points from active play. Weekly winners automatically receive Credits and cards.",
+      "**1. Roll cards.** One card costs 300 Credits. Your starter squad is free.",
+      "**2. Use your cards.** Put fighters in your Squad or workers in your Base from My Cards.",
+      "**3. Earn automatically.** Workers generate Credits while you're away (up to 12 hours offline).",
+      "**4. Play more.** Use Daily Pack, Quests and Missions for extra rewards.",
+      "**5. Compete.** Battle, raid and climb the weekly leaderboard to win prizes.",
       "",
-      "**More:** /cards, /guild, /trade, /quiz (training). Quests refresh daily, weekly and monthly. A weekend 2x XP bonus and rotating events keep the world alive.",
-      "",
-      "Cards and base progress never reset weekly. Weekly Command Points do. Real-world prize fulfilment remains with server ownership."
-    ].join("\n"))],components:[row(ownerButton(p.id,"home","Back to Game"))] };
+      "*Your cards, Credits and base stay yours. Only the weekly leaderboard resets.*"
+    ].join("\n"))],components:[row(homeButton(p.id))] };
 }
 
 export function statsLine(p) { return `Level ${playerLevel(p.xp)} · ${rankFromLevel(playerLevel(p.xp))} · ${n(p.credits)} Credits · ${n(p.weekScore)} CP`; }

@@ -1793,7 +1793,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const errorId = randomUUID().slice(0, 8);
     console.error(`[TARC GAME] Interaction failed [${errorId}] action=${action} user=${interaction.user?.id || "unknown"}:`, err);
     const payload = {
-      content: `⚠️ **${action || "Game"}** couldn't finish that action. Nothing has been taken from your profile. Error ID: \`${errorId}\``,
+      content: `This action didn't display correctly. Open /game to check your current cards and Credits, then try again. Error ID: \`${errorId}\``,
       ephemeral: true
     };
     try {

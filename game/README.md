@@ -5,23 +5,23 @@ This update replaces the old `/game` quiz hub with **Galactic Command**, a persi
 ## First-time experience
 
 1. `/game` → choose **Republic**, **CIS** or **Independent**. Each player is an independent commander and receives 5 starter cards, a combat squad and working production units. They can collect cards from *any* faction later.
-2. Press **Roll Card** (300 Credits) or `/roll`, open crates under **Crates & Shop**, or claim the **Daily Pack**. There are 357 catalogued units with six rarity tiers. Card images use real Star Wars movie, series or game imagery, with representative unit photos for the custom TARC roles.
-3. Open **My Cards** to equip cards to your squad or assign them to production. Unassigned cards stay in reserve for trading, fusing or later use.
-4. **Claim Income**, run **Missions**, fight the weekly boss, upgrade your base and research, raid other outposts and trade with consenting players.
+2. Press **Roll Card** (300 Credits) or `/roll`, open crates under **Shop**, or claim the **Daily Pack**. There are 357 catalogued units with six rarity tiers. Card images use real Star Wars movie, series or game imagery, with representative unit photos for the custom TARC roles.
+3. Open **My Cards** and select a card to place it in your Fighting Squad, as an Income Worker, or in Storage. More Options lets you fuse, train an ability or confirm recycling a stored card for Scrap.
+4. Credits from workers accrue automatically on the next game interaction (up to 12 hours offline); there is **no Claim Income button**. Run **Missions**, fight the weekly boss, upgrade your base and its training, raid other outposts and trade with consenting players.
 5. Complete daily/weekly/monthly quests and compete for the weekly Command Points ranking. See `/rankings`.
 
-`/game` shows just the three primary actions (Base, Cards, Roll), daily actions and a dropdown for everything else. Extended gameplay is through `/roll`, `/cards`, `/catalog`, `/raid @player`, `/boss`, `/duel @player [ranked]`, `/trade`, `/rankings` and `/guild`.
+`/game` opens with exactly six actions, in this order: Roll Card, My Cards, My Base, Daily Pack, Quests, Shop. The small **More activities** menu holds Missions & Events, Weekly Boss, Leaderboards and How to Play. Every deeper screen offers Home. Extended gameplay is available through `/roll`, `/cards`, `/catalog`, `/raid @player`, `/boss`, `/duel @player [ranked]`, `/trade`, `/rankings` and `/guild`.
 
 `/quiz` and `/quizleaderboard` remain as **optional** trivia games. Quiz correctness contributes small daily-capped Galactic Command rewards; the quiz is no longer the main progression loop.
 
 ## Economy and competitive rules
 
-- Every roll draws a card; it is *not* a claim-or-lose roll. Credits are deducted first. Crates contain 3 cards with different rarity weights; the daily shop has a discount, and the first daily login grants a free pack.
+- Every roll draws a card; it is *not* a claim-or-lose roll. Credits are deducted first. Crates contain 3 cards with different rarity weights; the shop now shows prices and offers a purchase confirmation before spending. The daily shop has a discount and the daily reward grants a free pack.
 - Rarities: Common (grey), Uncommon (green), Rare (blue), Epic (purple), Legendary (gold) and Mythical (pink/cyan).
 - Card attacks, defences, passive income and abilities scale with upgrades. Outposts can be raised to level 30, and Luck/Assault/Fortify/Logistics research to level 10.
 - Raids have a one-hour attacker cooldown, six-hour target cooldown and 24-hour protection for new players. Defenders never lose cards or Credits for being attacked. Duel invitations and trades require the recipient to accept; ranked rematches are limited per pair per day.
 - Dynamic events rotate every four hours, active for one hour. Saturdays and Sundays UTC award double XP. There is a fresh co-operative boss each Monday.
-- Daily, weekly and monthly quests rotate and give Credits, XP, Scrap and Command Points. Passively produced income is claimable for up to 12 hours accumulated time.
+- Daily, weekly and monthly quests rotate and give Credits, XP, Scrap and Command Points. Passively produced income is credited automatically on profile access, with a 12-hour offline accrual limit.
 - Automatically announced random card drops run roughly every 40–85 minutes in the configured channel. People enter with a button; up to three randomized winners receive the card.
 - Weekly leaderboard resets are Monday 00:00 UTC. Top three players with at least 25 CP automatically receive in-game Credits, XP and 1–3 elite card draws. The previous week's results appear in the configured drops channel. **Nitro, Robux or other physical/external prizes are NOT automatically purchased or delivered; ownership distributes them and records fulfilment manually.**
 - Repetitive ranked opponents, daily quiz farming and same-target raid repeats have safeguards; these are not a substitute for moderator judgement when valuable external prizes are at stake.
