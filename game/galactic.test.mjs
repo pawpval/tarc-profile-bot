@@ -46,6 +46,8 @@ test("specific unit portraits are not replaced with their commander's portrait",
   assert.notEqual(picture("Coruscant Guard Shock Trooper"),picture("Commander Fox"));
   assert.notEqual(picture("Clone Trooper Kix"),picture("Clone Trooper Tup"));
   assert.notEqual(picture("Commander Fox"),picture("Commander Thorn"));
+  assert.equal(new Set(["Delta Boss","Delta Fixer","Delta Scorch","Delta Sev"].map(picture)).size,4,
+    "Each member of Delta Squad should display their own character portrait");
 });
 
 test("organizations use real roles and named characters are actually rollable",()=>{
