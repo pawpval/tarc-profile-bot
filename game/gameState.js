@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { awardQuizTraining } from "./galacticState.js";
 
-const DATA_DIR = String(process.env.TARC_DATA_DIR || "./data");
-const FILE = path.join(DATA_DIR, "tarc-game-state.json");
+const DATA_DIR = String(process.env.TARC_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "./data");
+// Quiz progression starts fresh with Galactic Command V2. The V1 file is retained as a backup.
+const FILE = path.join(DATA_DIR, "tarc-quiz-v2.json");
 
 const DEFAULT_PROFILE = {
   version: 1,
@@ -157,7 +159,7 @@ export async function recordQuizAnswer(userId, { correct, category, difficulty, 
 }
 
 export async function completeQuiz(userId, { score, total, ranked = false, won = null, eloDelta = 0, mode = "Classic" }) {
-  return mutatePlayer(userId, p => {
+  const result = await mutatePlayer(userId, p => {
     p.quizzesCompleted += 1;
     if (ranked) {
       p.elo = Math.max(100, Math.round(p.elo + eloDelta));
@@ -167,6 +169,9 @@ export async function completeQuiz(userId, { score, total, ranked = false, won =
     p.history.unshift({ at: Date.now(), mode, score, total, ranked, eloDelta });
     p.history = p.history.slice(0, 25);
   });
+  try { await awardQuizTraining(userId, Math.max(0,Number(score)||0)); }
+  catch (err) { console.error("[GALACTIC QUIZ REWARD]",err); }
+  return result;
 }
 
 export async function claimDaily(userId) {
