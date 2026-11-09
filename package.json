@@ -6,14 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test game/*.test.mjs",
-    "art": "node game/renderCardArt.mjs"
+    "test": "node --test game/*.test.mjs"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
     "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "@resvg/resvg-js": "^2.6.2"
   }
 }

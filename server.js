@@ -4,8 +4,8 @@ import { getChannelFormatCommands, handleChannelFormatInteraction } from "./chan
 import { getEventCommands, handleEventInteraction } from "./eventDM.js";
 import { getEmbedCommands, handleEmbedInteraction } from "./embedEditor.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
-import { getGameCommands, handleGameInteraction } from "./game/gameSystem.js";
-import { getGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
+import { handleGameInteraction } from "./game/gameSystem.js";
+import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -27,8 +27,6 @@ import {
 } from "discord.js";
 
 const app = express();
-// Art for cards is served from the same Railway domain as the bot.
-app.use("/game-art", express.static(join(process.cwd(), "game", "assets")));
 
 // ==================== ENV ====================
 const PORT = Number(process.env.PORT || 8080);
@@ -1486,9 +1484,7 @@ function getGlobalTeachCommand() {
 
 function getGlobalGameCommands() {
   return [
-    ...getGalacticCommands().filter(c=>c.name!=="gameadmin").map(c=>({
-      ...c, integration_types:[0,1], contexts:[0,1,2]
-    })),
+    ...getGlobalGalacticCommands(),
     makeEverywhereCommand(
       new SlashCommandBuilder()
         .setName("quiz")
@@ -1647,8 +1643,10 @@ function getSlashCommands() {
       .addStringOption(option => option.setName("confirmation").setDescription("Type CONFIRM to run the server-wide update").setRequired(true))
       .toJSON(),
 
-    ...getGameCommands().filter(c=>!["game","gameadmin"].includes(c.name)),
-    ...getGalacticCommands(),
+    // Player game/quiz commands are registered globally above. Registering the
+    // same names in a guild creates two entries in Discord's slash picker.
+    // Keep only the main-server ownership control as a guild command.
+    ...getGuildGalacticCommands(),
 
     new SlashCommandBuilder()
       .setName("help")
@@ -1666,7 +1664,7 @@ function humanizeCommandDescription(command) {
 }
 
 function getHelpCommandLines() {
-  const allCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), ...getSlashCommands()];
+  const allCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), ...getGlobalGameCommands(), ...getSlashCommands()];
   const seen = new Set();
   const lines = [];
 

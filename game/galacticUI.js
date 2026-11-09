@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
 import { ABILITIES, CARD_CATALOG, CRATES, FACTIONS, MISSIONS, RARITIES, dailyContract, getCard, getLeague, rankFromLevel } from "./galacticCatalog.js";
 import { activeQuests, combatSlots, combatStats, currentEvent, dailyDeal, hourlyIncome, isDoubleXp, playerLevel, productionSlots } from "./galacticState.js";
+import { realStarWarsImage } from "./galacticImages.js";
 
 export const BLUE = 0x2b7fff;
 const n = value => Number(value || 0).toLocaleString("en-GB");
@@ -12,11 +13,7 @@ const ownerSelect = (id, action, placeholder, entries) => row(new StringSelectMe
 const clean = text => String(text || "").replace(/[@`]/g, "").slice(0,100);
 
 export function cardImage(card) {
-  if (card?.portrait) return `https://starwarsgallery.netlify.app/assets/people/${card.portrait}.jpg`;
-  const root = String(process.env.GALACTIC_ART_BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : ""))
-    .trim().replace(/\/$/, "");
-  if (!root || !/^https:\/\//i.test(root)) return null;
-  return `${root}/game-art/${encodeURIComponent(card?.imageKey || "clone")}.png`;
+  return realStarWarsImage(card);
 }
 
 export function cardEmbed(card, owned = null, title = "CARD ACQUIRED") {
@@ -42,35 +39,28 @@ export function factionScreen(userId) {
   return { embeds:[embed],components:[ownerSelect(userId,"faction","Choose your faction",options)] };
 }
 
-export function homeScreen(p, now = Date.now(), note = "") {
-  const faction = FACTIONS[p.faction], league = getLeague(p.weekScore);
-  const next = p.combat.length < combatSlots(p) ? "Equip your combat cards using My Cards." : p.production.length < productionSlots(p) ? "Assign cards to production in My Cards." : "Run a mission, collect your income or raid another outpost.";
-  const event = currentEvent(now);
-  const income = Math.floor(hourlyIncome(p) * Math.min(12*3600000, now-p.incomeAt) / 3600000);
-  const embed = new EmbedBuilder().setColor(faction?.color || BLUE).setTitle("GALACTIC COMMAND")
+export function homeScreen(p, now = Date.now(), note = "", displayName = "Commander", avatarUrl = null) {
+  const faction = FACTIONS[p.faction];
+  const embed = new EmbedBuilder().setColor(BLUE).setTitle(`${clean(displayName)}'s Galactic Command`)
     .setDescription([
       note || null,
-      `**${faction?.name}**  |  ${rankFromLevel(playerLevel(p.xp))} · Level ${playerLevel(p.xp)}`,
-      `Credits **${n(p.credits)}**   Scrap **${n(p.scrap)}**`,
-      `Cards **${p.cards.length}**   Base **Lv ${p.baseLevel}**   Income **${n(hourlyIncome(p))}/hr**`,
-      `Weekly **${league}**  |  **${n(p.weekScore)} Command Points**`,
-      `Ranked duels **${getLeague(Math.max(0,p.rankedRating-1000))}** · ${n(p.rankedRating)} rating`,
+      `**${faction?.name}**`,
+      `**Level ${playerLevel(p.xp)}** | ${rankFromLevel(playerLevel(p.xp))}`,
+      `**Credits:** ${n(p.credits)}     **Cards:** ${n(p.cards.length)}`,
+      `**Income:** ${n(hourlyIncome(p))}/hr     **Base:** Level ${p.baseLevel}`,
       "",
-      `**Next:** ${next}`,
-      `**Income ready:** ${n(income)} Credits (12h cap)`,
-      event.active ? `**Live event:** ${event.name} · 1.5x mission rewards` : "**Events:** A new operation rotates every 4 hours.",
-      isDoubleXp(now) ? "**2x XP weekend is active!**" : null
+      "*Roll a card to grow your collection, then equip it in My Cards.*"
     ].filter(Boolean).join("\n"));
+  if (avatarUrl) embed.setThumbnail(avatarUrl);
   const more = [
+    { label: "Crates & Shop", value:"shop", description:"Buy packs of cards" },
     { label: "Missions & Events", value:"missions", description:"Send your squad on operations" },
-    { label: "Weekly Community Boss", value:"boss", description:"Fight a boss together and win exclusive cards" },
-    { label: "Daily / Weekly / Monthly Quests", value:"quests", description:"Complete goals for rewards" },
-    { label: "Crates & Shop", value:"shop", description:"Roll cards and improve your outpost" },
-    { label: "Leaderboards", value:"leaderboard", description:"Weekly Command Point rankings" },
-    { label: "Guide", value:"help", description:"How to progress without the clutter" }
+    { label: "Weekly Community Boss", value:"boss", description:"Fight together for special rewards" },
+    { label: "Leaderboards", value:"leaderboard", description:"Compete for weekly rewards" },
+    { label: "How to Play", value:"help", description:"A quick guide to your next steps" }
   ];
   return { embeds:[embed], components:[
-    row(ownerButton(p.id,"base","My Base",ButtonStyle.Primary),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary),ownerButton(p.id,"roll","Roll Card",ButtonStyle.Success)),
+    row(ownerButton(p.id,"roll","Roll Card",ButtonStyle.Success),ownerButton(p.id,"cards","My Cards",ButtonStyle.Primary),ownerButton(p.id,"base","My Base",ButtonStyle.Primary)),
     row(ownerButton(p.id,"daily","Daily Pack",ButtonStyle.Success),ownerButton(p.id,"income","Claim Income"),ownerButton(p.id,"quests","Quests")),
     ownerSelect(p.id,"navigate","More activities",more)
   ] };
@@ -79,7 +69,7 @@ export function homeScreen(p, now = Date.now(), note = "") {
 export function baseScreen(p, note = "") {
   const stats = combatStats(p);
   const cost = p.baseLevel * 1500, scrap = p.baseLevel * 4;
-  const embed = new EmbedBuilder().setColor(FACTIONS[p.faction]?.color || BLUE).setTitle("YOUR OUTPOST")
+  const embed = new EmbedBuilder().setColor(BLUE).setTitle("YOUR OUTPOST")
     .setDescription([
       note || null,
       `**Base level ${p.baseLevel}/30**  |  ${FACTIONS[p.faction]?.name}`,
@@ -150,18 +140,20 @@ export function rollScreen(p, found, cost = 300) {
 }
 
 export function shopScreen(p,note = "") {
-  const entries = Object.entries(CRATES).map(([id,c])=>({label:c.name,value:id,description:`${n(c.price)} Credits · ${c.count} pulls`}));
+  const entries = Object.entries(CRATES).sort((a,b)=>a[1].price-b[1].price).map(([id,c])=>({
+    label:`${c.name} — ${n(c.price)} Credits`,value:id,
+    description:(id === "elite" || id === "legendary") ? `${c.count} cards with better high-rarity odds` : `${c.count} cards${c.pool?` from ${FACTIONS[c.pool].short}`:" from any faction"}`
+  }));
   const deal=dailyDeal();
   return { embeds:[new EmbedBuilder().setColor(BLUE).setTitle("CRATES & SHOP").setDescription([
-    note || null,`Balance: **${n(p.credits)} Credits**`,"",
-    `**Standard roll:** 300 Credits · 1 random card`,
-    `**Today's special:** ${deal.crate.name} · ${n(deal.price)} Credits (30% off)${p.cooldowns.dailyDeal===deal.key?" · Sold out":""}`,
-    "**Faction crates:** Specialise in Republic, CIS or Independent units.",
-    "**Elite and Legendary crates:** Better odds, higher prices.",
+    note || null,
+    `**Your Credits:** ${n(p.credits)}`,
     "",
-    ...Object.values(CRATES).map(c => `**${c.name}**  ·  ${n(c.price)} Credits / ${c.count} cards`),
-    "", "Open cards with /roll. Duplicate cards can be fused to improve a card."
-  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"buycrate","Purchase and open a crate",entries),row(ownerButton(p.id,"deal","Daily Deal",ButtonStyle.Success),ownerButton(p.id,"roll","Standard Roll"),ownerButton(p.id,"upgrades","Research"),ownerButton(p.id,"home","Home"))] };
+    "Choose a crate below to open **3 cards**. Prices are shown beside each name, cheapest first.",
+    "",
+    `**Daily deal:** ${deal.crate.name} for ${n(deal.price)} Credits (30% off)${p.cooldowns.dailyDeal===deal.key?" — already purchased":""}`,
+    "A single card roll costs **300 Credits**."
+  ].filter(Boolean).join("\n"))],components:[ownerSelect(p.id,"buycrate","Choose a crate and see its price",entries),row(ownerButton(p.id,"deal","Daily Deal",ButtonStyle.Success),ownerButton(p.id,"roll","Roll Card (300)",ButtonStyle.Success),ownerButton(p.id,"upgrades","Research"),ownerButton(p.id,"home","Home"))] };
 }
 
 export function missionsScreen(p, now = Date.now(), note = "") {

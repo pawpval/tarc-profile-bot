@@ -33,14 +33,17 @@ async function sendError(i,error) {
   if (i.replied) return i.followUp(payload);
   return i.reply(payload);
 }
-function gameEntry(p,note="") {return p.faction ? homeScreen(p,Date.now(),note) : factionScreen(p.id);}
+function displayName(i) { return i.member?.displayName || i.user.globalName || i.user.username || "Commander"; }
+function avatarURL(i) { return typeof i.user?.displayAvatarURL==="function" ? i.user.displayAvatarURL({size:128}) : null; }
+function gameEntry(p,note="",username="Commander",avatar=null) {return p.faction ? homeScreen(p,Date.now(),note,username,avatar) : factionScreen(p.id);}
 async function showHome(i, note = "", update = false) {
   const { profile } = await snapshot(i.user.id);
-  return present(i, gameEntry(profile,note),{update});
+  return present(i, gameEntry(profile,note,displayName(i),avatarURL(i)),{update});
 }
 
 export function getGalacticCommands() {
-  const crateOptions = Object.entries(CRATES).map(([value,c])=>({ name:c.name.slice(0,100),value }));
+  const crateOptions = Object.entries(CRATES).sort((a,b)=>a[1].price-b[1].price)
+    .map(([value,c])=>({name:`${c.name} — ${num(c.price)} Credits`.slice(0,100),value}));
   return [
     new SlashCommandBuilder().setName("game").setDescription("Build a Star Wars army, collect cards and run your own outpost"),
     new SlashCommandBuilder().setName("roll").setDescription("Roll for a Star Wars card or open a supply crate")
@@ -89,6 +92,16 @@ export function getGalacticCommands() {
       .addSubcommand(o=>o.setName("fulfill").setDescription("Mark an external prize as delivered to a winner")
         .addUserOption(q=>q.setName("player").setDescription("Winner").setRequired(true)))
   ].map(c=>c.toJSON());
+}
+
+// Register public gameplay once across Discord's global/User Install scope.
+// Only ownership controls belong in the guild command registration.
+export function getGlobalGalacticCommands() {
+  return getGalacticCommands().filter(c=>c.name!=="gameadmin")
+    .map(c=>({...c,integration_types:[0,1],contexts:[0,1,2]}));
+}
+export function getGuildGalacticCommands() {
+  return getGalacticCommands().filter(c=>c.name==="gameadmin");
 }
 
 function makeBattleEmbed(title, result, attackerId, defenderId, label="Raid") {
@@ -238,7 +251,7 @@ async function handleOwnerComponent(i) {
   }
   const {profile:p}=await snapshot(owner);
   if (!p.faction) return present(i,factionScreen(owner),{update:true});
-  if (action==="home") return present(i,homeScreen(p),{update:true});
+  if (action==="home") return present(i,homeScreen(p,Date.now(),"",displayName(i),avatarURL(i)),{update:true});
   if (action==="base") return present(i,baseScreen(p),{update:true});
   if (action==="cards") return present(i,collectionScreen(p),{update:true});
   if (action.startsWith("page:")) return present(i,collectionScreen(p,Number(action.split(":")[1])),{update:true});
@@ -282,7 +295,7 @@ async function handleOwnerComponent(i) {
   if (action==="income") {
     const result=await claimIncome(owner);
     if (!result.ok) return sendError(i,result.error);
-    return present(i,homeScreen((await snapshot(owner)).profile,Date.now(),`Collected **${num(result.credits)} Credits** from production.`),{update:true});
+    return present(i,homeScreen((await snapshot(owner)).profile,Date.now(),`Collected **${num(result.credits)} Credits** from production.`,displayName(i),avatarURL(i)),{update:true});
   }
   if (action==="upgradebase") {
     const result=await upgradeBase(owner);
