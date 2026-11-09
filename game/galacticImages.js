@@ -17,7 +17,7 @@ const IMAGES = Object.freeze({
   battalion104: "https://images.beastsofwar.com/2021/06/83338611-48014867-5f1ffb2dd4506Wolfpack.png-999-999.png",
   corps187: "https://media.moddb.com/images/mods/1/43/42611/cxz.png",
   corps552: "https://vignette3.wikia.nocookie.net/theclonewiki/images/a/a4/DoomUnit-Improved.jpg/revision/latest?cb=20141031221447",
-  fleet5: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/6e806796-e66b-43f6-b182-1a30326a657d/ddxrp6n-8de78489-ffb2-466b-a65e-b11ce3ab5b04.png",
+  fleet5: "https://media.moddb.com/images/mods/1/42/41197/20181210150503_1.jpg",
   marines: "https://media.moddb.com/images/downloads/1/271/270097/GalacticMarines.jpg",
   shock: "https://imgix.ranker.com/user_node_img/50127/1002527746/original/1002527746-photo-u3?auto=format&dpr=2&fit=crop&fm=pjpg&q=60&w=500",
   intelligence: "https://lumiere-a.akamaihd.net/v1/images/1-clone-armor-bio-1_copy_54d62ee1.jpeg?region=0%2C0%2C863%2C486",
