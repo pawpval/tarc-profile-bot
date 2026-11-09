@@ -51,11 +51,15 @@ test("home screen puts the roll loop first and removes unnecessary stats and dup
   for(const unwanted of ["Ranked duels","Command Points","Events:","Income ready:"])
     assert.ok(!content.includes(unwanted));
   assert.equal(screen.components[0].components[0].data.label,"Roll Card");
-  assert.deepEqual(screen.components.slice(0,2).flatMap(row=>row.components.map(b=>b.data.label)),
+  assert.deepEqual(screen.components[0].components.map(b=>b.data.label),
     ["Roll Card","My Cards","Missions","Shop"]);
+  assert.match(content,/Level [^\n]+\n\n\*\*Credits:/);
+  assert.match(content,/\*\*Credits:[^\n]+\n\n\*\*Cards:/);
+  assert.match(content,/\*\*Squad:[^\n]+\n\n\*\*Auto-income:/);
+  assert.match(screen.embeds[0].data.footer.text,/Roll cards/);
   assert.ok(!screen.components.flatMap(row=>row.components).some(c=>c.data.label==="Claim Income"));
-  assert.ok(!screen.components[2].components[0].toJSON().options.some(o=>o.value==="quests"));
-  assert.deepEqual(screen.components[2].components[0].toJSON().options.map(o=>o.value),["leaderboard","trade","help"]);
+  assert.ok(!screen.components[1].components[0].toJSON().options.some(o=>o.value==="quests"));
+  assert.deepEqual(screen.components[1].components[0].toJSON().options.map(o=>o.value),["leaderboard","trade","help"]);
 
   const shop=ui.shopScreen(profile);
   const prices=shop.components[0].components[0].toJSON().options.map(o=>Number(o.label.match(/[\d,]+(?= Credits)/)[0].replace(/,/g,"")));
