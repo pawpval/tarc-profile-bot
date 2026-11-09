@@ -10,6 +10,7 @@ const ROOT = process.env.TARC_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH 
 const FILE = path.join(ROOT, "tarc-galactic-v2.json");
 const HOUR = 3600000, DAY = 24 * HOUR;
 const STARTING_CREDITS = 1600;
+const DEFAULT_DROP_CHANNEL = "1556794160865091695";
 export const ROLL_PRICE = 300;
 const PRIZE_TABLE = [{ credits: 7500, packs: 3 }, { credits: 5000, packs: 2 }, { credits: 3000, packs: 1 }];
 const BOSS_NAMES = ["Separatist Command Dreadnought", "Mandalorian Warlord", "Rogue MagnaGuard General", "Droid Foundry Titan", "Coruscant Shadow Syndicate"];
@@ -32,17 +33,17 @@ export const profilePower = (p, type = "combat") => {
   return cards.reduce((sum, owned) => {
     const c = getCard(owned.cardId);
     if (!c) return sum;
-    const power = type === "production" ? c.income : c.attack + c.defense;
+    const power = type === "production" ? c.income * (c.ability==="economy" ? 1.2 : 1) : c.attack + c.defense;
     return sum + Math.round(power * (1 + (owned.level - 1) * 0.13));
   }, 0);
 };
 export function hourlyIncome(p) {
   const income = profilePower(p, "production");
   const logistic = 1 + number(p.upgrades.logistics) * 0.09;
-  return Math.round(income * logistic * (1 + (p.baseLevel - 1) * 0.045));
+  return Math.round(income * logistic);
 }
 export function combatStats(p, type = "attack") {
-  let attack = 0, defense = 0, tactics = 0, command = 0;
+  let attack = 0, defense = 0, hp = 0, tactics = 0, command = 0;
   for (const uid of p.combat) {
     const owned = p.cards.find(c => c.uid === uid), card = owned && getCard(owned.cardId);
     if (!card) continue;
@@ -56,12 +57,12 @@ export function combatStats(p, type = "attack") {
     if (card.ability === "tactics") tactics += 0.07 * abilityPower;
     if (card.ability === "command") command += 0.10 * abilityPower;
     attack += a; defense += d;
+    hp += (card.defense * 2 + card.attack * 0.55) * scale;
   }
   const aura = 1 + Math.min(0.30, tactics + command);
   attack *= aura * (1 + p.upgrades.assault * 0.055);
   defense *= aura * (1 + p.upgrades.fortify * 0.055);
-  if (type === "defense") defense *= 1 + (p.baseLevel - 1) * 0.08;
-  return { attack: Math.round(attack), defense: Math.round(defense) };
+  return { attack: Math.round(attack), defense: Math.round(defense), hp: Math.round(hp) };
 }
 
 function createPlayer(id, now = Date.now()) {
@@ -82,7 +83,7 @@ function newState(now = Date.now()) {
   return {
     version: 2, startedAt: now, week, players: {}, guilds: {}, trades: {}, boss:newBoss(week),
     lastWeekWinners: [], history: [], audit: [],
-    config: { dropChannelId: process.env.GALACTIC_DROP_CHANNEL_ID || "", nextDropAt: now + 45 * 60000, activeDrop: null, announcedEvent: "", announcedWeek: "" }
+    config: { dropChannelId: process.env.GALACTIC_DROP_CHANNEL_ID || DEFAULT_DROP_CHANNEL, dropChannelMigrated: true, nextDropAt: now + 3 * 60000, activeDrop: null, announcedEvent: "", announcedWeek: "" }
   };
 }
 function newBoss(week) {
@@ -98,6 +99,13 @@ async function readState() {
       state = data;
       state.boss ||= newBoss(state.week);
       state.config.announcedWeek ??= "";
+      // Apply the dedicated drop channel once; later /gameadmin drops changes
+      // must persist without being reverted by a restart.
+      if (!state.config.dropChannelMigrated) {
+        state.config.dropChannelId = process.env.GALACTIC_DROP_CHANNEL_ID || DEFAULT_DROP_CHANNEL;
+        state.config.nextDropAt = Date.now() + 3 * 60000;
+        state.config.dropChannelMigrated = true;
+      }
     } catch (error) {
       if (error.code !== "ENOENT") throw new Error(`Galactic Command could not load its save (not resetting): ${error.message}`);
       state = newState();
@@ -355,8 +363,9 @@ export async function claimIncome(userId) {
   });
 }
 
-export const combatSlots = p => Math.min(8, 3 + Math.floor(p.baseLevel / 3));
-export const productionSlots = p => Math.min(8, 2 + Math.floor(p.baseLevel / 2));
+// A fixed five-card deck keeps combat understandable without base upgrades.
+export const combatSlots = () => 5;
+export const productionSlots = () => 5;
 export async function assignCard(userId, uid, role) {
   return transact(({ player }) => {
     const p = player(userId);
@@ -364,8 +373,8 @@ export async function assignCard(userId, uid, role) {
     if (!["combat", "production", "reserve"].includes(role)) return { ok: false, error: "Invalid card assignment." };
     const remainingCombat = p.combat.filter(x => x !== uid);
     const remainingProduction = p.production.filter(x => x !== uid);
-    if (role === "combat" && remainingCombat.length >= combatSlots(p)) return { ok: false, error: "Squad is full. Upgrade your base or put a card in reserve." };
-    if (role === "production" && remainingProduction.length >= productionSlots(p)) return { ok: false, error: "Production is full. Upgrade your base or put a card in reserve." };
+    if (role === "combat" && remainingCombat.length >= combatSlots(p)) return { ok: false, error: "Your five-card deck is full. Move a fighter to Storage first." };
+    if (role === "production" && remainingProduction.length >= productionSlots(p)) return { ok: false, error: "Your five worker slots are full. Store another worker first." };
     // Income is settled by ensurePlayer before changing the production rate.
     p.incomeAt = Date.now(); p.combat = remainingCombat; p.production = remainingProduction;
     if (role === "combat") p.combat.push(uid);
@@ -475,9 +484,9 @@ export async function runMission(userId, missionId, { event = false } = {}) {
     const wait = event ? 30 * 60000 - (now - p.eventAt) : m.cooldown - (now - number(p.missions[m.id]));
     if (wait > 0) return { ok: false, error: `Available <t:${Math.floor((now + wait) / 1000)}:R>.` };
     const { attack, defense } = combatStats(p);
-    const chance = clamp(0.28 + (attack + defense * 0.35) / (m.difficulty * 3.5), 0.29, 0.93);
+    const chance = clamp(0.28 + (attack + defense * 0.35 + combatStats(p).hp * .12) / (m.difficulty * 3.5), 0.29, 0.93);
     const win = Math.random() < chance;
-    const extra = event ? 1.5 : 1;
+    const extra = event || eventInfo.active ? 1.5 : 1;
     const guildBonus = p.guild && s.guilds[p.guild]?.upgrades?.economy ? 1 + s.guilds[p.guild].upgrades.economy * 0.04 : 1;
     const credits = Math.round(randomInt(...m.credits) * (win ? 1 : 0.2) * extra * guildBonus);
     const xp = Math.round(m.xp * (win ? 1 : 0.4) * extra);
@@ -521,11 +530,14 @@ export async function awardQuizTraining(userId, correct = 0) {
 function battleAttack(attacker, defender, { isRaid = false } = {}) {
   const a = combatStats(attacker, "attack"), d = combatStats(defender, "defense");
   const base = isRaid ? 1 : 0.7;
-  const aScore = a.attack + a.defense * 0.22;
-  const dScore = d.defense + d.attack * base * 0.35;
-  const aRoll = aScore * (0.82 + Math.random() * 0.35);
-  const dRoll = dScore * (0.85 + Math.random() * 0.3);
-  return { win: aRoll >= dRoll, attackerPower: Math.round(aScore), defenderPower: Math.round(dScore), attackRoll: Math.round(aRoll), defenseRoll: Math.round(dRoll) };
+  const aScore = a.attack + a.defense * 0.22 + a.hp * .14;
+  const dScore = d.defense + d.attack * base * 0.35 + d.hp * .22;
+  // A strong deck should be favoured, but small underdogs can still pull off
+  // occasional wins; match outcomes should not be a pure stat comparison.
+  const aRoll = aScore * (0.72 + Math.random() * 0.66);
+  const dRoll = dScore * (0.76 + Math.random() * 0.58);
+  const upset = aScore < dScore * .72 && Math.random() < .025;
+  return { win: upset || aRoll >= dRoll, upset, attackerPower: Math.round(aScore), defenderPower: Math.round(dScore), attackRoll: Math.round(aRoll), defenseRoll: Math.round(dRoll) };
 }
 
 export async function raid(attackerId, defenderId) {
@@ -534,9 +546,9 @@ export async function raid(attackerId, defenderId) {
     if (!s.players[String(defenderId)]?.faction) return { ok: false, error: "That player needs to join Galactic Command first." };
     const p = player(attackerId), d = player(defenderId);
     if (!p.faction || p.combat.length === 0) return { ok: false, error: "Choose a faction and deploy a combat squad." };
-    if (now - d.createdAt < DAY) return { ok: false, error: "New outposts have 24 hours of raid protection." };
+    if (now - d.createdAt < DAY) return { ok: false, error: "New players have 24 hours of raid protection." };
     if (now - p.lastRaidAt < 60 * 60000) return { ok: false, error: `You can raid again <t:${Math.floor((p.lastRaidAt + 60 * 60000)/1000)}:R>.` };
-    if (now - number(p.raidTargets[defenderId]) < 6 * HOUR) return { ok: false, error: "You have already raided this outpost recently. Pick another target." };
+    if (now - number(p.raidTargets[defenderId]) < 6 * HOUR) return { ok: false, error: "You have battled this player's deck recently. Pick another opponent." };
     const result = battleAttack(p, d, { isRaid: true });
     p.lastRaidAt = now; p.raidTargets[defenderId] = now;
     for (const [id,at] of Object.entries(p.raidTargets)) if (at < now - 12 * HOUR) delete p.raidTargets[id];
@@ -544,7 +556,7 @@ export async function raid(attackerId, defenderId) {
     const firstWeeklyRaid = !p.weekRaidTargets[defenderId];
     p.weekRaidTargets[defenderId] = now;
     const points = result.win ? (firstWeeklyRaid ? 42 : 8) : (firstWeeklyRaid ? 6 : 1);
-    const rewards = addActionReward(p, "raid", { credits: result.win ? 450 + d.baseLevel * 55 : 85,
+    const rewards = addActionReward(p, "raid", { credits: result.win ? 500 : 85,
       xp: result.win ? 200 : 65, scrap: result.win ? 5 : 1, points }, now);
     if (result.win) record(p, "win");
     // Defenders lose no cards or cash: progression isn't punished while offline.
@@ -616,6 +628,15 @@ export async function proposeTrade(senderId, recipientId, offerUid, wantedUid) {
     const id = randomUUID().slice(0, 10);
     s.trades[id] = { id, sender: sender.id, recipient: recipient.id, offerUid, wantedUid, expiresAt: now + 10 * 60000 };
     return { ok: true, id, offer: getCard(offer.cardId), wanted: getCard(wanted.cardId) };
+  });
+}
+export async function cancelUnsentTrade(senderId, tradeId) {
+  return transact(({s,player}) => {
+    const pending=s.trades[tradeId];
+    if (!pending || pending.sender!==String(senderId)) return false;
+    delete s.trades[tradeId];
+    player(senderId).cooldowns.tradeOffer=0;
+    return true;
   });
 }
 export async function answerTrade(tradeId, userId, accept) {
@@ -712,6 +733,7 @@ export async function configureDropChannel(channelId, actor) {
   return transact(({ s }) => {
     s.config.dropChannelId = channelId || "";
     s.config.nextDropAt = Date.now() + 3 * 60000;
+    s.config.dropChannelMigrated = true;
     s.audit.unshift({ at: Date.now(), actor, action: "configure-drops", channelId });
     return { ok: true };
   });
@@ -722,8 +744,10 @@ export async function startAutomaticDrop(channelId, { force = false, actor = nul
     const boosted = new Date(now).getUTCDay() === 1;
     const card = drawCard(boosted ? "elite" : "standard", boosted ? 3 : 0);
     const id = randomUUID().slice(0,10);
-    s.config.activeDrop = { id, cardId: card.id, channelId, messageId: null, claimers: [], expiresAt: now + 2 * 60000 };
-    s.config.nextDropAt = now + randomInt(40, 85) * 60000;
+    const maxClaims = Math.random() < 0.3 ? 2 : 1;
+    // One public drop a day, claimed immediately by the first eligible member(s).
+    s.config.activeDrop = { id, cardId: card.id, channelId, messageId: null, claimers: [], mode: "first-come", maxClaims, expiresAt: now + 6 * HOUR };
+    s.config.nextDropAt = now + DAY;
     if (force) s.audit.unshift({ at: now, actor, action: "force-drop", channelId, cardId: card.id });
     return structuredClone(s.config.activeDrop);
   });
@@ -741,8 +765,16 @@ export async function enterDrop(dropId, userId) {
     if (!drop || drop.id !== dropId || now > drop.expiresAt) return { ok: false, error: "This drop has ended." };
     const p = player(userId);
     if (!p.faction) return { ok: false, error: "Join Galactic Command with /game first." };
-    if (drop.claimers.includes(p.id)) return { ok: false, error: "You're already entered." };
+    if (drop.claimers.includes(p.id)) return { ok: false, error: "You've already claimed this card." };
+    if (drop.mode === "first-come" && drop.claimers.length >= drop.maxClaims) return { ok: false, error: "All copies have been claimed." };
     drop.claimers.push(p.id);
+    if (drop.mode === "first-come") {
+      addCard(p, drop.cardId, "channel-drop");
+      record(p, "drop"); award(p, { xp: 45, points: 6 });
+      const complete=drop.claimers.length >= drop.maxClaims;
+      if (complete) drop.expiresAt = now;
+      return { ok: true, claimed: true, count: drop.claimers.length, maxClaims: drop.maxClaims, complete, claimers: [...drop.claimers], cardId: drop.cardId };
+    }
     return { ok: true, entered: drop.claimers.length };
   });
 }
@@ -751,6 +783,7 @@ export async function finishDrop() {
     const drop = s.config.activeDrop;
     if (!drop || now < drop.expiresAt) return null;
     s.config.activeDrop = null;
+    if (drop.mode === "first-come") return { ...drop, winners: drop.claimers, announced: true };
     const entrants = [...drop.claimers].sort(() => Math.random() - 0.5);
     const winners = entrants.slice(0, Math.min(3, entrants.length));
     for (const id of winners) {
