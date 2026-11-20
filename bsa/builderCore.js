@@ -78,8 +78,11 @@ export function validateBsaTemplate(template) {
       errors.push("supervision-request: V4 notes specify Officer Cadets on Trial, but no unique trial-cadet Discord role is defined. Add its exact role name and colour to roles and explicitly set supervision-request.access.view/post. Do not treat all OF-0 cadets as trial cadets.");
     else if (!supervision.access?.post?.includes(trialNames[0]) || !supervision.access?.view?.includes(trialNames[0]))
       errors.push("supervision-request: the Officer Cadet on Trial role must appear explicitly in access.view and access.post.");
-    if (supervision.access?.post?.includes("OF-0 | Officer Cadet"))
-      errors.push("supervision-request: remove general OF-0 | Officer Cadet from access.post. Only the confirmed trial-cadet role, not all cadets, should request supervision.");
+    for (const accessType of ["view","post"]) {
+      if (supervision.access?.[accessType]?.includes("OF-0 | Officer Cadet"))
+        errors.push("supervision-request: remove general OF-0 | Officer Cadet from access." + accessType +
+          ". Access belongs to confirmed trial cadets and explicitly named supervising staff, not all cadets.");
+    }
   }
   // Default_view is an advisory field and has mismatched legacy aliases in V4.
   // Every channel carries authoritative access; never grant an unrecognised alias.
