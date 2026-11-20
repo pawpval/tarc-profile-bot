@@ -32,12 +32,16 @@ const role = {id:'111111111111111111',name:'Leadership',position:3,rawPosition:3
   permissions:bits('9007199254740995'),hoist:true,mentionable:false,managed:false};
 
 function make(){return buildServerSnapshot({guild,roles:perms([role]),channels:perms([parent,child,separate,forum,voice]),botMember:{id:'bot'}});}
-test('strict TARC guild and explicit user IDs, no role bypass',()=>{
- const config={guildId:'123456789012345678',ownerId:'999999999999999999'};
- assert.equal(isAuthorizedScan({guildId:config.guildId,userId:config.ownerId},config),true);
- assert.equal(isAuthorizedScan({guildId:config.guildId,userId:'888888888888888888'},config),false);
- assert.equal(isAuthorizedScan({guildId:'777777777777777777',userId:config.ownerId},config),false);
- assert.equal(isAuthorizedScan({guildId:config.guildId,userId:config.ownerId},{...config,ownerId:''}),false);
+test('only the trusted TARC account with actual target owner/admin access is authorized',()=>{
+ const main='123456789012345678',otherGuild='777777777777777777';
+ const trusted='999999999999999999',another='888888888888888888';
+ const context={guildId:otherGuild,ownerId:another,trustedOwnerId:trusted};
+ assert.equal(isAuthorizedScan({guildId:otherGuild,userId:trusted,hasAdministrator:true},context),true);
+ assert.equal(isAuthorizedScan({guildId:otherGuild,userId:trusted},context),false);
+ assert.equal(isAuthorizedScan({guildId:otherGuild,userId:another,hasAdministrator:true},context),false);
+ assert.equal(isAuthorizedScan({guildId:main,userId:trusted,hasAdministrator:true},context),false);
+ assert.equal(isAuthorizedScan({guildId:otherGuild,userId:trusted,hasAdministrator:true},{...context,trustedOwnerId:''}),false);
+ assert.equal(isAuthorizedScan({guildId:otherGuild,userId:trusted},{...context,ownerId:trusted}),true);
 });
 test('captures role bits, member overwrites and category synchronization',()=>{
  const s=make();
