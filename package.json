@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test game/*.test.mjs"
+    "test": "node --test game/*.test.mjs scan/*.test.mjs"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
