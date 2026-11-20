@@ -47,7 +47,8 @@ function overwriteSnapshot(overwrite) {
 }
 
 function overwritten(channel) {
-  return sorted(asItems(channel.permissionOverwrites?.cache), (a, b) => String(a.id).localeCompare(String(b.id)))
+  if (!channel.permissionOverwrites?.cache?.values) return UNKNOWN('channel_permission_overwrites_unavailable');
+  return sorted(asItems(channel.permissionOverwrites.cache), (a, b) => String(a.id).localeCompare(String(b.id)))
     .map(overwriteSnapshot);
 }
 
