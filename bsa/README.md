@@ -32,7 +32,7 @@ The V4 notes say `OFFICER STAFF SECTOR/supervision-request` is for **Officer Cad
 
 1. Add the actual **Officer Cadet on Trial** role, including its intended name, colour and `administrator:false`, to `roles`. It must have an unambiguous name containing Officer Cadet and Trial.
 2. Include that exact role name in `supervision-request.access.view` and `supervision-request.access.post`.
-3. Remove general `OF-0 | Officer Cadet` from `supervision-request.access.post` unless all cadets really are on trial (not the approved intent).
+3. Remove general `OF-0 | Officer Cadet` from both `supervision-request.access.view` and `supervision-request.access.post`. Viewing and requesting supervision are limited to the explicit trial-cadet role and the named supervising staff.
 
 Several V4 category `default_view` lists also contain outdated role labels such as `Moderation Department`, `QA Team`, and rank aliases without the `|` separator. Those are **warnings**, not silent grants: every channel has its own explicit valid `access.view` and `access.post`, which are authoritative. Category visibility is derived conservatively from the channel view lists, and aliases are never invented.
 
