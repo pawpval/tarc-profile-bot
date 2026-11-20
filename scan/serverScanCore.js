@@ -9,9 +9,15 @@ const bitfield = value => value?.bitfield === undefined && typeof value !== 'big
 const names = value => typeof value?.toArray === 'function' ? value.toArray() : UNKNOWN('permission_names_unavailable');
 const validSnowflake = value => /^\d{17,20}$/.test(String(value || ''));
 
-export function isAuthorizedScan({ guildId, userId }, { guildId: requiredGuildId, ownerId }) {
-  return validSnowflake(requiredGuildId) && validSnowflake(ownerId)
-    && String(guildId) === String(requiredGuildId) && String(userId) === String(ownerId);
+// The same trusted TARC account must hold real server ownership or the
+// Administrator permission in the target guild. Discord's server-side
+// interaction memberPermissions is authoritative; role names are never used.
+export function isAuthorizedScan({ guildId, userId, hasAdministrator = false }, { guildId: requiredGuildId, ownerId, trustedOwnerId }) {
+  return validSnowflake(requiredGuildId) && validSnowflake(ownerId) && validSnowflake(trustedOwnerId)
+    && validSnowflake(guildId) && validSnowflake(userId)
+    && String(guildId) === String(requiredGuildId)
+    && String(userId) === String(trustedOwnerId)
+    && (String(userId) === String(ownerId) || hasAdministrator === true);
 }
 
 // Topics and descriptions are server settings but can contain pasted secrets.
