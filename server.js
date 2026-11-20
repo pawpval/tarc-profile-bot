@@ -6,7 +6,7 @@ import { getEmbedCommands, handleEmbedInteraction } from "./embedEditor.js";
 import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { handleGameInteraction } from "./game/gameSystem.js";
 import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
-import { getServerScanCommand, handleServerScanInteraction, serverScanConfiguration } from "./scan/serverScanCommand.js";
+import { getServerScanCommand, handleServerScanInteraction } from "./scan/serverScanCommand.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1693,7 +1693,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1702,14 +1702,10 @@ client.once(Events.ClientReady, async () => {
       `${command.name} integrations=${JSON.stringify(command.integration_types || [])} contexts=${JSON.stringify(command.contexts || [])}`
     ).join(" | "));
 
-    const scannerConfig = serverScanConfiguration();
     for (const guildId of GUILD_IDS) {
-      // Register this sensitive command only in the configured main TARC guild.
-      // Do not add it to the global command list or unrelated guilds.
-      const guildCommands = guildId === scannerConfig.guildId && /^\d{17,20}$/.test(scannerConfig.guildId)
-        ? [...commands, getServerScanCommand()]
-        : commands;
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: guildCommands });
+      // The scanner is a single global Guild Install command, so it works in
+      // all guilds containing this bot. Do not register a duplicate locally.
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
       console.log(`[DISCORD] Guild slash commands registered for ${guildId}`);
     }
 
