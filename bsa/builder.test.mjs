@@ -24,11 +24,11 @@ test("uploaded V4 template is bundled unchanged with expected structure",()=>{
  assert.equal(template.roles.length,55);
  assert.equal(template.categories.length,16);
  const v=validateBsaTemplate(template);
- assert.equal(v.counts.channels,99);
+ assert.equal(v.counts.channels,100);
  assert.equal(v.counts.forum,2);
  assert.equal(v.counts.stage,1);
  assert.equal(v.counts.voice,8);
- assert.equal(v.counts.text,88);
+ assert.equal(v.counts.text,89);
 });
 test("V4 build must fail closed on missing Officer Cadet on Trial role and overly broad cadet posting",()=>{
  const validation=validateBsaTemplate(template);
