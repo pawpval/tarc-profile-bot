@@ -1,0 +1,2880 @@
+{
+  "schema": "bsa-discord-builder-config",
+  "version": 4,
+  "status": "APPROVED_LAYOUT_PENDING_DEPLOYMENT",
+  "source": {
+    "filename": "discord-server-scan-2026-11-20T22-53-14-553Z-part-001-of-001.json",
+    "generatedAt": "2026-11-20T22:53:14.553Z",
+    "guildName": "𝗧𝗵𝗲 𝗚𝗿𝗮𝗻𝗱 𝗥𝗲𝗽𝘂𝗯𝗹𝗶𝗰 𝗖𝗹𝗼𝗻𝗲 𝗔𝗿𝗺𝘆",
+    "counts": {
+      "roles": 128,
+      "categories": 17,
+      "channels": 132
+    }
+  },
+  "server_name": "British Sandhurst Army | BSA",
+  "top_level_channels": [
+    {
+      "name": "welcome",
+      "type": "text",
+      "access": {
+        "view": [
+          "@everyone"
+        ],
+        "post": [
+          "Field Marshal",
+          "Chief of General Staff",
+          "Deputy Chief of General Staff",
+          "Assistant Chief of General Staff",
+          "Army Sergeant Major"
+        ]
+      }
+    },
+    {
+      "name": "rules",
+      "type": "text",
+      "access": {
+        "view": [
+          "@everyone"
+        ],
+        "post": [
+          "Field Marshal",
+          "Chief of General Staff",
+          "Deputy Chief of General Staff",
+          "Assistant Chief of General Staff",
+          "Army Sergeant Major"
+        ]
+      }
+    }
+  ],
+  "roles": [
+    {
+      "name": "Field Marshal",
+      "color": "#A78BFA",
+      "administrator": false
+    },
+    {
+      "name": "Chief of General Staff",
+      "color": "#C7A34B",
+      "administrator": false
+    },
+    {
+      "name": "Deputy Chief of General Staff",
+      "color": "#B99746",
+      "administrator": false
+    },
+    {
+      "name": "Assistant Chief of General Staff",
+      "color": "#A98942",
+      "administrator": false
+    },
+    {
+      "name": "Army Sergeant Major",
+      "color": "#927B3B",
+      "administrator": false
+    },
+    {
+      "name": "OF-10 | General",
+      "color": "#A8894A",
+      "administrator": false
+    },
+    {
+      "name": "OF-9 | Lieutenant General",
+      "color": "#A8894A",
+      "administrator": false
+    },
+    {
+      "name": "OF-8 | Major General",
+      "color": "#A8894A",
+      "administrator": false
+    },
+    {
+      "name": "OF-7 | Brigadier",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-6 | Colonel",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-5 | Lieutenant Colonel",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-4 | Major",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-3 | Captain",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-2 | Lieutenant",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-1 | Second Lieutenant",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "OF-0 | Officer Cadet",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
+      "name": "General Staff",
+      "color": "#BD9B4F",
+      "administrator": false
+    },
+    {
+      "name": "Officer Staff",
+      "color": "#6D91B8",
+      "administrator": false
+    },
+    {
+      "name": "Recruitment Staff",
+      "color": "#3F9C78",
+      "administrator": false
+    },
+    {
+      "name": "Recruitment Permissions",
+      "color": "#3F9C78",
+      "administrator": false
+    },
+    {
+      "name": "BA | British Army Personnel",
+      "color": "#657B93",
+      "administrator": false
+    },
+    {
+      "name": "Guest",
+      "color": "#8C9299",
+      "administrator": false
+    },
+    {
+      "name": "RMP | Royal Military Police",
+      "color": "#C65050",
+      "administrator": false
+    },
+    {
+      "name": "RIC | Royal Intelligence Corps",
+      "color": "#272B33",
+      "administrator": false
+    },
+    {
+      "name": "RGG | Royal Grenadier Guards",
+      "color": "#8D2636",
+      "administrator": false
+    },
+    {
+      "name": "UKSF | United Kingdom Special Forces",
+      "color": "#43566D",
+      "administrator": false
+    },
+    {
+      "name": "ETS | Education and Training Services",
+      "color": "#628B67",
+      "administrator": false
+    },
+    {
+      "name": "GR | Gurkha Rifles",
+      "color": "#59805B",
+      "administrator": false
+    },
+    {
+      "name": "RTR | Royal Tank Regiment",
+      "color": "#D18B36",
+      "administrator": false
+    },
+    {
+      "name": "Archived Studios Leadership",
+      "color": "#7D71B3",
+      "administrator": false
+    },
+    {
+      "name": "Lead Developer",
+      "color": "#6B7FB6",
+      "administrator": false
+    },
+    {
+      "name": "Senior Developer",
+      "color": "#6B7FB6",
+      "administrator": false
+    },
+    {
+      "name": "Developer",
+      "color": "#6B7FB6",
+      "administrator": false
+    },
+    {
+      "name": "Trial Developer",
+      "color": "#6B7FB6",
+      "administrator": false
+    },
+    {
+      "name": "Quality Assurance",
+      "color": "#6B7FB6",
+      "administrator": false
+    },
+    {
+      "name": "Moderation Director",
+      "color": "#5997A5",
+      "administrator": false
+    },
+    {
+      "name": "Senior Moderator",
+      "color": "#5997A5",
+      "administrator": false
+    },
+    {
+      "name": "Moderator",
+      "color": "#5997A5",
+      "administrator": false
+    },
+    {
+      "name": "Trial Moderator",
+      "color": "#5997A5",
+      "administrator": false
+    },
+    {
+      "name": "Community Team",
+      "color": "#61A0A3",
+      "administrator": false
+    },
+    {
+      "name": "Content Creator",
+      "color": "#B77EAC",
+      "administrator": false
+    },
+    {
+      "name": "Booster",
+      "color": "#E68AC0",
+      "administrator": false
+    },
+    {
+      "name": "Supporter",
+      "color": "#D6B46D",
+      "administrator": false
+    },
+    {
+      "name": "Event Ping",
+      "color": "#9AA0A8",
+      "administrator": false
+    },
+    {
+      "name": "Tryout Ping",
+      "color": "#9AA0A8",
+      "administrator": false
+    },
+    {
+      "name": "Community Ping",
+      "color": "#9AA0A8",
+      "administrator": false
+    },
+    {
+      "name": "Development Ping",
+      "color": "#9AA0A8",
+      "administrator": false
+    },
+    {
+      "name": "Bots",
+      "color": "#92969D",
+      "administrator": false
+    },
+    {
+      "name": "Distinguished Service Medal",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Military Cross",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Order of the Bath",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Order of Merit",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Order of the British Empire",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Companion of Honour",
+      "color": "#C4A55B",
+      "administrator": false
+    },
+    {
+      "name": "Distinguished Flying Cross",
+      "color": "#C4A55B",
+      "administrator": false
+    }
+  ],
+  "categories": [
+    {
+      "name": "INFORMATION BOARD",
+      "channels": [
+        {
+          "name": "announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "army-broadcasts",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "information-board",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "chain-of-command",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "regimental-information",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "promotions",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "polls",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "role-pings",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "blacklists",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DEVELOPMENT BOARD",
+      "channels": [
+        {
+          "name": "development-updates",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "showcases",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "roadmap",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "bug-reports",
+          "type": "forum",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "COMMUNITY BOARD",
+      "channels": [
+        {
+          "name": "community-notices",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "question-of-the-day",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Community Team"
+            ]
+          }
+        },
+        {
+          "name": "gamenights",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Community Team"
+            ]
+          }
+        },
+        {
+          "name": "giveaways",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Community Team"
+            ]
+          }
+        },
+        {
+          "name": "official-content",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Community Team"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EVENTS SECTOR",
+      "channels": [
+        {
+          "name": "event-shouts",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "event-checks",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "bmt-events",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "ETS | Education and Training Services",
+              "RIC | Royal Intelligence Corps"
+            ]
+          }
+        },
+        {
+          "name": "tryout-posts",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "regimental-recruitment",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "MAIN COMMS",
+      "channels": [
+        {
+          "name": "public-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "bot-cmds",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "bsa-media",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "memes",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "counting",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "questions",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "propaganda",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "suggestions",
+          "type": "forum",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EXTRA / REQUESTS",
+      "channels": [
+        {
+          "name": "event-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        },
+        {
+          "name": "tryout-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "@everyone"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "MODERATION SECTOR",
+      "channels": [
+        {
+          "name": "mod-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "mod-regulations",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "mod-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "incident-reports",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "ban-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "global-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major",
+        "General Staff",
+        "OF-10 General",
+        "OF-9 Lieutenant General",
+        "OF-8 Major General",
+        "Moderation Department",
+        "Moderator",
+        "Senior Moderator",
+        "Moderation Director"
+      ]
+    },
+    {
+      "name": "SUPPORTER PROGRAMME",
+      "channels": [
+        {
+          "name": "supporter-updates",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "supporter-perks",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "sneak-peeks",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Supporter",
+              "Booster"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Supporter",
+              "Booster"
+            ]
+          }
+        },
+        {
+          "name": "supporter-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Supporter",
+              "Booster"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Supporter",
+              "Booster"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DEVELOPMENT OPERATIONS",
+      "channels": [
+        {
+          "name": "dev-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "dev-documents",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "dev-roadmap",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "to-do-list",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "dev-logging",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "dev-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "qa-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "qa-regulations",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "qa-feedback",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        },
+        {
+          "name": "qa-confirmed-bugs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ]
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major",
+        "AS | Archived Studios",
+        "Developer",
+        "QA Team"
+      ]
+    },
+    {
+      "name": "CREATOR PROGRAMME",
+      "channels": [
+        {
+          "name": "creator-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ]
+          }
+        },
+        {
+          "name": "video-requirements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ]
+          }
+        },
+        {
+          "name": "creators-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ]
+          }
+        },
+        {
+          "name": "tag-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Content Creator"
+            ]
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major",
+        "Content Creator",
+        "Creator Manager"
+      ]
+    },
+    {
+      "name": "VOICE CHANNELS",
+      "channels": [
+        {
+          "name": "BSA Assembly",
+          "type": "stage",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": []
+          }
+        },
+        {
+          "name": "General VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": []
+          }
+        },
+        {
+          "name": "Private VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": []
+          }
+        },
+        {
+          "name": "Tryout VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": []
+          }
+        },
+        {
+          "name": "Staff VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": []
+          }
+        },
+        {
+          "name": "Development VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "Archived Studios Leadership",
+              "Developer",
+              "Quality Assurance"
+            ],
+            "post": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "OFFICER STAFF SECTOR",
+      "channels": [
+        {
+          "name": "officer-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "documents",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "officer-cmds",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "officer-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "event-strikes",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "event-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "discharge-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "inactivity-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "supervision-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "promotion-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ]
+          }
+        },
+        {
+          "name": "Officer Comms",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Officer Staff",
+              "OF-7 | Brigadier",
+              "OF-6 | Colonel",
+              "OF-5 | Lieutenant Colonel",
+              "OF-4 | Major",
+              "OF-3 | Captain",
+              "OF-2 | Lieutenant",
+              "OF-1 | Second Lieutenant",
+              "OF-0 | Officer Cadet"
+            ],
+            "post": []
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major",
+        "General Staff",
+        "OF-10 General",
+        "OF-9 Lieutenant General",
+        "OF-8 Major General",
+        "Officer Staff",
+        "OF-7 Brigadier",
+        "OF-6 Colonel",
+        "OF-5 Lieutenant Colonel",
+        "OF-4 Major",
+        "OF-3 Captain",
+        "OF-2 Lieutenant",
+        "OF-1 Second Lieutenant",
+        "OF-0 Officer Cadet"
+      ]
+    },
+    {
+      "name": "GENERAL STAFF SECTOR",
+      "channels": [
+        {
+          "name": "general-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "documents",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "general-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "regimental-oversight",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "discharge-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "inactivity-request",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "punishments",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "disciplinary-reviews",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "General Staff Comms",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": []
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major",
+        "General Staff",
+        "OF-10 General",
+        "OF-9 Lieutenant General",
+        "OF-8 Major General"
+      ]
+    },
+    {
+      "name": "ARMY HEADQUARTERS",
+      "channels": [
+        {
+          "name": "headquarters-announcements",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "headquarters-information",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "operations",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "decision-reviews",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "headquarters-chat",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "dump-yard",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "bot-cmds",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "Headquarters VC",
+          "type": "voice",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": []
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major"
+      ]
+    },
+    {
+      "name": "LOGGING SECTOR",
+      "channels": [
+        {
+          "name": "automated-event-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General"
+            ]
+          }
+        },
+        {
+          "name": "game-command-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "game-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "discord-command-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        },
+        {
+          "name": "server-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major",
+              "General Staff",
+              "OF-10 | General",
+              "OF-9 | Lieutenant General",
+              "OF-8 | Major General",
+              "Moderator",
+              "Senior Moderator",
+              "Moderation Director"
+            ]
+          }
+        },
+        {
+          "name": "rowifi-logs",
+          "type": "text",
+          "access": {
+            "view": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        }
+      ],
+      "default_view": [
+        "Field Marshal",
+        "Chief of General Staff",
+        "Deputy Chief of General Staff",
+        "Assistant Chief of General Staff",
+        "Army Sergeant Major"
+      ]
+    },
+    {
+      "name": "TICKETS / SUPPORT",
+      "channels": [
+        {
+          "name": "open-ticket",
+          "type": "text",
+          "access": {
+            "view": [
+              "@everyone"
+            ],
+            "post": [
+              "Field Marshal",
+              "Chief of General Staff",
+              "Deputy Chief of General Staff",
+              "Assistant Chief of General Staff",
+              "Army Sergeant Major"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "ingame_only_ranks": [
+    "OR-1 Recruit",
+    "OR-2 Private",
+    "OR-3 Lance Corporal",
+    "OR-4 Corporal",
+    "OR-5 Sergeant",
+    "OR-6 Staff Sergeant",
+    "OR-7 Colour Sergeant",
+    "OR-8 Warrant Officer Class 1",
+    "OR-9 Warrant Officer Class 2",
+    "OR-10 Regimental Sergeant Major"
+  ],
+  "notes": [
+    "supervision-request is for Officer Cadets on Trial seeking a supervising officer/instructor; configure posting permissions separately when cadet-on-trial role is confirmed",
+    "Officer Staff event-logs is manual; Logging Sector automated-event-logs is for in-game event webhooks",
+    "No combat/kill or player activity logs",
+    "Regimental ETS BMT, RMP custody, RGG VIP and per-regiment equipment logs belong in separate regiment servers",
+    "No webhook destinations are configured; builder must not invent them",
+    "Private category access must not be inherited by all roles; bot integrations need separate setup",
+    "Server logs replaces Dyno logs as a channel name; this does not configure Dyno",
+    "Never modify live TARC server; only deploy to newly created BSA target guild"
+  ]
+}

@@ -7,6 +7,7 @@ import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { handleGameInteraction } from "./game/gameSystem.js";
 import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { getServerScanCommand, handleServerScanInteraction } from "./scan/serverScanCommand.js";
+import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1693,7 +1694,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1783,6 +1784,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleBsaInteraction(interaction)) return;
   if (await handleServerScanInteraction(interaction)) return;
   if (await handleEmbedInteraction(interaction)) return;
   if (await handleBlacklistInteraction(interaction)) return;
