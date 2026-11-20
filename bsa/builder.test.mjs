@@ -12,6 +12,7 @@ const fixed=()=>{
  t.roles.splice(16,0,{name:"Officer Cadet on Trial",color:"#6284AA",administrator:false});
  const cat=t.categories.find(c=>c.name==="OFFICER STAFF SECTOR");
  const ch=cat.channels.find(c=>c.name==="supervision-request");
+ ch.access.view=ch.access.view.filter(x=>x!=="OF-0 | Officer Cadet");
  ch.access.view.push("Officer Cadet on Trial");
  ch.access.post=ch.access.post.filter(x=>x!=="OF-0 | Officer Cadet");
  ch.access.post.push("Officer Cadet on Trial");
