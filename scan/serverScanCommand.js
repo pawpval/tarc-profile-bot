@@ -1,24 +1,29 @@
 import { AttachmentBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { buildServerSnapshot, isAuthorizedScan, splitSnapshot } from './serverScanCore.js';
 
-// Reuse the main guild setting already used by TARC commands.
-// The optional TARC_SCAN_OWNER_ID pins access to exactly one Discord account.
-// Otherwise access is restricted to Discord's current guild owner ID.
+// Trust exactly one TARC owner identity across servers, not every guild's
+// owner. The optional Railway user ID pins access to the desired account.
+// Otherwise the main TARC server's actual owner is the trusted account.
 export function serverScanConfiguration(env = process.env) {
   const ids = String(env.GUILD_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
   return {
-    guildId: String(env.TARC_MAIN_GUILD_ID || env.GUILD_ID || (ids.length === 1 ? ids[0] : '')).trim(),
+    mainGuildId: String(env.TARC_MAIN_GUILD_ID || env.GUILD_ID || ids[0] || '').trim(),
     ownerId: String(env.TARC_SCAN_OWNER_ID || '').trim()
   };
 }
 
 export function getServerScanCommand() {
-  return new SlashCommandBuilder()
+  // Global guild-install command: available wherever the existing bot is
+  // installed, but never in DMs or as a user-installed application command.
+  const command = new SlashCommandBuilder()
     .setName('server-scan')
-    .setDescription('TARC owner: privately export read-only server configuration JSON')
+    .setDescription('Owner: privately export read-only Discord server configuration')
     .setDMPermission(false)
     .setDefaultMemberPermissions(0n)
     .toJSON();
+  command.integration_types = [0]; // Guild install only
+  command.contexts = [0]; // Guild interactions only
+  return command;
 }
 
 function errorSummary(error) {
@@ -57,24 +62,36 @@ export async function collectServerConfiguration(guild) {
 export async function handleServerScanInteraction(interaction, config = serverScanConfiguration()) {
   if (!interaction.isChatInputCommand?.() || interaction.commandName !== 'server-scan') return false;
   const privateMessage = content => ({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  const denied = 'This command is restricted to the configured TARC server owner.';
+  const denied = 'Only the authorized TARC owner can scan servers they own or administer.';
 
-  // Wrong guilds are refused before any metadata is fetched.
-  if (!config.guildId || String(interaction.guildId) !== config.guildId) {
+  // Discord guild ownership or Administrator by itself is not sufficient:
+  // the invoking user must ALSO be the uniquely trusted TARC owner.
+  if (!interaction.guildId) {
     await interaction.reply(privateMessage(denied));
     return true;
   }
   try {
     // Acknowledge before any API call, without publishing anything publicly.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    // Verify the CURRENT guild owner from Discord unless pinned to an explicit ID.
-    const guild = interaction.guild ? await interaction.guild.fetch() : await interaction.client.guilds.fetch(config.guildId);
-    const ownerId = config.ownerId || guild.ownerId;
-    if (!isAuthorizedScan({ guildId: interaction.guildId, userId: interaction.user?.id }, { guildId: config.guildId, ownerId })) {
+    const guild = interaction.guild ? await interaction.guild.fetch() : await interaction.client.guilds.fetch(interaction.guildId);
+    if (String(guild.id) !== String(interaction.guildId)) throw new Error('Guild mismatch');
+
+    let trustedOwnerId = config.ownerId;
+    if (!trustedOwnerId && config.mainGuildId) {
+      const mainGuild = String(config.mainGuildId) === String(guild.id)
+        ? guild
+        : await interaction.client.guilds.fetch(config.mainGuildId);
+      trustedOwnerId = String(mainGuild.ownerId || '');
+    }
+
+    const hasAdministrator = interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator) === true;
+    if (!isAuthorizedScan(
+      { guildId: interaction.guildId, userId: interaction.user?.id, hasAdministrator },
+      { guildId: guild.id, ownerId: guild.ownerId, trustedOwnerId }
+    )) {
       await interaction.editReply({ content: denied, allowedMentions: { parse: [] } });
       return true;
     }
-    if (String(guild.id) !== config.guildId) throw new Error('Guild mismatch');
 
     const snapshot = await collectServerConfiguration(guild);
     const attachmentLimit = Number(interaction.attachmentSizeLimit);
@@ -84,9 +101,9 @@ export async function handleServerScanInteraction(interaction, config = serverSc
     const parts = splitSnapshot(snapshot, maxBytes);
     const timestamp = snapshot.generatedAt.replace(/[:.]/g, '-');
     const files = parts.map((buffer, i) => new AttachmentBuilder(buffer, {
-      name: 'tarc-server-scan-' + timestamp + '-part-' + String(i+1).padStart(3,'0') + '-of-' + String(parts.length).padStart(3,'0') + '.json'
+      name: 'discord-server-scan-' + timestamp + '-part-' + String(i+1).padStart(3,'0') + '-of-' + String(parts.length).padStart(3,'0') + '.json'
     }));
-    const summary = 'Private TARC configuration export. ' + snapshot.roles.length + ' roles, ' +
+    const summary = 'Private Discord server configuration export. ' + snapshot.roles.length + ' roles, ' +
       snapshot.categories.length + ' categories, ' + snapshot.channels.length + ' channels. ' +
       snapshot.omissions.length + ' coverage warning(s). ' + parts.length +
       ' JSON file(s). Keep these attachments private. No messages, member lists, invites or webhooks were fetched.';
