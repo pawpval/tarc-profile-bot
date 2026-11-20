@@ -9,6 +9,7 @@ function correctedTemplate() {
   const t=structuredClone(raw);
   t.roles.splice(16,0,{name:"Officer Cadet on Trial",color:"#6284AA",administrator:false});
   const ch=t.categories.find(x=>x.name==="OFFICER STAFF SECTOR").channels.find(x=>x.name==="supervision-request");
+  ch.access.view=ch.access.view.filter(x=>x!=="OF-0 | Officer Cadet");
   ch.access.view.push("Officer Cadet on Trial");
   ch.access.post=ch.access.post.filter(x=>x!=="OF-0 | Officer Cadet");
   ch.access.post.push("Officer Cadet on Trial");
