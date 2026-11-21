@@ -40,7 +40,7 @@ function makeGuild() {
       deny:{bitfield:row.deny.reduce((n,v)=>n|BigInt(v),0n)}
     }]));
   }
-  guild.channels.fetch=async()=>channels;
+  guild.channels.fetch=async channelId=>channelId ? (channels.get(String(channelId))??null) : channels;
   guild.channels.create=async opts=>{
     channelWrites++;
     const chan={id:id(),name:opts.name,type:opts.type,
