@@ -34,6 +34,25 @@ export function bsaTargetAllowed(config,context) {
     && context.guildOwnerId===config.ownerId
     && context.guildName==="British Sandhurst Army | BSA";
 }
+
+// Explain configuration blockers without exposing configured IDs, channel names,
+// or private server data. More detailed diagnostics are shown only after the
+// requesting account AND target guild match the expected values.
+export function bsaAccessIssue(config, context) {
+  const denied = "BSA access denied. Run this in the BSA server using the Discord account configured in BSA_OWNER_DISCORD_ID.";
+  if (!context.inGuild) return "Run this command inside your new BSA Discord server, not in DMs.";
+  if (!VALID_ID.test(config.targetId))
+    return "BSA_GUILD_ID is missing or invalid in Railway. Enter the numeric Discord ID of the new BSA server and redeploy.";
+  if (!VALID_ID.test(config.ownerId))
+    return "BSA_OWNER_DISCORD_ID is missing or invalid in Railway. Enter your numeric Discord user ID and redeploy.";
+  if (String(context.guildId) !== config.targetId || String(context.userId) !== config.ownerId)
+    return denied;
+  if (!VALID_ID.test(config.protectedId))
+    return "TARC protection is not configured. Set TARC_MAIN_GUILD_ID to the numeric ID of your ORIGINAL TARC server in Railway. Leave GUILD_ID/GUILD_IDS unchanged, then redeploy.";
+  if (config.targetId === config.protectedId)
+    return "Safety block: BSA_GUILD_ID and the protected TARC guild ID resolve to the SAME server. Set TARC_MAIN_GUILD_ID to the ORIGINAL TARC server ID. Do not change GUILD_ID to BSA.";
+  return null;
+}
 export function getBsaCommands() {
   return [["bsa-preview","Preview all roles, channels and permissions without changes"],
     ["bsa-build","Owner: confirm and create the approved BSA server layout"],
@@ -49,13 +68,17 @@ async function templateData() {
   return {template:parsed,hash:createHash("sha256").update(contents).digest("hex")};
 }
 async function authenticate(interaction, config) {
-  if (!interaction.inGuild?.() || !VALID_ID.test(config.targetId) || !VALID_ID.test(config.protectedId)
-    || !VALID_ID.test(config.ownerId) || config.targetId===config.protectedId
-    || String(interaction.guildId)!==config.targetId || interaction.user?.id!==config.ownerId) return null;
+  const issue=bsaAccessIssue(config,{inGuild:interaction.inGuild?.(),
+    guildId:interaction.guildId,userId:interaction.user?.id});
+  if (issue) return {guild:null,issue};
   const guild=interaction.guild ? await interaction.guild.fetch() : await interaction.client.guilds.fetch(config.targetId);
-  if (!bsaTargetAllowed(config,{guildId:interaction.guildId,userId:interaction.user.id,
-    guildOwnerId:String(guild.ownerId),guildName:String(guild.name)})) return null;
-  return guild;
+  if (String(guild.id)!==config.targetId)
+    return {guild:null,issue:"Discord returned a different guild. Check BSA_GUILD_ID in Railway."};
+  if (String(guild.ownerId)!==config.ownerId)
+    return {guild:null,issue:"You are not the ACTUAL Discord owner of this BSA server according to Discord. Administrator or a role named Owner is not enough for the builder."};
+  if (String(guild.name)!=="British Sandhurst Army | BSA")
+    return {guild:null,issue:"The target guild's name is not exactly British Sandhurst Army | BSA. Rename the new server or check BSA_GUILD_ID."};
+  return {guild,issue:null};
 }
 const reportAttachment=(obj,name)=>new AttachmentBuilder(
   Buffer.from(JSON.stringify(obj,null,2),"utf8"),{name}
@@ -99,14 +122,13 @@ export async function handleBsaInteraction(i,env=process.env) {
   const isButton=i.isButton?.()&&String(i.customId||"").startsWith("bsa:");
   if(!isSlash&&!isButton)return false;
   const config=bsaConfiguration(env);
-  const denied="BSA builder access denied or Railway configuration incomplete. Set BSA_GUILD_ID and BSA_OWNER_DISCORD_ID; the target must be your fresh BSA server, never TARC.";
   try {
-    // Reject untrusted user/guild BEFORE loading template or exposing channel names.
-    if(!i.inGuild?.()||i.user?.id!==config.ownerId||i.guildId!==config.targetId
-      ||!VALID_ID.test(config.protectedId)||config.targetId===config.protectedId
-      ||!VALID_ID.test(config.ownerId)||!VALID_ID.test(config.targetId)) {
-      if(isButton) await i.reply({content:denied,...ephemeral});
-      else await i.reply({content:denied,...ephemeral});
+    // Reject untrusted users before fetching guild metadata or reading the
+    // template. Authorized owners receive an actionable configuration error.
+    const issue=bsaAccessIssue(config,{inGuild:i.inGuild?.(),
+      guildId:i.guildId,userId:i.user?.id});
+    if(issue) {
+      await i.reply({content:issue,...ephemeral});
       return true;
     }
     if(isButton) {
@@ -121,8 +143,8 @@ export async function handleBsaInteraction(i,env=process.env) {
         await i.reply({content:"This confirmation is not valid for this account or server.",...ephemeral});
         return true;
       }
-      const guild=await authenticate(i,config);
-      if(!guild) {pending.delete(nonce);await i.reply({content:denied,...ephemeral});return true;}
+      const {guild,issue:authIssue}=await authenticate(i,config);
+      if(!guild) {pending.delete(nonce);await i.reply({content:authIssue,...ephemeral});return true;}
       if(action==="cancel"){pending.delete(nonce);await i.update({content:"BSA build cancelled. No server changes were made.",components:[],files:[]});return true;}
       if(busy.has(guild.id)) {await i.reply({content:"A BSA build is already running.",...ephemeral});return true;}
       // A button can only be used once. Require a new /bsa-build to retry.
@@ -159,8 +181,8 @@ export async function handleBsaInteraction(i,env=process.env) {
       return true;
     }
     await i.deferReply({flags:MessageFlags.Ephemeral});
-    const guild=await authenticate(i,config);
-    if(!guild){await replyError(i,denied);return true;}
+    const {guild,issue:authIssue}=await authenticate(i,config);
+    if(!guild){await replyError(i,authIssue);return true;}
     const {template,hash}=await templateData();
     const validation=validateBsaTemplate(template);
     if(i.commandName==="bsa-audit"){
