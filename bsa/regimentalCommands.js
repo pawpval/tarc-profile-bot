@@ -20,12 +20,19 @@ export function builderCredentials(env=process.env,sources=[]){
   const ownerId=clean(env.BSA_BUILDER_OWNER_ID||env.BSA_OWNER_DISCORD_ID||env.TARC_SCAN_OWNER_ID);
   const mainBsaId=clean(env.BSA_GUILD_ID);
   const mainTarcId=clean(env.TARC_MAIN_GUILD_ID||env.GUILD_ID);
+  const legacyTarcId=clean(env.GUILD_ID);
   const other=clean(env.GUILD_IDS).split(",").map(s=>s.trim()).filter(Boolean);
-  const allProtected=[mainTarcId,mainBsaId,...other,...sources.map(String)];
+  // Protect EVERY independently configured live guild ID, even when one
+  // variable is stale. Neither a mistyped override nor a missing alias may
+  // make the original TARC guild available as a generation target.
+  const allProtected=[mainTarcId,mainBsaId,...(legacyTarcId?[legacyTarcId]:[]),
+    ...other,...sources.map(String)];
   const issues=[];
   if(!ID.test(ownerId))issues.push("Configure BSA_OWNER_DISCORD_ID with your user ID.");
   if(!ID.test(mainTarcId))issues.push("Configure TARC_MAIN_GUILD_ID with the original TARC guild ID.");
   if(!ID.test(mainBsaId))issues.push("Keep BSA_GUILD_ID set to the original main BSA server.");
+  if(mainTarcId && mainBsaId && mainTarcId===mainBsaId)
+    issues.push("Original TARC and main BSA protection IDs must be different.");
   if(allProtected.some(x=>!ID.test(x)))issues.push("A protected guild ID is invalid.");
   return {ownerId,mainBsaId,mainTarcId,protectedIds:new Set(allProtected),issues};
 }
