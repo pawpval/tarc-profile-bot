@@ -9,6 +9,7 @@ import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInte
 import { getServerScanCommand, handleServerScanInteraction } from "./scan/serverScanCommand.js";
 import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
 import { getBsaFormatCommand, getBsaGuildFormatRegistration, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
+import { getRegimentalCommands, handleRegimentalInteraction, registerRegimentalGuildCommands } from "./bsa/regimentalCommands.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1695,7 +1696,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1739,6 +1740,31 @@ client.once(Events.ClientReady, async () => {
     }
   } else {
     console.warn("[BSA FORMAT] Guild command not registered: BSA owner, target or protected TARC ID configuration invalid.");
+  }
+
+  // The new regimental servers have no predetermined IDs. Only register
+  // instant guild commands if this Discord account owns the guild and its ID
+  // is not the live TARC server, main BSA server, or any scanned TARC source.
+  const regimentRest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const result = await registerRegimentalGuildCommands(regimentRest,CLIENT_ID,guild);
+      if(result.registered) console.log("[BSA REGIMENT] Commands registered in safe owner guild: "+result.guildId);
+    } catch(e){
+      console.error("[BSA REGIMENT] Guild command registration failed; code:",
+        String(e?.code||e?.status||"unknown"));
+    }
+  }
+});
+
+client.on(Events.GuildCreate, async guild => {
+  try {
+    const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+    const result = await registerRegimentalGuildCommands(rest,CLIENT_ID,guild);
+    if(result.registered) console.log("[BSA REGIMENT] Commands registered after invite: "+result.guildId);
+  } catch(e) {
+    console.error("[BSA REGIMENT] New guild registration failed; code:",
+      String(e?.code||e?.status||"unknown"));
   }
 });
 
@@ -1808,6 +1834,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleRegimentalInteraction(interaction)) return;
   if (await handleBsaFormatInteraction(interaction)) return;
   if (await handleBsaInteraction(interaction)) return;
   if (await handleServerScanInteraction(interaction)) return;
