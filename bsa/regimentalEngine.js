@@ -140,13 +140,24 @@ export async function preflightRegimentalGuild(guild,template){
   return inspectRegimentalGuild(guild,template,roles,channels,bot);
 }
 
-export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}){
+export async function buildRegimentalGuild(guild,template,onProgress=async()=>{},options={}){
+  // Discord interaction tokens expire. Stop gracefully and support a safe
+  // subsequent /bsa-generate resume rather than running an unbounded build.
+  const startedAt=Date.now();
+  const maxDurationMs=options.maxDurationMs??(12*60*1000);
+  const expired=()=>Date.now()-startedAt>maxDurationMs;
   const preflight=await preflightRegimentalGuild(guild,template);
   if(!preflight.ok)throw new Error("Regimental preflight stopped all writes: "+preflight.issues.join(" | "));
   const report={code:template.server_code,guildId:guild.id,createdRoles:[],
     createdCategories:[],createdChannels:[],reused:[],warnings:preflight.warnings,
     errors:[],noDeletion:true,permissions:"proposal-safe restricted defaults only"};
   const reason="Owner-confirmed temporary BSA "+template.server_code+" structural proposal generator";
+  function stopForDeadline(){
+    if(!expired())return false;
+    report.errors.push("Stopped safely at the build time limit. Rerun /bsa-generate with the SAME preset to resume without duplicating objects.");
+    return true;
+  }
+  if(stopForDeadline())return report;
   const existingRoles=take(await guild.roles.fetch());
   const marker=existingRoles.find(r=>r.name===markerName(template.server_code));
   if(!marker){
@@ -156,6 +167,7 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
     report.createdRoles.push(created.name);
   }
   for(const name of template.roles_lowest_to_highest){
+    if(stopForDeadline())return report;
     if(existingRoles.some(r=>r.name===name)){report.reused.push("role/"+name);continue;}
     const created=await guild.roles.create({name,permissions:0n,hoist:false,mentionable:false,reason});
     existingRoles.push(created);
@@ -180,6 +192,7 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
   const current=take(await guild.channels.fetch());
   const categories=template.categories_top_to_bottom;
   for(const [categoryIndex,cat] of categories.entries()){
+    if(stopForDeadline())return report;
     let parent=current.find(ch=>ch.type===ChannelType.GuildCategory&&ch.name===cat.name);
     if(!parent){
       try{
@@ -193,6 +206,7 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
       }
     }else report.reused.push("category/"+cat.name);
     for(const [channelIndex,ch] of cat.channels.entries()){
+      if(stopForDeadline())return report;
       const label=cat.name+"/"+ch.name;
       const found=current.filter(c=>c.name===ch.name&&c.parentId===parent.id);
       if(found.length===1&&found[0].type===REGIMENT_TYPES[ch.type]){
