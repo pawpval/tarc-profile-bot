@@ -10,6 +10,8 @@ Required:
 - `BSA_OWNER_DISCORD_ID` - your exact numeric Discord user ID. `TARC_SCAN_OWNER_ID` is accepted as a fallback if already configured.
 - `TARC_MAIN_GUILD_ID` or existing `GUILD_ID` - actual protected TARC Guild ID. This must remain set correctly. The builder fails closed if the protected ID is missing or equals BSA_GUILD_ID.
 
+If Discord replies with a configuration/access error, the command now identifies the missing or conflicting Railway setting without revealing the stored ID values. The most common cause is a missing `TARC_MAIN_GUILD_ID`, or mistakenly pointing `GUILD_ID` at the new BSA server. Keep the original TARC `GUILD_ID` and `GUILD_IDS` unchanged, and configure `BSA_GUILD_ID` separately. After editing Railway variables, deploy the updated service. The server's owner account must match `BSA_OWNER_DISCORD_ID` and the guild name must match exactly.
+
 The bot must be invited to the BSA server with **Manage Roles** and **Manage Channels**. Place the bot's highest role above the roles that will be managed. Keep the owner account as the BSA guild's actual owner. For Forum and Stage channels, enable Discord's **Community** server feature before building.
 
 BSA commands are **global Guild Install commands** so the bot does not need BSA_GUILD_ID added to its existing `GUILD_IDS` registration loop. The commands may take a little time to become visible after the bot is deployed. They are denied in every guild other than the one whose ID matches BSA_GUILD_ID. They cannot be used in DMs.
