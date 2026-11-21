@@ -253,3 +253,13 @@ test("guild-specific immediate commands only register on eligible newly-owned gu
  assert.equal((await registerRegimentalGuildCommands(rest,"111111111111111111",wrongOwner.guild,env)).registered,false);
  assert.equal(calls.length,before);
 });
+
+test("build time limit stops before any mutation and never deletes existing objects",async()=>{
+ const f=fakeGuild(),pack=await getRegimentalPresets();
+ const start=f.counts();
+ const result=await buildRegimentalGuild(f.guild,pack.RMP,async()=>{}, {maxDurationMs:-1});
+ assert.equal(result.createdRoles.length,0);
+ assert.equal(result.createdChannels.length,0);
+ assert.ok(result.errors.some(x=>x.includes("time limit")));
+ assert.deepEqual(f.counts(),start);
+});
