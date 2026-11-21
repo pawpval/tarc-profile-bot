@@ -150,6 +150,9 @@ test("actual user and guild owner required, protected live/main/source servers d
  assert.equal(allowedRegimentalTarget(creds,{...ctx,userId:"888888888888888888"}),false);
  assert.equal(allowedRegimentalTarget(creds,{...ctx,guildOwnerId:"888888888888888888"}),false);
  assert.equal(builderCredentials({...env,BSA_GUILD_ID:""}).issues.length>0,true);
+ const withLegacy=builderCredentials({...env,GUILD_ID:"555555555555555555"},sources);
+ assert.equal(allowedRegimentalTarget(withLegacy,{...ctx,guildId:"555555555555555555"}),false);
+ assert.equal(builderCredentials({...env,TARC_MAIN_GUILD_ID:MAIN_BSA},sources).issues.some(x=>x.includes("must be different")),true);
 });
 test("new guild can be any name, but must be clean and allow Manage Roles/Channels",async()=>{
  const pack=await getRegimentalPresets();
