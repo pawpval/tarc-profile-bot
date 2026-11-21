@@ -30,8 +30,8 @@ test("approved BSA V4 contains the corrected trial-cadet role and permissions",(
  assert.equal(v.counts.voice,8);
  assert.equal(v.counts.text,89);
 });
-test("V4 build must fail closed on missing Officer Cadet on Trial role and overly broad cadet posting",()=>{
- const validation=validateBsaTemplate(template);
+test("incomplete template must fail closed on missing trial role and broad cadet access",()=>{
+ const validation=validateBsaTemplate(incomplete());
  assert.equal(validation.ok,false);
  assert.ok(validation.errors.some(e=>e.includes("no unique trial-cadet Discord role")));
  assert.ok(validation.errors.some(e=>e.includes("general OF-0")));
