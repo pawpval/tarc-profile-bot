@@ -129,6 +129,11 @@
       "administrator": false
     },
     {
+      "name": "Officer Cadet on Trial",
+      "color": "#6284AA",
+      "administrator": false
+    },
+    {
       "name": "General Staff",
       "color": "#BD9B4F",
       "administrator": false
@@ -2136,7 +2141,7 @@
               "OF-3 | Captain",
               "OF-2 | Lieutenant",
               "OF-1 | Second Lieutenant",
-              "OF-0 | Officer Cadet"
+              "Officer Cadet on Trial"
             ],
             "post": [
               "Field Marshal",
@@ -2156,7 +2161,7 @@
               "OF-3 | Captain",
               "OF-2 | Lieutenant",
               "OF-1 | Second Lieutenant",
-              "OF-0 | Officer Cadet"
+              "Officer Cadet on Trial"
             ]
           }
         },
@@ -2868,7 +2873,7 @@
     "OR-10 Regimental Sergeant Major"
   ],
   "notes": [
-    "supervision-request is for Officer Cadets on Trial seeking a supervising officer/instructor; configure posting permissions separately when cadet-on-trial role is confirmed",
+    "supervision-request is for the Officer Cadet on Trial role seeking a supervising officer/instructor; that exact role and named supervising staff have explicit view and post access; ordinary OF-0 | Officer Cadet does not.",
     "Officer Staff event-logs is manual; Logging Sector automated-event-logs is for in-game event webhooks",
     "No combat/kill or player activity logs",
     "Regimental ETS BMT, RMP custody, RGG VIP and per-regiment equipment logs belong in separate regiment servers",

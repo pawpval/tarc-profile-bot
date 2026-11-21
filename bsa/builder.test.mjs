@@ -7,22 +7,21 @@ import {createOverwrites,channelOverwrites,auditBsaGuild,buildBsaGuild} from "./
 import {bsaTargetAllowed,bsaConfiguration,bsaAccessIssue,getBsaCommands,handleBsaInteraction} from "./bsaCommands.js";
 const template=JSON.parse(await readFile(new URL("./BSA_Server_Template_V4.json",import.meta.url),"utf8"));
 const clone=x=>JSON.parse(JSON.stringify(x));
-const fixed=()=>{
+const fixed=()=>clone(template);
+const incomplete=()=>{
  const t=clone(template);
- t.roles.splice(16,0,{name:"Officer Cadet on Trial",color:"#6284AA",administrator:false});
+ t.roles=t.roles.filter(r=>r.name!=="Officer Cadet on Trial");
  const cat=t.categories.find(c=>c.name==="OFFICER STAFF SECTOR");
  const ch=cat.channels.find(c=>c.name==="supervision-request");
- ch.access.view=ch.access.view.filter(x=>x!=="OF-0 | Officer Cadet");
- ch.access.view.push("Officer Cadet on Trial");
- ch.access.post=ch.access.post.filter(x=>x!=="OF-0 | Officer Cadet");
- ch.access.post.push("Officer Cadet on Trial");
+ ch.access.view=ch.access.view.map(r=>r==="Officer Cadet on Trial"?"OF-0 | Officer Cadet":r);
+ ch.access.post=ch.access.post.map(r=>r==="Officer Cadet on Trial"?"OF-0 | Officer Cadet":r);
  return t;
 };
-test("uploaded V4 template is bundled unchanged with expected structure",()=>{
+test("approved BSA V4 contains the corrected trial-cadet role and permissions",()=>{
  assert.equal(template.schema,"bsa-discord-builder-config");
  assert.equal(template.version,4);
  assert.equal(template.server_name,"British Sandhurst Army | BSA");
- assert.equal(template.roles.length,55);
+ assert.equal(template.roles.length,56);
  assert.equal(template.categories.length,16);
  const v=validateBsaTemplate(template);
  assert.equal(v.counts.channels,100);
@@ -31,18 +30,27 @@ test("uploaded V4 template is bundled unchanged with expected structure",()=>{
  assert.equal(v.counts.voice,8);
  assert.equal(v.counts.text,89);
 });
-test("V4 build must fail closed on missing Officer Cadet on Trial role and overly broad cadet posting",()=>{
- const validation=validateBsaTemplate(template);
+test("incomplete template must fail closed on missing trial role and broad cadet access",()=>{
+ const validation=validateBsaTemplate(incomplete());
  assert.equal(validation.ok,false);
  assert.ok(validation.errors.some(e=>e.includes("no unique trial-cadet Discord role")));
  assert.ok(validation.errors.some(e=>e.includes("general OF-0")));
  assert.ok(validation.warnings.some(w=>w.includes("default_view")));
  assert.equal(template.categories.some(c=>c.name==="OFFICER STAFF SECTOR"&&c.channels.some(x=>x.name==="pings")),false);
 });
-test("when the owner defines the trial role explicitly, V4 passes validation",()=>{
+test("corrected V4 role and supervision permissions pass validation",()=>{
  const v=validateBsaTemplate(fixed());
  assert.deepEqual(v.errors,[]);
  assert.equal(v.ok,true);
+});
+test("regular OF-0 cannot view or post in supervision-request",()=>{
+ const supervision=template.categories.find(c=>c.name==="OFFICER STAFF SECTOR")
+   .channels.find(ch=>ch.name==="supervision-request");
+ for(const field of ["view","post"]){
+   assert.ok(supervision.access[field].includes("Officer Cadet on Trial"));
+   assert.ok(!supervision.access[field].includes("OF-0 | Officer Cadet"));
+ }
+ assert.equal(template.roles.find(r=>r.name==="Officer Cadet on Trial").administrator,false);
 });
 test("private text permissions deny everyone and allow only explicit roles",()=>{
  const guild={id:"999999999999999999"};
@@ -70,7 +78,7 @@ test("private text permissions deny everyone and allow only explicit roles",()=>
 test("template invalidity prevents all build writes",async()=>{
  let writes=0;
  await assert.rejects(
-  buildBsaGuild({roles:{create:()=>{writes++;}},channels:{create:()=>{writes++;}}},template),
+  buildBsaGuild({roles:{create:()=>{writes++;}},channels:{create:()=>{writes++;}}},incomplete()),
   /validation blockers/
  );
  assert.equal(writes,0);
