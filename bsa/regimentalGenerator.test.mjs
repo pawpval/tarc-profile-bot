@@ -162,9 +162,10 @@ test("new guild can be any name, but must be clean and allow Manage Roles/Channe
  assert.equal(first.size.newRoles,pack.RMP.roles_lowest_to_highest.length);
  assert.equal(first.size.newChannels,59);
  const bad=fakeGuild();bad.createExtraChannel("existing-sensitive-channel",ChannelType.GuildText);
- const unsafe=await preflightRegimentalGuild(bad.guild,pack.RMP);
- assert.equal(unsafe.ok,false);
- assert.ok(unsafe.issues.some(x=>x.includes("unmatched channel")));
+ const withExtra=await preflightRegimentalGuild(bad.guild,pack.RMP);
+ assert.equal(withExtra.ok,true);
+ assert.ok(withExtra.warnings.some(x=>x.includes("Preserving 1 unmatched")));
+ assert.deepEqual(withExtra.extraObjects.map(x=>x.name),["existing-sensitive-channel"]);
  const wrong=fakeGuild();wrong.createExtraRole("Other RP Command");
  assert.equal((await preflightRegimentalGuild(wrong.guild,pack.RMP)).ok,false);
  const notCommunity=fakeGuild(DEST,OWNER,false);
@@ -265,4 +266,40 @@ test("build time limit stops before any mutation and never deletes existing obje
  assert.equal(result.createdChannels.length,0);
  assert.ok(result.errors.some(x=>x.includes("time limit")));
  assert.deepEqual(f.counts(),start);
+});
+
+test("unmatched starter channels are preserved unchanged across build, audit and rerun",async()=>{
+  const pack=await getRegimentalPresets();
+  const f=fakeGuild();
+  const unmatched=f.createExtraChannel("new-member-onboarding",ChannelType.GuildText);
+  const originalId=unmatched.id;
+  const sampleBefore={...unmatched};
+  const initial=await preflightRegimentalGuild(f.guild,pack.OCA);
+  assert.equal(initial.ok,true);
+  assert.equal(initial.extraObjects.length,1);
+  assert.equal(initial.extraObjects[0].id,originalId);
+  const first=await buildRegimentalGuild(f.guild,pack.OCA);
+  assert.deepEqual(first.errors,[]);
+  assert.equal(first.createdChannels.length,30);
+  assert.equal(f.channels.get(originalId),unmatched);
+  assert.deepEqual(unmatched,sampleBefore);
+  const audit=await auditRegimentalGuild(f.guild,pack.OCA);
+  assert.deepEqual(audit.issues,[]);
+  assert.ok(audit.warnings.some(x=>x.includes("Preserving 1 unmatched")));
+  const second=await buildRegimentalGuild(f.guild,pack.OCA);
+  assert.equal(second.createdChannels.length,0);
+  assert.equal(second.createdCategories.length,0);
+  assert.equal(second.createdRoles.length,0);
+  assert.deepEqual(unmatched,sampleBefore);
+});
+test("preview explicitly names extras so owner can assess before consenting",async()=>{
+  const f=fakeGuild(),extra=f.createExtraChannel("new-member-onboarding",ChannelType.GuildText);
+  const i=command(f,"OCA");
+  assert.equal(await handleRegimentalInteraction(i,env),true);
+  const payload=response(i);
+  assert.match(payload.content,/Existing unmatched objects \(PRESERVED/);
+  assert.match(payload.content,/new-member-onboarding/);
+  assert.equal(payload.components.length,1);
+  assert.equal(f.channels.get(extra.id).name,"new-member-onboarding");
+  assert.equal(f.counts().channelCreates,0);
 });
