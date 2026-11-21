@@ -18,7 +18,7 @@ BSA commands are **global Guild Install commands** so the bot does not need BSA_
 
 ## Commands
 
-`/bsa-preview` is read-only. It returns a concise private Discord summary and a **full JSON attachment** containing the ordered 55-role, 16-category, 100-channel V4 template and a report of any errors, warnings, existing-name conflicts and required bot permissions. The attachment includes all role colours and all individual channel view/post role lists.
+`/bsa-preview` is read-only. It returns a concise private Discord summary and a **full JSON attachment** containing the ordered 56-role, 16-category, 100-channel V4 template and a report of any errors, warnings, existing-name conflicts and required bot permissions. The attachment includes all role colours and all individual channel view/post role lists.
 
 `/bsa-build` validates the template and the current bot/guild permissions before offering an owner-only confirmation button. **No changes happen before that button is clicked.** Confirmation is bound to one user, one guild, one template hash and ten minutes. The builder checks everything again on confirmation and creates missing roles, categories and text/voice/forum/Stage channels. Existing matching roles and channels are reused, not duplicated or deleted. The specified legacy `dyno-logs` name is renamed to `server-logs` only if it exists in the BSA logging sector and no server-logs channel exists.
 
@@ -26,19 +26,15 @@ BSA commands are **global Guild Install commands** so the bot does not need BSA_
 
 No webhook destinations are configured, no messages are fetched, and no existing BSA roles or channels are automatically deleted. The builder does not rename or overwrite unrelated existing BSA objects.
 
-## Current V4 template has two permission blockers
+## Trial-cadet permissions corrected in V4
 
-The **original owner-provided V4 JSON** is included unchanged as `bsa/BSA_Server_Template_V4.json`. It describes 55 roles, 16 categories and 100 channels.
+The owner-approved Officer Cadet supervision requirement has been applied to the bundled `bsa/BSA_Server_Template_V4.json`. The role **Officer Cadet on Trial** now appears alongside the other officer ranks, with the same `#6284AA` colour as `OF-0 | Officer Cadet` and no Administrator permission.
 
-The V4 notes say `OFFICER STAFF SECTOR/supervision-request` is for **Officer Cadets on Trial**, but it has **no trial-cadet role definition** and its `access.post` currently includes the general `OF-0 | Officer Cadet` role. For safety, the builder refuses to create any server objects until you:
+In `OFFICER STAFF SECTOR/supervision-request`, the ordinary `OF-0 | Officer Cadet` role was removed from both `access.view` and `access.post`. The new trial-cadet role was added to both. Existing explicitly named supervising staff remain allowed. This resolves the blocking template errors without inventing broad private-sector access.
 
-1. Add the actual **Officer Cadet on Trial** role, including its intended name, colour and `administrator:false`, to `roles`. It must have an unambiguous name containing Officer Cadet and Trial.
-2. Include that exact role name in `supervision-request.access.view` and `supervision-request.access.post`.
-3. Remove general `OF-0 | Officer Cadet` from both `supervision-request.access.view` and `supervision-request.access.post`. Viewing and requesting supervision are limited to the explicit trial-cadet role and the named supervising staff.
+The live build should now pass template validation. Remaining preflight requirements include Manage Roles/Channels, Community enabled, bot role hierarchy and accurate Railway IDs.
 
-Several V4 category `default_view` lists also contain outdated role labels such as `Moderation Department`, `QA Team`, and rank aliases without the `|` separator. Those are **warnings**, not silent grants: every channel has its own explicit valid `access.view` and `access.post`, which are authoritative. Category visibility is derived conservatively from the channel view lists, and aliases are never invented.
-
-Keep the V4 file updated in GitHub before retrying `/bsa-preview`. A new deployment is required to load edited template contents.
+Several category `default_view` lists contain old role aliases. The builder warns about these, never grants access for them, and uses each channel's explicit `access.view` and `access.post` lists instead.
 
 ## Safety and cleanup
 
