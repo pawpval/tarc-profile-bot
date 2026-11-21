@@ -2,7 +2,8 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {validateBsaTemplate} from "./builderCore.js";
-import {buildBsaGuild,auditBsaGuild} from "./builderEngine.js";
+import {buildBsaGuild,auditBsaGuild,inspectBsaPlan} from "./builderEngine.js";
+import {planBsaFormat,applyBsaFormatChanges} from "./channelFormatCore.js";
 
 const raw=JSON.parse(await readFile(new URL("./BSA_Server_Template_V4.json",import.meta.url),"utf8"));
 function correctedTemplate() {
@@ -18,6 +19,7 @@ function makeGuild() {
   roles.set(guild.id,{id:guild.id,name:"@everyone",position:0,color:0,permissions:{has:()=>false}});
   guild.members={fetchMe:async()=>({
     permissions:{has:()=>true},
+    permissionsIn:()=>({has:()=>true}),
     roles:{highest:{position:1000}}
   })};
   guild.roles.fetch=async()=>roles;
@@ -65,6 +67,22 @@ test("simulated confirmed BSA build creates complete layout and can rerun withou
   assert.equal(originalCounts.channelWrites,116);
   const audit=await auditBsaGuild(state.guild,t);
   assert.deepEqual(audit.issues,[]);
+  // Format the existing guild exactly as the owner requested, then confirm
+  // the BSA builder still recognises all renamed channels (no duplicates).
+  const member=await state.guild.members.fetchMe();
+  const renamePlan=planBsaFormat(t,state.channels,member);
+  assert.equal(renamePlan.changes.length,100);
+  assert.equal(renamePlan.conflicts.length,0);
+  const formatResult=await applyBsaFormatChanges(state.guild,renamePlan.changes,member);
+  assert.equal(formatResult.renamed.length,100);
+  assert.equal(formatResult.failed.length,0);
+  const auditAfter=await auditBsaGuild(state.guild,t);
+  assert.deepEqual(auditAfter.issues,[]);
+  const roles=await state.guild.roles.fetch();
+  const channels=await state.guild.channels.fetch();
+  const replan=inspectBsaPlan(state.guild,t,[...roles.values()],[...channels.values()]);
+  assert.equal(replan.createChannels.length,0);
+  assert.deepEqual(replan.conflicts,[]);
   const second=await buildBsaGuild(state.guild,t);
   assert.equal(second.createdRoles.length,0);
   assert.equal(second.createdCategories.length,0);
