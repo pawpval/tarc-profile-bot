@@ -6,7 +6,7 @@ import {
   BSA_CHANNEL_EMOJIS, TOP_LEVEL, SEPARATOR, formatTargetName, validateBsaFormatMap
 } from "./channelFormatMap.js";
 import {planBsaFormat,applyBsaFormatChanges} from "./channelFormatCore.js";
-import {getBsaFormatCommand,handleBsaFormatInteraction} from "./channelFormatCommand.js";
+import {getBsaFormatCommand,getBsaGuildFormatRegistration,handleBsaFormatInteraction} from "./channelFormatCommand.js";
 
 const template=JSON.parse(await readFile(new URL("./BSA_Server_Template_V4.json",import.meta.url),"utf8"));
 const GUILD="777777777777777777", OWNER="999999999999999999", TARC="123456789012345678";
@@ -196,4 +196,26 @@ test("per-channel action is race-safe if channel is moved or renamed after previ
  assert.equal(report.renamed.length,0);
  assert.equal(report.skipped.length,3);
  assert.equal(f.counts().writes,0);
+});
+
+test("guild-only immediate registration is restricted to BSA and uses a valid guild command payload",()=>{
+ const data=getBsaGuildFormatRegistration(env);
+ assert.ok(data);
+ assert.equal(data.guildId,GUILD);
+ assert.equal(data.command.name,"bsa-format");
+ assert.equal(data.command.default_member_permissions,"0");
+ assert.equal(data.command.integration_types,undefined);
+ assert.equal(data.command.contexts,undefined);
+ assert.equal(data.command.dm_permission,undefined);
+ assert.equal(getBsaGuildFormatRegistration({...env,BSA_GUILD_ID:TARC}),null);
+ assert.equal(getBsaGuildFormatRegistration({...env,TARC_MAIN_GUILD_ID:GUILD}),null);
+ assert.equal(getBsaGuildFormatRegistration({...env,BSA_OWNER_DISCORD_ID:""}),null);
+ assert.equal(getBsaGuildFormatRegistration({BSA_GUILD_ID:GUILD,BSA_OWNER_DISCORD_ID:OWNER}),null);
+});
+test("server uses single guild command POST and verifies registration without bulk-overwriting BSA",async()=>{
+ const server=await readFile(new URL("../server.js",import.meta.url),"utf8");
+ assert.match(server,/getBsaGuildFormatRegistration\(\)/);
+ assert.match(server,/await rest\.post\(route, \{ body: bsaFormatRegistration\.command \}\)/);
+ assert.match(server,/await rest\.get\(route\)/);
+ assert.doesNotMatch(server,/rest\.put\(Routes\.applicationGuildCommands\(CLIENT_ID, bsaFormatRegistration\.guildId\)/);
 });
