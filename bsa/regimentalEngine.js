@@ -107,8 +107,14 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
   }
   const foreignChannels=channels.filter(ch=>!matchedIds.has(ch.id) &&
     !isDefaultCategory(ch) && !isDefaultChannel(ch,byId));
-  if(foreignChannels.length)issues.push("Target has "+foreignChannels.length+
-    " unmatched channel/category object(s). Refusing to guess or overwrite; inspect the private JSON preview.");
+  // Fresh Discord servers can contain onboarding, system, or owner-created
+  // starter channels that are not named in the selected proposal. An extra
+  // object isn't a name/type collision: preserve it and explicitly report
+  // it rather than forcing the owner to delete anything to generate a layout.
+  // Template-name collisions, duplicate parent categories, wrong channel
+  // types, custom role conflicts and cross-preset locks remain HARD blockers.
+  if(foreignChannels.length)warnings.push("Preserving "+foreignChannels.length+
+    " unmatched existing channel/category object(s) without modifying, moving or deleting them. Review extraObjects in the private preview before confirming.");
   if(!bot?.permissions?.has?.(P.ManageRoles))
     issues.push("Bot needs Manage Roles in this target server.");
   if(!bot?.permissions?.has?.(P.ManageChannels))

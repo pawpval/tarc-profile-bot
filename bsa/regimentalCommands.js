@@ -116,12 +116,15 @@ function previewText(guild,t,p){
     p.counts.roles+" proposed roles • "+p.counts.categories+" categories • "+p.counts.channels+" channels.",
     "To create: "+p.size.newRoles+" roles, "+p.size.newCategories+
       " categories, "+p.size.newChannels+" channels; "+(p.claimed?"reuse":"create")+" builder lock.",
+    p.extraObjects.length?"**Existing unmatched objects (PRESERVED, not deleted or edited):** "+
+      p.extraObjects.slice(0,4).map(x=>x.name).join(", ")+
+      (p.extraObjects.length>4?" (+"+(p.extraObjects.length-4)+" more in JSON)":"")+".":null,
     p.issues.length?"**BLOCKED ("+p.issues.length+")**\n"+brief(p.issues,6):
       "**Structural preflight passed.**",
     "**Source warning:** PROPOSAL_NOT_APPROVED. No exact role colours, channel-role permission lists or integrations are provided. "+
     "Public sections will be READ-ONLY. Private and mixed sections will deny everyone and receive NO guessed access grants.",
     "This preview changes nothing. Review the full attached template and report before confirming."
-  ].join("\n").slice(0,1920);
+  ].filter(Boolean).join("\n").slice(0,1920);
 }
 
 export async function handleRegimentalInteraction(i,env=process.env){
