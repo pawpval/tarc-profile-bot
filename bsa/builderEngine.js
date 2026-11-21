@@ -1,5 +1,6 @@
 import { ChannelType, PermissionFlagsBits, OverwriteType } from "discord.js";
 import { categoryAccess, validateBsaTemplate } from "./builderCore.js";
+import { channelAliases, TOP_LEVEL } from "./channelFormatMap.js";
 
 const P = PermissionFlagsBits;
 export const BSA_CHANNEL_TYPES = Object.freeze({
@@ -121,8 +122,9 @@ export function inspectBsaPlan(guild, template, existingRoles, existingChannels)
   }
   function examine(ch, parentName=null) {
     const category = parentName ? findUnique(categories,parentName) : null;
+    const acceptedNames=channelAliases(parentName || TOP_LEVEL,ch.name);
     const matches=existingChannels.filter(x=>x.type!==ChannelType.GuildCategory &&
-      x.name===ch.name && same(x.parentId??null,category?.id??null));
+      acceptedNames.includes(x.name) && same(x.parentId??null,category?.id??null));
     const qualified = (parentName || "TOP LEVEL") + "/" + ch.name;
     if (matches.length>1) result.conflicts.push("Duplicate existing channels: " + qualified);
     else if (matches.length===1) {
@@ -175,8 +177,9 @@ export async function buildBsaGuild(guild, template, onProgress = async()=>{}) {
   }
   await onProgress("Role phase finished. Building categories and channels...");
   const current=asArray(await guild.channels.fetch());
-  async function createOne(ch, parentId=null, index=0, name=ch.name) {
-    const sameName=current.filter(c=>c.parentId===(parentId||null) && c.name===name);
+  async function createOne(ch, parentId=null, index=0, name=ch.name, parentName=TOP_LEVEL) {
+    const acceptedNames=channelAliases(parentName,name);
+    const sameName=current.filter(c=>c.parentId===(parentId||null) && acceptedNames.includes(c.name));
     if (sameName.length>1) {report.errors.push("Duplicate existing channel "+name+"; skipped.");return null;}
     if (sameName.length===1) {
       if (sameName[0].type!==BSA_CHANNEL_TYPES[ch.type]) report.errors.push("Wrong channel type "+name+"; existing channel untouched.");
@@ -203,7 +206,8 @@ export async function buildBsaGuild(guild, template, onProgress = async()=>{}) {
       } catch(e){report.errors.push("Category "+cat.name+": "+String(e.code||e.message).slice(0,130));continue;}
     } else report.reused.push("category/"+cat.name);
     for (const [i,ch] of cat.channels.entries()) {
-      const existing=current.filter(c=>c.parentId===parent.id && c.name===ch.name);
+      const existing=current.filter(c=>c.parentId===parent.id &&
+        channelAliases(cat.name,ch.name).includes(c.name));
       if (!existing.length && cat.name==="LOGGING SECTOR" && ch.name==="server-logs") {
         const legacy=current.filter(c=>c.parentId===parent.id && c.name==="dyno-logs");
         if (legacy.length===1 && legacy[0].type===ChannelType.GuildText) {
@@ -215,7 +219,7 @@ export async function buildBsaGuild(guild, template, onProgress = async()=>{}) {
           } catch(e){report.errors.push("Could not rename dyno-logs: "+String(e.code||e.message));continue;}
         }
       }
-      try {await createOne(ch,parent.id,i);}
+      try {await createOne(ch,parent.id,i,ch.name,cat.name);}
       catch(e){report.errors.push(cat.name+"/"+ch.name+": "+String(e.code||e.message).slice(0,130));}
     }
     await onProgress("Categories "+(catIndex+1)+"/"+template.categories.length+
@@ -246,8 +250,9 @@ export async function auditBsaGuild(guild, template) {
       if (prev && prev.position<=found[0].position) issues.push("Role hierarchy order wrong: "+prev.name+" / "+wanted.name);
     }
   }
-  function auditOne(name,kind,parentId,expected,category=false) {
-    const candidates=channels.filter(c=>c.name===name&&c.parentId===(parentId||null));
+  function auditOne(name,kind,parentId,expected,category=false,section=TOP_LEVEL) {
+    const acceptedNames=category ? [name] : channelAliases(section,name);
+    const candidates=channels.filter(c=>acceptedNames.includes(c.name)&&c.parentId===(parentId||null));
     const id=(parentId||"TOP")+"/"+name;
     if (!candidates.length){issues.push("Missing "+(category?"category":"channel")+": "+id);return null;}
     if(candidates.length>1){issues.push("Duplicate "+id);return null;}
@@ -283,7 +288,7 @@ export async function auditBsaGuild(guild, template) {
     for(const ch of category.channels) {
       const mapped=ch.access.view.every(n=>roleMap.has(n))&&ch.access.post.every(n=>roleMap.has(n));
       const spec=mapped?channelOverwrites(guild,ch,roleMap):null;
-      if(cat && auditOne(ch.name,ch.type,cat.id,spec)) currentChannels++;
+      if(cat && auditOne(ch.name,ch.type,cat.id,spec,false,category.name)) currentChannels++;
     }
     if(cat && category.name==="OFFICER STAFF SECTOR" &&
       channels.some(c=>c.parentId===cat.id&&c.name==="pings")) warnings.push("Legacy Officer Staff/pings exists; delete it manually if unwanted.");
@@ -292,7 +297,8 @@ export async function auditBsaGuild(guild, template) {
   function order(list,folder) {
     let prior=null;
     for(const ch of list){
-      const matches=channels.filter(c=>c.name===ch.name&&c.parentId===(folder?.id??null));
+      const acceptedNames=folder ? channelAliases(folder.name,ch.name) : channelAliases(TOP_LEVEL,ch.name);
+      const matches=channels.filter(c=>acceptedNames.includes(c.name)&&c.parentId===(folder?.id??null));
       if(matches.length===1){
         if(prior && (Number(prior.rawPosition??prior.position)>Number(matches[0].rawPosition??matches[0].position)))
           issues.push("Channel order mismatch: "+prior.name+" should precede "+ch.name);
