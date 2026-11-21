@@ -27,6 +27,21 @@ export function getBsaFormatCommand() {
   return cmd;
 }
 
+// Guild commands appear immediately, unlike globally propagated new commands.
+// This command must NEVER be registered on TARC or on an unconfigured guild.
+export function getBsaGuildFormatRegistration(env=process.env) {
+  const config=bsaConfiguration(env);
+  const validId=/^\d{17,20}$/;
+  if(!validId.test(config.targetId)||!validId.test(config.ownerId)||
+     !validId.test(config.protectedId)||config.targetId===config.protectedId) return null;
+  const command=getBsaFormatCommand();
+  // These two properties are only valid for global application commands.
+  delete command.integration_types;
+  delete command.contexts;
+  delete command.dm_permission;
+  return {guildId:config.targetId,command};
+}
+
 async function loadTemplate() {
   const text=await readFile(new URL("./BSA_Server_Template_V4.json",import.meta.url),"utf8");
   const template=JSON.parse(text);

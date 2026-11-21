@@ -8,7 +8,7 @@ import { handleGameInteraction } from "./game/gameSystem.js";
 import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { getServerScanCommand, handleServerScanInteraction } from "./scan/serverScanCommand.js";
 import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
-import { getBsaFormatCommand, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
+import { getBsaFormatCommand, getBsaGuildFormatRegistration, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1716,6 +1716,29 @@ client.once(Events.ClientReady, async () => {
     }
   } catch (err) {
     console.error("[DISCORD] Command registration failed:", err);
+  }
+
+  // The new temporary formatter must be visible in BSA without waiting for
+  // Discord's global-command propagation. POST upserts only this single
+  // command in the exact configured BSA guild. It neither bulk-overwrites
+  // existing guild commands nor touches the protected main TARC guild.
+  const bsaFormatRegistration = getBsaGuildFormatRegistration();
+  if (bsaFormatRegistration) {
+    try {
+      const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+      const route = Routes.applicationGuildCommands(CLIENT_ID, bsaFormatRegistration.guildId);
+      const registered = await rest.post(route, { body: bsaFormatRegistration.command });
+      const current = await rest.get(route);
+      const verified = Array.isArray(current) &&
+        current.some(c => c.id === registered.id && c.name === "bsa-format");
+      if (!verified) throw new Error("Command not found in BSA guild registration after upsert");
+      console.log("[BSA FORMAT] Guild-specific /bsa-format registration confirmed for configured BSA guild.");
+    } catch (err) {
+      console.error("[BSA FORMAT] Guild-specific command registration failed; code:",
+        String(err?.code || err?.status || "unknown"));
+    }
+  } else {
+    console.warn("[BSA FORMAT] Guild command not registered: BSA owner, target or protected TARC ID configuration invalid.");
   }
 });
 
