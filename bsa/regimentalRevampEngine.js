@@ -8,7 +8,7 @@ export const revampLock=code=>"BSA Builder | "+code;
 const entries=c=>Array.isArray(c)?c.filter(Boolean):(c?.values?[...c.values()].filter(Boolean):[]);
 const same=(a,b)=>String(a??"")===String(b??"");
 const byName=(rows,name)=>rows.filter(x=>x.name===name);
-const bits=flags=>flags.reduce((v,f)=>v|P[f],0n);
+const bits=flags=>flags.reduce((v,f)=>v|BigInt(typeof f==="string"?P[f]:f),0n);
 const btxt=value=>String(value?.bitfield??value??0);
 const hex=value=>"#"+Number(value??0).toString(16).padStart(6,"0").toUpperCase();
 const catType=ChannelType.GuildCategory;
@@ -275,8 +275,7 @@ export async function revampRegimentalGuild(guild,t,onProgress=async()=>{},optio
       const want=safeRoleAttributes(def),old=actualRole(existing);
       if(Object.keys(old).some(k=>String(old[k])!==String(want[k]))){
         const edited=await safe("Update role "+def.name,()=>existing.edit(props));
-        if(edited){report.rolesUpdated.push(def.name);
-          Object.assign(existing,edited);}
+        if(edited)report.rolesUpdated.push(def.name);
       }
     }else{
       const created=await safe("Create role "+def.name,()=>guild.roles.create({name:def.name,...props}));
