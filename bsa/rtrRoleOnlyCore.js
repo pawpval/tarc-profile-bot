@@ -102,6 +102,9 @@ export function inspectRtrRoles(guild,roleCollection,bot,holderCounts={complete:
       issues.push("Protected/managed role cannot be repurposed or sorted: "+name);
     if(r.permissions?.has?.(P.Administrator))
       issues.push("Existing RTR role '"+name+"' has Administrator. Manual review required before rearranging a privileged role.");
+    if(["Tank Gunner","Tank Driver"].includes(name) &&
+      [P.ManageRoles,P.ManageGuild,P.KickMembers,P.BanMembers].some(flag=>r.permissions?.has?.(flag)))
+      issues.push(name+" currently has elevated guild management rights. Qualifications must not grant command authority; review this existing role manually before proceeding.");
     if(botRole?.position!=null && r.position>=botRole.position)
       issues.push("TARC Assistant must be above the EXISTING RTR role '"+name+"' before sorting.");
   }
