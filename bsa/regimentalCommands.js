@@ -121,6 +121,9 @@ function previewText(guild,t,p){
       "The highest listed occurrence determines hierarchy position.":null,
     "To create: "+p.size.newRoles+" roles, "+p.size.newCategories+
       " categories, "+p.size.newChannels+" channels; "+(p.claimed?"reuse":"create")+" builder lock.",
+    p.legacyReusedChannels.length?"**Existing plain-name channels reused: "+
+      p.legacyReusedChannels.length+".** They will NOT be renamed, modified or duplicated. "+
+      "Only genuinely new channels use the emoji│name format.":null,
     p.extraObjects.length?"**Existing unmatched objects (PRESERVED, not deleted or edited):** "+
       p.extraObjects.slice(0,4).map(x=>x.name).join(", ")+
       (p.extraObjects.length>4?" (+"+(p.extraObjects.length-4)+" more in JSON)":"")+".":null,
