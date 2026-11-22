@@ -1,6 +1,7 @@
 import {ChannelType,PermissionFlagsBits as P,OverwriteType} from "discord.js";
 import {expectedAccess,toOverwriteArray,testAccessMatrix,REVISED_BASE_FLAGS,channelBaseName} from "./regimentalRevampAccess.js";
 import {validateRevised} from "./regimentalRevampTemplates.js";
+import {getRegimentalPresets} from "./regimentalTemplates.js";
 
 const TYPE={text:ChannelType.GuildText,forum:ChannelType.GuildForum,
   voice:ChannelType.GuildVoice,stage:ChannelType.GuildStageVoice};
@@ -65,7 +66,7 @@ const defaultChannel=(c,byId)=>(
   && c.name.toLowerCase()==="general"
   &&(!c.parentId||defaultCategory(byId.get(c.parentId)||{}))
 );
-function evaluatePlan(guild,t,roleCollection,channelCollection,bot){
+function evaluatePlan(guild,t,roleCollection,channelCollection,bot,legacyTemplate){
   const meta=validateRevised(t);
   const roles=entries(roleCollection),channels=entries(channelCollection),issues=[],warnings=[];
   const locks=roles.filter(r=>/^BSA Builder \| [A-Z]+$/.test(r.name));
@@ -106,6 +107,8 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot){
       templateBaseCounts.set(key,(templateBaseCounts.get(key)||0)+1);
     }
   const allCategories=channels.filter(ch=>ch.type===catType);
+  const oldCategoryNames=new Set((legacyTemplate?.categories_top_to_bottom||[]).map(c=>c.name));
+  const parentById=new Map(allCategories.map(c=>[c.id,c]));
   const typeExpected=ch=>TYPE[ch.type];
   const plannedCatNames=new Set();
   for(const [categoryIndex,cat] of t.categories_top_to_bottom.entries()){
@@ -131,10 +134,14 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot){
         (found?same(c.parentId,found.id):false)&&
         normalizedChannelName(c.name)===desiredKey);
       let candidates=sameCat,location="same category";
-      if(!candidates.length && templateBaseCounts.get(desiredKey)===1){
+      if(!candidates.length && claimed && templateBaseCounts.get(desiredKey)===1){
+        // Cross-category migration only applies to a guild already tagged
+        // with this exact preset and an OLD known category from that preset.
+        // A random channel in a custom user category is never repurposed.
         candidates=channels.filter(c=>c.type!==catType&&!used.has(c.id)&&
-          normalizedChannelName(c.name)===desiredKey);
-        location="globally unique legacy name";
+          normalizedChannelName(c.name)===desiredKey &&
+          oldCategoryNames.has(parentById.get(c.parentId)?.name));
+        location="unique legacy channel under known old preset category";
       }
       if(candidates.length>1){
         issues.push("Ambiguous channel match ("+candidates.length+"): "+cat.name+"/"+ch.name);
@@ -227,13 +234,13 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot){
     }
   };
 }
-export function inspectRevisedGuild(guild,t,roles,channels,bot){
-  return evaluatePlan(guild,t,roles,channels,bot);
+export function inspectRevisedGuild(guild,t,roles,channels,bot,legacyTemplate=null){
+  return evaluatePlan(guild,t,roles,channels,bot,legacyTemplate);
 }
 export async function previewRevisedGuild(guild,t){
-  const [roles,channels,bot]=await Promise.all([
-    guild.roles.fetch(),guild.channels.fetch(),guild.members.fetchMe()]);
-  return inspectRevisedGuild(guild,t,roles,channels,bot);
+  const [roles,channels,bot,legacyPack]=await Promise.all([
+    guild.roles.fetch(),guild.channels.fetch(),guild.members.fetchMe(),getRegimentalPresets()]);
+  return inspectRevisedGuild(guild,t,roles,channels,bot,legacyPack[t.server_code]);
 }
 
 export async function revampRegimentalGuild(guild,t,onProgress=async()=>{},options={}){
