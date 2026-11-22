@@ -250,7 +250,8 @@ test("existing /bsa-generate remains private, no mutation before confirmation, t
  assert.match(button,/^bsaregi:apply:/);
  const b=fakeButton(f,button);
  assert.equal(await handleRegimentalInteraction(b,env),true);
- assert.match(last(b).content,/RA revamp finished/);
+ assert.match(last(b).content,/RA revamp VERIFIED/);
+ assert.match(last(b).content,/Role hierarchy verified: YES/);
  assert.ok(f.counts.channelCreate>0);
 });
 
