@@ -134,7 +134,7 @@ test("live read-only preview maps old rank ID to Tank Sergeant and counts actual
  const f=fixture();
  const state=await liveRtrRoleSnapshot(f.guild);
  assert.equal(state.ok,true,JSON.stringify(state.issues));
- assert.equal(state.actions.create,13); // 19 desired; 5 existing names and 1 legacy rename.
+ assert.equal(state.actions.create,15); // 19 desired: 3 existing exact names plus 1 safe legacy rename.
  assert.equal(state.actions.rename,1);
  assert.equal(state.rolesToRename[0].from,"Armoured Vehicle Specialist");
  assert.equal(state.rolesToRename[0].to,"Tank Sergeant");
@@ -205,10 +205,15 @@ test("only exact RTR target ID and configured owner are allowed, regardless of s
  const liveBsa=await rtrConfiguration({...env,BSA_RTR_GUILD_ID:MAIN_BSA});
  assert.ok(liveBsa.errors.some(x=>x.includes("protected")));
  const bad=fixture("666666666666666667");
- await handleRtrRoleOnlyInteraction(slash(bad),env);
- assert.match(last(slashResultDummy(bad,env)).content||"",/never/); // placeholder
+ const wrong=slash(bad);
+ await handleRtrRoleOnlyInteraction(wrong,env);
+ assert.match(last(wrong).content,/ONLY in the configured RTR guild/);
+ assert.equal(bad.mutations.create,0);
+ const unauthorized=slash(f,"bsa-rtr-rework","888888888888888888");
+ await handleRtrRoleOnlyInteraction(unauthorized,env);
+ assert.match(last(unauthorized).content,/Only the configured BSA bot owner/);
+ assert.equal(f.mutations.create,0);
 });
-function slashResultDummy(f,env){return {events:[["edit",{content:"never"}]]};}
 
 test("existing Tank Sergeant and old obsolete role are not merged or deleted",async()=>{
  const f=fixture();
