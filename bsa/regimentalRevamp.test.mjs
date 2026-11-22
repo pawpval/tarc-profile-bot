@@ -382,7 +382,7 @@ test("API success without actual order change is detected, not falsely reported 
  };
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("did not apply the requested highest-to-lowest")));
+ assert.ok(outcome.errors.some(x=>x.includes("wrong order after API update")));
  assert.equal(outcome.channelsCreated.length,0);
  assert.equal(outcome.categoriesCreated.length,0);
  const names=new Map(outcome.roleHierarchyActual.map(x=>[x.name,x.position]));
@@ -397,7 +397,7 @@ test("role ordering API error halts other changes instead of producing a false s
  f.guild.roles.setPositions=async()=>{throw Object.assign(new Error("Missing permissions"),{code:50013})};
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("Discord refused to move rank")));
+ assert.ok(outcome.errors.some(x=>x.includes("Discord refused rank")));
  assert.equal(outcome.channelsCreated.length,0);
 });
 
@@ -438,7 +438,7 @@ test("50013 from bulk role rearrangement retries single ranks and verifies actua
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.deepEqual(outcome.errors,[]);
  assert.equal(outcome.rolesReordered,true);
- assert.equal(outcome.roleOrderMethod,"per-role-fallback");
+ assert.equal(outcome.roleOrderMethod,"single-raw-fallback");
  assert.ok(outcome.roleOrderWarnings.some(x=>x.includes("50013")));
  const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
    .sort((a,b)=>b.position-a.position).map(x=>x.name);
