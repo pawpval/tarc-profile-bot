@@ -45,11 +45,16 @@ function policyOverwrites(t,category,ch,guildId,roleIdByName,existing){
     id:String(x.id),type:x.type,allow:bits(x.allow),deny:bits(x.deny)
   }));
   const ids=new Set(defined.map(x=>x.id));
-  // Preserve unrelated user and integration/third-party role overwrites
-  // instead of wiping them. They are listed for owner review; a private
-  // channel's audit cannot certify their independent scope.
-  const foreign=overwriteRows(existing).filter(x=>!ids.has(x.id));
-  return {rows:[...defined,...foreign],preserved:foreign.map(x=>x.id)};
+  // A previously broad permission for a known regimental role must NOT
+  // survive in a newly restricted department merely because this role is
+  // no longer an authorised reader. Remove stale local-template role grants
+  // while preserving genuinely unrelated user/bot/integration overrides.
+  const knownTemplateIds=new Set(t.role_definitions.map(r=>roleIdByName.get(r.name)));
+  const oldRows=overwriteRows(existing);
+  const revoked=oldRows.filter(x=>!ids.has(x.id)&&knownTemplateIds.has(x.id));
+  const foreign=oldRows.filter(x=>!ids.has(x.id)&&!knownTemplateIds.has(x.id));
+  return {rows:[...defined,...foreign],preserved:foreign.map(x=>x.id),
+    revokedLocalGrants:revoked.map(x=>x.id)};
 }
 const normalizedChannelName=name=>channelBaseName(name).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const roleIdKey=name=>"NEW_ROLE:"+name;
