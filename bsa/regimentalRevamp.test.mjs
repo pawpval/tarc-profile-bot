@@ -398,6 +398,9 @@ test("role ordering API error halts other changes instead of producing a false s
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.equal(outcome.rolesReordered,false);
  assert.ok(outcome.errors.some(x=>x.includes("Discord refused rank")));
+ assert.equal(outcome.roleOrderDiagnostics.lastAttempt.type,"single");
+ assert.ok(Number.isInteger(outcome.roleOrderDiagnostics.lastAttempt.requestedRaw));
+ assert.ok(Number.isInteger(outcome.roleOrderDiagnostics.botApiRawPosition));
  assert.equal(outcome.channelsCreated.length,0);
 });
 
