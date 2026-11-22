@@ -6,6 +6,7 @@ import {expectedAccess,simulateChannelAccess,testAccessMatrix} from "./regimenta
 import {previewRevisedGuild,revampRegimentalGuild,auditRevisedGuild} from "./regimentalRevampEngine.js";
 import {getRegimentalPresets} from "./regimentalTemplates.js";
 import {handleRegimentalInteraction} from "./regimentalCommands.js";
+import {inspectRankOrder,reconcileRankOrder} from "./regimentalRoleHierarchy.js";
 
 const OWNER="999999999999999999",TARGET="666666666666666666",TARC="123456789012345678";
 const env={BSA_OWNER_DISCORD_ID:OWNER,BSA_GUILD_ID:"777777777777777777",TARC_MAIN_GUILD_ID:TARC};
@@ -459,4 +460,61 @@ test("target ranks are permuted within their real role slots, preserving unrelat
  const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
    .sort((a,b)=>b.position-a.position).map(x=>x.name);
  assert.deepEqual(actual,t.roles_top_to_bottom);
+});
+
+
+test("discord.js computed display positions are never sent as raw API role positions",async()=>{
+ const names=(await getRevisedPresets()).RA.roles_top_to_bottom;
+ const botRole={id:"999000000000000000",name:"TARC Assistant",position:100,
+   rawPosition:16,managed:true};
+ const roles=new Map([[botRole.id,botRole]]);
+ for(const [i,name] of names.entries()){
+   // Display positions are *different* from raw API positions; sending the
+   // display index (20+) to an endpoint guarded by bot raw #16 gets 50013.
+   const r={id:String(200000000000000000n+BigInt(i)),name,
+     position:20+i,rawPosition:1+i,managed:false};
+   roles.set(r.id,r);
+ }
+ const payloads=[];
+ const guild={roles:{
+   fetch:async()=>roles,
+   setPositions:async assignments=>{
+     payloads.push(assignments);
+     for(const {role,position} of assignments){
+       if(position>=botRole.rawPosition)
+         throw Object.assign(new Error("Raw position exceeds bot"),{code:50013});
+       const target=roles.get(String(role));
+       target.rawPosition=position;
+       target.position=position;
+     }
+     return assignments;
+   }
+ },members:{fetchMe:async()=>({roles:{highest:botRole}})}};
+ const before=inspectRankOrder(roles,{roles:{highest:botRole}},names);
+ assert.equal(before.ok,true,JSON.stringify(before.issues));
+ assert.ok(before.assignments.every(x=>x.position<botRole.rawPosition));
+ assert.ok(before.assignments.every(x=>x.position<20),
+   "Every PATCH position must come from rawPosition, never computed .position");
+ assert.equal(before.ordered,false);
+ const result=await reconcileRankOrder(guild,names);
+ assert.deepEqual(result.errors,[]);
+ assert.equal(result.verified,true);
+ assert.equal(result.method,"batch-raw");
+ assert.equal(result.botRawPosition,16);
+ assert.equal(payloads.length,1);
+ const sorted=[...roles.values()].filter(x=>x!==botRole).sort((a,b)=>b.position-a.position);
+ assert.deepEqual(sorted.map(x=>x.name),names);
+});
+
+test("raw API hierarchy conflict is blocked even if a computed display index appears safe",async()=>{
+ const bot={id:"999000000000000001",name:"TARC Assistant",
+   position:100,rawPosition:12,managed:true};
+ const t=(await getRevisedPresets()).RA;
+ const ranks=t.roles_top_to_bottom.map((name,i)=>({
+   id:String(300000000000000000n+BigInt(i)),
+   name,position:30+i,rawPosition:i+1,managed:false
+ }));
+ const issues=inspectRankOrder([bot,...ranks],{roles:{highest:bot}},t.roles_top_to_bottom);
+ assert.equal(issues.ok,false);
+ assert.ok(issues.issues.some(x=>x.includes("raw")||x.includes("API")));
 });
