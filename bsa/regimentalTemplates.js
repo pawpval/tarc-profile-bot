@@ -25,7 +25,28 @@ export async function getRegimentalPresets(){
 export function regimentTemplateHash(template){
   return createHash("sha256").update(JSON.stringify(template),"utf8").digest("hex");
 }
-export function regimentRoleNames(template){return template.roles_lowest_to_highest;}
+// The source proposes ranks lowest -> highest. Only EXACTLY identical role
+// labels can be consolidated: source proposals provide strings, not role
+// descriptors with individual colours/permission grants. Every role created
+// from a string receives the same safe defaults (0 privileges, default colour,
+// hoist=false, mentionable=false). Retain the LAST/highest occurrence when a
+// label repeats, preserving the most senior proposed position. Do not mutate
+// the uploaded source data, or silently accept future role-object schemas.
+export function regimentRoleNames(template){
+  const list=template?.roles_lowest_to_highest;
+  if(!Array.isArray(list))return [];
+  return list.filter((role,index)=>list.lastIndexOf(role)===index);
+}
+export function regimentDuplicateRoleNames(template){
+  const roles=template?.roles_lowest_to_highest||[];
+  const seen=new Set(),duplicates=new Set();
+  for(const role of roles){
+    if(typeof role!=="string")continue;
+    if(seen.has(role))duplicates.add(role);
+    seen.add(role);
+  }
+  return [...duplicates];
+}
 export function regimentChannels(template){return template.categories_top_to_bottom.flatMap(c=>
   c.channels.map(ch=>({section:c.name,access:c.access,name:ch.name,type:ch.type})));
 }
@@ -43,13 +64,15 @@ export function validateRegimentalPreset(template){
   const categories=template?.categories_top_to_bottom;
   if(!Array.isArray(roles)||!roles.length) errors.push("No role list");
   if(!Array.isArray(categories)||!categories.length) errors.push("No categories");
-  const usedRoles=new Set(),roleDupes=[];
   for(const role of roles||[]){
-    if(typeof role!=="string"||!role||role.length>100) errors.push("Invalid role name");
-    if(usedRoles.has(role)) roleDupes.push(role);
-    usedRoles.add(role);
+    if(typeof role!=="string"||!role||role.length>100)
+      errors.push("Unsupported role specification: every role must be a nonempty string, not an object or custom permissions. Conflicting or richer role definitions must be reviewed manually.");
   }
-  if(roleDupes.length) errors.push("Duplicate role names in proposed rank list: "+[...new Set(roleDupes)].join(", ")+". Source requires an explicit owner decision; no roles will be silently merged.");
+  const deduplicatedRoles=regimentRoleNames(template);
+  const duplicates=regimentDuplicateRoleNames(template);
+  if(duplicates.length) warnings.push("Identical role-name entries consolidated (safe default privileges/colour for all entries): "+
+    duplicates.join(", ")+". Keeping one role at each name's LAST/highest position in the lowest-to-highest proposal. "+
+    "The JSON provides no per-role permission or colour fields; source role permissions have NOT been verified.");
   const catSeen=new Set();let channels=0,forums=0,voice=0,stage=0;
   const categoryIssue=new Set();
   for(const cat of categories||[]){
@@ -82,6 +105,7 @@ export function validateRegimentalPreset(template){
   warnings.push("Categories tagged 'public' are readable but read-only by default. All nonpublic categories, including mixed voice, deny @everyone visibility; NO unapproved staff, investigator, trainee, departmental or personnel access is inferred.");
   warnings.push("No bot integrations, ticket routing, webhooks, Roblox group sync, messages or historical content are imported.");
   for(const question of template?.pending_decisions||[]) warnings.push("Pending: "+question);
-  return {ok:errors.length===0,code,errors,warnings,roles:roles?.length||0,
+  return {ok:errors.length===0,code,errors,warnings,roles:deduplicatedRoles.length,
+    roleEntries:roles?.length||0,duplicateRoleNames:duplicates,
     categories:categories?.length||0,channels,forums,voice,stage,restrictedGroups:[...categoryIssue].sort()};
 }
