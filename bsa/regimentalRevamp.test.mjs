@@ -63,7 +63,10 @@ function makeGuild(){
   guild.roles.fetch=async()=>roles;
   guild.roles.create=async opts=>{
     counts.roleCreate++;
-    return role(opts.name,opts.color||"#000000",opts.permissions??0n,false,1);
+    const created=role(opts.name,opts.color||"#000000",opts.permissions??0n,false,1);
+    created.hoist=Boolean(opts.hoist);
+    created.mentionable=Boolean(opts.mentionable);
+    return created;
   };
   guild.roles.setPositions=async list=>{
     counts.roleReorder++;
