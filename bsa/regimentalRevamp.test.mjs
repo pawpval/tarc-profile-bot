@@ -15,7 +15,10 @@ function makeGuild(){
   const id=()=>String(++seq);
   const counts={roleCreate:0,roleEdit:0,roleReorder:0,categoryCreate:0,channelCreate:0,
     channelEdit:0,categoryEdit:0,delete:0};
-  function role(name,color="#000000",perms=0n,managed=false,position=1){
+  function role(name,color="#000000",perms=0n,managed=false,position=null){
+    // Assign unique rank positions; imported roles may pass explicit values.
+    if(position===null)position=1+Math.max(0,...[...roles.values()]
+      .filter(r=>!r.managed&&r.id!==TARGET).map(r=>r.position));
     const r={id:id(),name,color:parseInt(color.slice(1),16),hexColor:color,
       hoist:false,mentionable:false,managed,position,
       permissions:{bitfield:BigInt(perms),has:x=>(BigInt(perms)&BigInt(x))===BigInt(x)},
@@ -63,6 +66,9 @@ function makeGuild(){
   guild.roles.fetch=async()=>roles;
   guild.roles.create=async opts=>{
     counts.roleCreate++;
+    // Discord adds new roles near the bottom. The existing bot's numeric
+    // position shifts UP as new roles are inserted beneath it.
+    for(const existing of roles.values())if(existing.position>=1)existing.position++;
     const created=role(opts.name,opts.color||"#000000",opts.permissions??0n,false,1);
     created.hoist=Boolean(opts.hoist);
     created.mentionable=Boolean(opts.mentionable);
@@ -70,7 +76,23 @@ function makeGuild(){
   };
   guild.roles.setPositions=async list=>{
     counts.roleReorder++;
-    for(const {role:id,position} of list)roles.get(String(id)).position=position;
+    for(const {role:id,position} of list){
+      const target=roles.get(String(id));
+      if(!target||target.id===bot.id||position>=bot.position)
+        throw Object.assign(new Error("Missing permissions"),{code:50013});
+    }
+    if(list.length===1){
+      // A single-role Discord move shifts the other roles in its path.
+      const {role:id,position}=list[0],target=roles.get(String(id)),from=target.position;
+      for(const other of roles.values()){
+        if(other===target||other.id===TARGET)continue;
+        if(position>from&&other.position>from&&other.position<=position)other.position--;
+        if(position<from&&other.position>=position&&other.position<from)other.position++;
+      }
+      target.position=position;
+    } else {
+      for(const {role:id,position} of list)roles.get(String(id)).position=position;
+    }
     return list;
   };
   guild.channels.fetch=async channelId=>
@@ -305,20 +327,21 @@ test("revamp removes stale regimental role access but preserves unrelated integr
   assert.deepEqual(audit.issues,[]);
 });
 
-test("bot role below intended hierarchy prevents ALL writes and gives actionable error",async()=>{
+test("bot below an ACTUAL existing rank blocks before writes, regardless of Administrator",async()=>{
  const t=(await getRevisedPresets()).OCA;
  const f=makeGuild();
- f.bot.position=8; // Typical case: bot invited before many new rank roles.
+ f.bot.position=8;
+ f.role("Field Marshal","#000000",0n,false,9); // Already above the bot.
  const before={...f.counts};
  const preview=await previewRevisedGuild(f.guild,t);
  assert.equal(preview.ok,false);
  assert.ok(preview.issues.some(x=>x.includes("ROLE HIERARCHY BLOCKED") &&
-   x.includes("Move TARC Assistant")&&x.includes("Server Settings")));
+   x.includes("Move the bot above")&&x.includes("Server Settings")));
  const cmd=fakeCommand(f,"OCA");
  await handleRegimentalInteraction(cmd,env);
  const msg=last(cmd);
  assert.match(msg.content,/BLOCKED/);
- assert.equal(msg.components.length,0); // Cannot confirm a partial hierarchy build.
+ assert.equal(msg.components.length,0);
  assert.deepEqual(f.counts,before);
  await assert.rejects(revampRegimentalGuild(f.guild,t),/Preflight rejected revamp/);
  assert.deepEqual(f.counts,before);
@@ -349,13 +372,16 @@ test("existing inverted OCA roles get reordered highest-to-lowest without recrea
 
 test("API success without actual order change is detected, not falsely reported as a fixed revamp",async()=>{
  const t=(await getRevisedPresets()).OCA,f=makeGuild();
+ for(const [i,name] of t.roles_top_to_bottom.entries())
+   f.role(name,"#000000",0n,false,i+1); // Intentionally inverted.
+ f.role("BSA Builder | OCA");
  f.guild.roles.setPositions=async list=>{
    f.counts.roleReorder++; // Discord accepted, but did not apply positions.
    return list;
  };
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("ROLE ORDER STILL")||x.includes("STILL INVERTED/UNVERIFIED")));
+ assert.ok(outcome.errors.some(x=>x.includes("did not apply the requested highest-to-lowest")));
  assert.equal(outcome.channelsCreated.length,0);
  assert.equal(outcome.categoriesCreated.length,0);
  const names=new Map(outcome.roleHierarchyActual.map(x=>[x.name,x.position]));
@@ -364,10 +390,73 @@ test("API success without actual order change is detected, not falsely reported 
 
 test("role ordering API error halts other changes instead of producing a false success",async()=>{
  const t=(await getRevisedPresets()).OCA,f=makeGuild();
+ for(const [i,name] of t.roles_top_to_bottom.entries())
+   f.role(name,"#000000",0n,false,i+1);
+ f.role("BSA Builder | OCA");
  f.guild.roles.setPositions=async()=>{throw Object.assign(new Error("Missing permissions"),{code:50013})};
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("Reorder role hierarchy")));
- assert.ok(outcome.errors.some(x=>x.includes("Check Manage Roles")));
+ assert.ok(outcome.errors.some(x=>x.includes("Discord refused to move rank")));
  assert.equal(outcome.channelsCreated.length,0);
+});
+
+test("RA: bot at #12 with 14 planned ranks and five yet to be created is NOT blocked",async()=>{
+ const t=(await getRevisedPresets()).RA,f=makeGuild();
+ f.bot.position=12;
+ // Recreate the screenshot: nine rank roles exist underneath the bot,
+ // and five more HQ/leadership roles are missing.
+ for(const [i,name] of t.roles_top_to_bottom.slice(5).entries())
+   f.role(name,"#000000",0n,false,i+1);
+ f.role("BSA Builder | RA");
+ const preview=await previewRevisedGuild(f.guild,t);
+ assert.equal(preview.hierarchyPreflight.botPosition,12);
+ assert.equal(preview.counts.roles,14);
+ assert.equal(preview.summary.createRoles,5);
+ assert.equal(preview.hierarchyPreflight.canReorder,true);
+ assert.equal(preview.ok,true,JSON.stringify(preview.issues));
+ const first=await revampRegimentalGuild(f.guild,t);
+ assert.deepEqual(first.errors,[]);
+ assert.equal(first.rolesCreated.length,5);
+ assert.equal(first.rolesReordered,true);
+ assert.ok(f.bot.position>12,"Creating the missing roles shifts bot numeric position up");
+ const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
+   .sort((a,b)=>b.position-a.position).map(x=>x.name);
+ assert.deepEqual(actual,t.roles_top_to_bottom);
+});
+
+test("50013 from bulk role rearrangement retries single ranks and verifies actual OCA order",async()=>{
+ const t=(await getRevisedPresets()).OCA,f=makeGuild();
+ for(const [i,name] of t.roles_top_to_bottom.entries())
+   f.role(name,"#000000",0n,false,i+1);
+ f.role("BSA Builder | OCA");
+ const real=f.guild.roles.setPositions;
+ f.guild.roles.setPositions=async list=>{
+   if(list.length>1)throw Object.assign(new Error("Bulk 50013"),{code:50013});
+   return real(list);
+ };
+ const outcome=await revampRegimentalGuild(f.guild,t);
+ assert.deepEqual(outcome.errors,[]);
+ assert.equal(outcome.rolesReordered,true);
+ assert.equal(outcome.roleOrderMethod,"per-role-fallback");
+ assert.ok(outcome.roleOrderWarnings.some(x=>x.includes("50013")));
+ const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
+   .sort((a,b)=>b.position-a.position).map(x=>x.name);
+ assert.deepEqual(actual,t.roles_top_to_bottom);
+});
+
+test("target ranks are permuted within their real role slots, preserving unrelated role positions",async()=>{
+ const t=(await getRevisedPresets()).OCA,f=makeGuild();
+ for(const [i,name] of t.roles_top_to_bottom.entries())
+   f.role(name,"#000000",0n,false,2*i+1); // gaps reserved for other roles
+ f.role("BSA Builder | OCA","#000000",0n,false,200);
+ const untouched=f.role("Some Existing External Role","#000000",0n,true,20);
+ const before=untouched.position;
+ const pre=await previewRevisedGuild(f.guild,t);
+ assert.equal(pre.ok,true,JSON.stringify(pre.issues));
+ const outcome=await revampRegimentalGuild(f.guild,t);
+ assert.deepEqual(outcome.errors,[]);
+ assert.equal(untouched.position,before);
+ const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
+   .sort((a,b)=>b.position-a.position).map(x=>x.name);
+ assert.deepEqual(actual,t.roles_top_to_bottom);
 });
