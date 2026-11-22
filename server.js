@@ -10,6 +10,7 @@ import { getServerScanCommand, handleServerScanInteraction } from "./scan/server
 import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
 import { getBsaFormatCommand, getBsaGuildFormatRegistration, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
 import { getRegimentalCommands, handleRegimentalInteraction, registerRegimentalGuildCommands } from "./bsa/regimentalCommands.js";
+import { getRtrReworkCommand, handleRtrRoleOnlyInteraction, registerRtrRoleOnlyGuildCommand } from "./bsa/rtrRoleOnlyCommand.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1696,7 +1697,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1755,6 +1756,22 @@ client.once(Events.ClientReady, async () => {
         String(e?.code||e?.status||"unknown"));
     }
   }
+
+  // Temporary, role-only RTR command. Register it in ONE explicitly
+  // configured existing RTR guild, never through an all-guild bulk PUT.
+  const rtrGuild = client.guilds.cache.get(String(process.env.BSA_RTR_GUILD_ID || ""));
+  if (rtrGuild) {
+    try {
+      const result=await registerRtrRoleOnlyGuildCommand(regimentRest,CLIENT_ID,rtrGuild);
+      if(result.registered)
+        console.log("[BSA RTR] Role-only command registered in configured RTR guild.");
+      else console.warn("[BSA RTR] Registration blocked:",result.reason);
+    } catch(e) {
+      console.error("[BSA RTR] Scoped registration failed:",String(e?.code||e?.status||"unknown"));
+    }
+  } else {
+    console.warn("[BSA RTR] Set BSA_RTR_GUILD_ID to the exact existing RTR server ID to enable the role-only command there.");
+  }
 });
 
 client.on(Events.GuildCreate, async guild => {
@@ -1762,6 +1779,10 @@ client.on(Events.GuildCreate, async guild => {
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
     const result = await registerRegimentalGuildCommands(rest,CLIENT_ID,guild);
     if(result.registered) console.log("[BSA REGIMENT] Commands registered after invite: "+result.guildId);
+    if(guild.id===String(process.env.BSA_RTR_GUILD_ID||"")) {
+      const rtr=await registerRtrRoleOnlyGuildCommand(rest,CLIENT_ID,guild);
+      if(rtr.registered)console.log("[BSA RTR] Scoped role-only command registered after invite.");
+    }
   } catch(e) {
     console.error("[BSA REGIMENT] New guild registration failed; code:",
       String(e?.code||e?.status||"unknown"));
@@ -1834,6 +1855,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleRtrRoleOnlyInteraction(interaction)) return;
   if (await handleRegimentalInteraction(interaction)) return;
   if (await handleBsaFormatInteraction(interaction)) return;
   if (await handleBsaInteraction(interaction)) return;
