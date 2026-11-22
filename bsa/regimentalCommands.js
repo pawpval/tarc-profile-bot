@@ -119,10 +119,12 @@ function previewText(guild,t,p){
       " categories, "+p.counts.channels+" channels.",
     "**Roles:** "+sums.createRoles+" create, "+sums.editRoles+" update colours/permissions; "+
       "Field Marshal goes at the TOP, lowest ranks at the BOTTOM.",
-    "**Hierarchy:** TARC Assistant highest role at position "+p.hierarchyPreflight.botPosition+
-      " (must be above all "+p.hierarchyPreflight.requiredSlots+" regimental ranks). "+
-      (p.hierarchyPreflight.canReorder?"Reordering is permitted.":
-        "Move the bot ABOVE every rank before confirming."),
+    "**Hierarchy:** Bot's highest role is currently at #"+p.hierarchyPreflight.botPosition+
+      ". "+p.hierarchyPreflight.currentlyExistingRankCount+" ranks exist, "+
+      p.hierarchyPreflight.missingRanks+" are yet to be created. "+
+      (p.hierarchyPreflight.canReorder?"Bot is above the existing ranks; "+
+        "new rank positions will be checked after creation.":
+        "The bot is BELOW an existing rank; move it above that rank."),
     "**Categories:** "+sums.createCategories+" create, "+sums.updateCategories+" update.",
     "**Channels:** "+sums.createChannels+" create, "+sums.updateChannels+" edit, "+
       sums.moveChannels+" move, "+sums.renameChannels+" rename, "+
@@ -194,7 +196,8 @@ export async function handleRegimentalInteraction(i,env=process.env){
           build.rolesCreated.length+" roles created, "+build.rolesUpdated.length+" updated; "+
           build.categoriesCreated.length+" categories created, "+build.categoriesUpdated.length+" updated; "+
           build.channelsCreated.length+" channels created, "+build.channelsUpdated.length+" edited. "+
-          "**Role hierarchy verified: "+(build.rolesReordered?"YES":"NO")+"**. "+
+          "**Role hierarchy verified: "+(build.rolesReordered?"YES":"NO")+"**"+
+          (build.roleOrderMethod?" ("+build.roleOrderMethod+")":"")+". "+
           "Remaining audit issues: "+audit.issues.length+"."+
           (build.errors.length?"\n**Errors:**\n"+brief(build.errors,4):"")+
           (incomplete?"\nDo not assume the rank hierarchy is fixed; review errors and rerun the command.":
