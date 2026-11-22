@@ -15,7 +15,10 @@ function makeGuild(){
   const id=()=>String(++seq);
   const counts={roleCreate:0,roleEdit:0,roleReorder:0,categoryCreate:0,channelCreate:0,
     channelEdit:0,categoryEdit:0,delete:0};
-  function role(name,color="#000000",perms=0n,managed=false,position=1){
+  function role(name,color="#000000",perms=0n,managed=false,position=null){
+    // Assign unique rank positions; imported roles may pass explicit values.
+    if(position===null)position=1+Math.max(0,...[...roles.values()]
+      .filter(r=>!r.managed&&r.id!==TARGET).map(r=>r.position));
     const r={id:id(),name,color:parseInt(color.slice(1),16),hexColor:color,
       hoist:false,mentionable:false,managed,position,
       permissions:{bitfield:BigInt(perms),has:x=>(BigInt(perms)&BigInt(x))===BigInt(x)},
@@ -63,6 +66,9 @@ function makeGuild(){
   guild.roles.fetch=async()=>roles;
   guild.roles.create=async opts=>{
     counts.roleCreate++;
+    // Discord adds new roles near the bottom. The existing bot's numeric
+    // position shifts UP as new roles are inserted beneath it.
+    for(const existing of roles.values())if(existing.position>=1)existing.position++;
     const created=role(opts.name,opts.color||"#000000",opts.permissions??0n,false,1);
     created.hoist=Boolean(opts.hoist);
     created.mentionable=Boolean(opts.mentionable);
@@ -70,7 +76,23 @@ function makeGuild(){
   };
   guild.roles.setPositions=async list=>{
     counts.roleReorder++;
-    for(const {role:id,position} of list)roles.get(String(id)).position=position;
+    for(const {role:id,position} of list){
+      const target=roles.get(String(id));
+      if(!target||target.id===bot.id||position>=bot.position)
+        throw Object.assign(new Error("Missing permissions"),{code:50013});
+    }
+    if(list.length===1){
+      // A single-role Discord move shifts the other roles in its path.
+      const {role:id,position}=list[0],target=roles.get(String(id)),from=target.position;
+      for(const other of roles.values()){
+        if(other===target||other.id===TARGET)continue;
+        if(position>from&&other.position>from&&other.position<=position)other.position--;
+        if(position<from&&other.position>=position&&other.position<from)other.position++;
+      }
+      target.position=position;
+    } else {
+      for(const {role:id,position} of list)roles.get(String(id)).position=position;
+    }
     return list;
   };
   guild.channels.fetch=async channelId=>
