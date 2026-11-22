@@ -2,6 +2,18 @@
 
 The ten source templates come from the uploaded BSA_Regimental_Planning_Pack.zip. The bot stores their complete *_PROPOSED_CONFIG.json contents in bsa/regimental-proposals.b64 (compressed losslessly with Brotli). Legacy *_SOURCE_AUDIT.json scans and review files are REFERENCE MATERIAL, NOT permission instructions. The app never touches their source Discord guilds.
 
+## Exact emoji channel naming (replacement planning ZIP)
+
+The owner supplied a second file, **BSA_Regimental_Planning_Pack (1).zip**. Its ten `*_PROPOSED_CONFIG.json` proposals differ from the prior package only in all 459 channel names and the `channel_naming_convention` field; role definitions, category names, channel types, restricted-access labels, and all other proposal fields stay unchanged.
+
+The exact per-channel Unicode emoji sequences are in `bsa/regimentalEmojiNames.js`. They are applied to the stored source proposal at load time, with strict SHA-256 fingerprints on the source's category/channel order. The resulting in-memory proposal is equivalent to the replacement ZIP for all ten servers. The literal separator is **│** (U+2502), never an ASCII vertical pipe.
+
+**Future builds:** newly created channels are named `emoji│channel-name`, matching the replacement ZIP without normalization or guessing. Categories are not renamed.
+
+**Previously built servers:** existing plain-name channels under the correct parent category are reused exactly as-is. They are NEVER renamed, recreated, deleted, or duplicated by `/bsa-generate`. A private preview explains how many channels are being reused under their old names. If both the plain and emoji variant already exist in the same category, the build BLOCKS to avoid selecting the wrong channel. A subsequent `/bsa-regiment-audit` also recognises either exact name, so existing generated servers remain valid.
+
+Changing the emoji mapping or the source layout requires a new code review; unexpected channel name/order changes are rejected before any server writes.
+
 ## Commands
 
 - /bsa-generate server:<preset>: chooses from RMP, ETS, RGG, RTR, UKSF, GR, RIC, OCA, RICA and RA. Read-only preview includes the exact proposed roles, categories, channels, types, unresolved questions and required permissions as a downloadable JSON file. Confirm on the private button only after reviewing the PREVIEW. Confirmation expires in ten minutes and is bound to the account, exact guild ID, preset and current layout.

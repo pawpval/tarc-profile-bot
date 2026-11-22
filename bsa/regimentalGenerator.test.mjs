@@ -1,6 +1,10 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {ChannelType,PermissionFlagsBits as P} from "discord.js";
+import {createHash} from "node:crypto";
+import {readFile} from "node:fs/promises";
+import {brotliDecompressSync} from "node:zlib";
+import {applyRegimentalEmojiNames,regimentChannelAliases,REGIMENT_CHANNEL_NAMING} from "./regimentalEmojiNames.js";
 import {
   REGIMENT_CODES,getRegimentalPresets,validateRegimentalPreset,regimentRoleNames
 } from "./regimentalTemplates.js";
@@ -332,4 +336,104 @@ test("preview explicitly names extras so owner can assess before consenting",asy
   assert.equal(payload.components.length,1);
   assert.equal(f.channels.get(extra.id).name,"new-member-onboarding");
   assert.equal(f.counts().channelCreates,0);
+});
+
+test("all 459 effective channel names exactly match the user's replacement emoji ZIP",async()=>{
+ const pack=await getRegimentalPresets();
+ // Hashes of JSON.stringify([[parentCategory, formattedChannelName], ...])
+ // independently calculated from each *_PROPOSED_CONFIG.json in the new ZIP.
+ const expected={
+   RMP:"2ebd8a75654e4f3c", ETS:"3a9b1424a7abeab3",
+   RGG:"89b72371e11a01ca", RTR:"67ef6f594133da37",
+   UKSF:"e490a32af9d2678f", GR:"fa03b4659ee15cff",
+   RIC:"6e24d8bea2658d5f", OCA:"00ef297a74fe08c3",
+   RICA:"8d87d0033ee19b45", RA:"711bece7d14e51be"
+ };
+ let total=0;
+ for(const code of REGIMENT_CODES){
+   const t=pack[code];
+   const rows=t.categories_top_to_bottom.flatMap(cat=>
+     cat.channels.map(ch=>[cat.name,ch.name]));
+   const hash=createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0,16);
+   assert.equal(hash,expected[code],code+" must match the uploaded ZIP 1:1");
+   assert.equal(t.channel_naming_convention,REGIMENT_CHANNEL_NAMING);
+   for(const [category,name] of rows){
+     assert.match(name,/^.+│[^│]+$/u,code+"/"+category+"/"+name);
+     assert.equal(name.includes("|"),false);
+     assert.equal(regimentChannelAliases(name)[0],name);
+   }
+   total+=rows.length;
+ }
+ assert.equal(total,459);
+ assert.deepEqual(regimentChannelAliases("👋│welcome"),["👋│welcome","welcome"]);
+ assert.deepEqual(regimentChannelAliases("welcome"),["welcome"]);
+});
+
+test("emoji conversion refuses to guess if source channel names or ordering changed",async()=>{
+ const contents=(await readFile(new URL("./regimental-proposals.b64",import.meta.url),"utf8")).trim();
+ const legacy=JSON.parse(brotliDecompressSync(Buffer.from(contents,"base64")).toString("utf8"));
+ const good=applyRegimentalEmojiNames(legacy);
+ assert.equal(good.OCA.categories_top_to_bottom[0].channels[0].name,"👋│welcome");
+ assert.equal(legacy.OCA.categories_top_to_bottom[0].channels[0].name,"welcome");
+ legacy.OCA.categories_top_to_bottom[0].channels[0].name="unexpected-name";
+ assert.throws(()=>applyRegimentalEmojiNames(legacy),/Original channel layout\/order has changed/);
+});
+
+test("previously built plain-name guilds are recognized and never duplicated or renamed",async()=>{
+ const pack=await getRegimentalPresets();
+ for(const code of ["OCA","RA","RMP","RIC"]){
+   const f=fakeGuild();
+   const template=pack[code];
+   const first=await buildRegimentalGuild(f.guild,template);
+   assert.deepEqual(first.errors,[],code);
+   const categories=[...f.channels.values()].filter(ch=>ch.type===ChannelType.GuildCategory);
+   const plannedParentIds=new Set(categories.filter(cat=>
+     template.categories_top_to_bottom.some(x=>x.name===cat.name)).map(x=>x.id));
+   const originallyNew=[...f.channels.values()].filter(ch=>plannedParentIds.has(ch.parentId));
+   const legacyNames=originallyNew.map(ch=>{
+      const original=regimentChannelAliases(ch.name)[1];
+      assert.ok(original,code+"/"+ch.name);
+      ch.name=original; // Simulate guild generated before emoji ZIP.
+      return [ch.id,original];
+   });
+   const before=f.counts();
+   const plan=await preflightRegimentalGuild(f.guild,template);
+   assert.equal(plan.ok,true,code+" "+JSON.stringify(plan.issues));
+   assert.equal(plan.size.newChannels,0,code);
+   assert.equal(plan.legacyReusedChannels.length,originallyNew.length,code);
+   assert.equal(plan.extraObjects.length,0,code);
+   const preview=command(f,code);
+   await handleRegimentalInteraction(preview,env);
+   assert.match(response(preview).content,/Existing plain-name channels reused/);
+   const result=await buildRegimentalGuild(f.guild,template);
+   assert.equal(result.createdChannels.length,0,code);
+   assert.equal(result.createdCategories.length,0,code);
+   assert.equal(result.createdRoles.length,0,code);
+   assert.deepEqual(f.counts(),{...before,otherWrites:before.otherWrites+1},code);
+   for(const [id,name] of legacyNames)assert.equal(f.channels.get(id).name,name);
+   const audit=await auditRegimentalGuild(f.guild,template);
+   assert.deepEqual(audit.issues,[],code);
+ }
+});
+
+test("mixed plain/new channels are reused, but both spellings in one category block safely",async()=>{
+ const pack=await getRegimentalPresets(),f=fakeGuild();
+ await buildRegimentalGuild(f.guild,pack.OCA);
+ const channels=[...f.channels.values()].filter(c=>c.name.includes("│"));
+ const plain=channels[0],unchanged=channels[1];
+ plain.name=regimentChannelAliases(plain.name)[1];
+ const mixed=await preflightRegimentalGuild(f.guild,pack.OCA);
+ assert.equal(mixed.ok,true);
+ assert.equal(mixed.legacyReusedChannels.length,1);
+ assert.equal(mixed.size.newChannels,0);
+ assert.ok(unchanged.name.includes("│"));
+ const duplicate=f.createExtraChannel("👋│welcome",plain.type,plain.parentId);
+ const before=f.counts();
+ const bad=await preflightRegimentalGuild(f.guild,pack.OCA);
+ assert.equal(bad.ok,false);
+ assert.ok(bad.issues.some(x=>x.includes("Duplicate existing channels")));
+ assert.equal(bad.extraObjects.length,0);
+ await assert.rejects(buildRegimentalGuild(f.guild,pack.OCA),/preflight stopped all writes/);
+ assert.deepEqual(f.counts(),before);
+ assert.ok(f.channels.has(duplicate.id));
 });

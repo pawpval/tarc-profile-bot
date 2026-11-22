@@ -1,6 +1,7 @@
 import {readFile} from "node:fs/promises";
 import {brotliDecompressSync} from "node:zlib";
 import {createHash} from "node:crypto";
+import {applyRegimentalEmojiNames} from "./regimentalEmojiNames.js";
 
 export const REGIMENT_CODES=Object.freeze(["RMP","ETS","RGG","RTR","UKSF","GR","RIC","OCA","RICA","RA"]);
 const ID=/^\d{17,20}$/;
@@ -17,7 +18,7 @@ export async function getRegimentalPresets(){
     const parsed=JSON.parse(unpacked);
     if(Object.keys(parsed).length!==REGIMENT_CODES.length ||
       REGIMENT_CODES.some(code=>!parsed[code])) throw new Error("Regimental pack incomplete");
-    cached=Object.freeze(parsed);
+    cached=Object.freeze(applyRegimentalEmojiNames(parsed));
   }
   return cached;
 }

@@ -1,5 +1,6 @@
 import {ChannelType,PermissionFlagsBits as P,OverwriteType} from "discord.js";
 import {REGIMENT_CODES,regimentRoleNames,validateRegimentalPreset} from "./regimentalTemplates.js";
+import {regimentChannelAliases} from "./regimentalEmojiNames.js";
 
 export const REGIMENT_TYPES=Object.freeze({
   text:ChannelType.GuildText, forum:ChannelType.GuildForum,
@@ -84,7 +85,7 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
   }
   const byId=new Map(channels.map(ch=>[ch.id,ch]));
   const categoriesByName=names(channels.filter(ch=>ch.type===ChannelType.GuildCategory));
-  const missingCategories=[],reusedCategories=[],missingChannels=[],reusedChannels=[];
+  const missingCategories=[],reusedCategories=[],missingChannels=[],reusedChannels=[],legacyReusedChannels=[];
   const matchedIds=new Set();
   const expectedCats=new Set(template.categories_top_to_bottom.map(c=>c.name));
   for(const cat of template.categories_top_to_bottom){
@@ -95,13 +96,22 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
     else missingCategories.push(cat.name);
     for(const ch of cat.channels){
       const key=cat.name+"/"+ch.name;
+      const aliases=regimentChannelAliases(ch.name);
       const foundCh=channels.filter(c=>c.type!==ChannelType.GuildCategory &&
-        c.name===ch.name && (parent ? identical(c.parentId,parent.id) : false));
-      if(foundCh.length>1){issues.push("Duplicate existing channels: "+key);continue;}
+        aliases.includes(c.name) && (parent ? identical(c.parentId,parent.id) : false));
+      if(foundCh.length>1){
+        // Both the old plain and exact emoji name are matching candidates,
+        // not unrelated extras. Report one unambiguous blocker and never pick
+        // or modify either object.
+        for(const candidate of foundCh)matchedIds.add(candidate.id);
+        issues.push("Duplicate existing channels: "+key);
+        continue;
+      }
       if(foundCh.length){
         if(foundCh[0].type!==REGIMENT_TYPES[ch.type])
           issues.push("Existing channel type mismatch: "+key);
         reusedChannels.push(key);matchedIds.add(foundCh[0].id);
+        if(foundCh[0].name!==ch.name)legacyReusedChannels.push(key);
       }else missingChannels.push(key);
     }
   }
@@ -134,7 +144,7 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
   const size={newRoles:missingRoles.length,newCategories:missingCategories.length,newChannels:missingChannels.length};
   return {ok:issues.length===0,validation:val,issues:[...new Set(issues)],warnings:[...new Set(warnings)],
     claimed:Boolean(existingMarker),marker:markerName(template.server_code),
-    missingRoles,reusedRoles,missingCategories,reusedCategories,missingChannels,reusedChannels,
+    missingRoles,reusedRoles,missingCategories,reusedCategories,missingChannels,reusedChannels,legacyReusedChannels,
     extraObjects:foreignChannels.map(ch=>({name:ch.name,id:ch.id,type:ch.type,parentId:ch.parentId??null})),size,
     counts:{roles:val.roles,categories:val.categories,channels:val.channels}};
 }
@@ -214,7 +224,8 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
     for(const [channelIndex,ch] of cat.channels.entries()){
       if(stopForDeadline())return report;
       const label=cat.name+"/"+ch.name;
-      const found=current.filter(c=>c.name===ch.name&&c.parentId===parent.id);
+      const aliases=regimentChannelAliases(ch.name);
+      const found=current.filter(c=>aliases.includes(c.name)&&c.parentId===parent.id);
       if(found.length===1&&found[0].type===REGIMENT_TYPES[ch.type]){
         report.reused.push("channel/"+label);continue;
       }
@@ -251,8 +262,11 @@ export async function auditRegimentalGuild(guild,template){
   for(const cat of template.categories_top_to_bottom){
     const parent=categories.get(cat.name);if(!parent)continue;
     for(const ch of cat.channels){
-      const found=live.find(x=>x.parentId===parent.id&&x.name===ch.name);
-      if(found&&found.type!==REGIMENT_TYPES[ch.type])issues.push("Type mismatch: "+cat.name+"/"+ch.name);
+      const matches=live.filter(x=>x.parentId===parent.id &&
+        regimentChannelAliases(ch.name).includes(x.name));
+      if(matches.length>1)issues.push("Ambiguous original/formatted channel names: "+cat.name+"/"+ch.name);
+      for(const found of matches)
+        if(found.type!==REGIMENT_TYPES[ch.type])issues.push("Type mismatch: "+cat.name+"/"+ch.name);
     }
   }
   return {status:issues.length?"review_needed":"structure_present",code:template.server_code,
