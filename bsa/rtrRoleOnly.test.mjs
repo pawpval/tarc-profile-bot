@@ -245,3 +245,49 @@ test("does not auto-modify Administrator, integration-managed or other server ro
  assert.equal(registered.registered,false);
  assert.equal(f.mutations.channelEdit,0);
 });
+
+test("exactly one scoped RTR command is upserted without overwriting other guild commands",async()=>{
+ const f=fixture(),calls=[],installed=[];
+ const rest={
+   post:async(route,{body})=>{
+     calls.push({method:"POST",route,body});installed.push(body);
+     return {id:"100",name:body.name};
+   },
+   get:async(route)=>{calls.push({method:"GET",route});return installed;}
+ };
+ const registered=await registerRtrRoleOnlyGuildCommand(
+   rest,"444444444444444444",f.guild,makeEnv());
+ assert.equal(registered.registered,true);
+ assert.equal(registered.guildId,RTR);
+ assert.equal(calls.filter(x=>x.method==="POST").length,1);
+ const only=calls.find(x=>x.method==="POST").body;
+ assert.equal(only.name,"bsa-rtr-rework");
+ assert.equal(only.default_member_permissions,"0");
+ assert.equal(only.integration_types,undefined);
+ assert.equal(only.contexts,undefined);
+ assert.ok(calls.every(x=>x.method!=="PUT"));
+ assert.equal(getRtrReworkCommand().name,"bsa-rtr-rework");
+});
+
+test("Tank Gunner and Tank Driver cannot carry inherited command permissions without review",async()=>{
+ const f=fixture();
+ const driver=[...f.roles.values()].find(r=>r.name==="Tank Driver");
+ driver.permissions={bitfield:P.ManageRoles,has:x=>x===P.ManageRoles};
+ const plan=await liveRtrRoleSnapshot(f.guild);
+ assert.equal(plan.ok,false);
+ assert.ok(plan.issues.some(x=>x.includes("Tank Driver")&&x.includes("elevated guild management")));
+ assert.equal(f.mutations.create,0);
+});
+
+test("stale confirm cannot apply role changes after a rank or member assignment changes",async()=>{
+ const f=fixture(),env=makeEnv();
+ const i=slash(f);
+ await handleRtrRoleOnlyInteraction(i,env);
+ const token=last(i).components[0].toJSON().components[0].custom_id;
+ f.assign("3",[f.alias.id]); // Existing role holder count changes from 2 to 3.
+ const b=button(f,token);
+ await handleRtrRoleOnlyInteraction(b,env);
+ assert.match(last(b).content,/changed after the preview/);
+ assert.equal(f.mutations.create,0);
+ assert.equal(f.mutations.rename,0);
+});
