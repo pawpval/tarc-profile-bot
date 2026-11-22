@@ -218,13 +218,18 @@ export async function performRtrRoleRework(guild,expectedPlanHash,hashPlan,onPro
       return output;
     }
     for(const name of afterCreation.roleOrderTopToBottom){
-      const current=await liveRtrRoleSnapshot(guild);
-      if(!current.ok){
-        output.errors.push("RTR hierarchy changed during sorting: "+current.issues.join(" | "));
-        return output;
+      // Refresh only roles for each move; do not fetch every guild member
+      // and channel nineteen times while reordering ranks.
+      const roles=asArray(await guild.roles.fetch());
+      const matching=roles.filter(r=>r.name===name);
+      if(matching.length!==1){
+        output.errors.push("Role became ambiguous during sorting: "+name);return output;
       }
-      const target=current.roleOrderDetails.find(x=>x.name===name);
-      if(!target?.id){output.errors.push("Missing rank while reordering: "+name);return output;}
+      const target=matching[0];
+      const botRole=roles.find(r=>r.id===afterCreation.botHighestRole.id);
+      if(isManaged(target)||!botRole||target.position>=botRole.position){
+        output.errors.push("Bot cannot reorder role above itself: "+name);return output;
+      }
       await onProgress("Ordering RTR role "+name);
       try {await guild.roles.setPosition(target.id,1);}
       catch(e){fail("Discord refused role ordering for "+name,e);return output;}
