@@ -1,5 +1,5 @@
 import {ChannelType,PermissionFlagsBits as P,OverwriteType} from "discord.js";
-import {REGIMENT_CODES,validateRegimentalPreset} from "./regimentalTemplates.js";
+import {REGIMENT_CODES,regimentRoleNames,validateRegimentalPreset} from "./regimentalTemplates.js";
 
 export const REGIMENT_TYPES=Object.freeze({
   text:ChannelType.GuildText, forum:ChannelType.GuildForum,
@@ -30,7 +30,7 @@ function isDefaultChannel(x,byId) {
   return isDefaultCategory(parent);
 }
 
-export function roleListFor(template){return template.roles_lowest_to_highest;}
+export function roleListFor(template){return regimentRoleNames(template);}
 export function expectedRegimentalChannels(template){
   return template.categories_top_to_bottom.flatMap(cat=>
     cat.channels.map(ch=>({category:cat.name,access:cat.access,...ch})));
@@ -64,7 +64,7 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
   if(existingMarker && existingMarker.permissions?.has?.(P.Administrator))
     issues.push("The existing template lock role has Administrator permission.");
   const firstRun=!existingMarker;
-  const expectedNames=new Set(template.roles_lowest_to_highest);
+  const expectedNames=new Set(regimentRoleNames(template));
   const foreignRoles=roles.filter(r=>r.id!==guild.id&&!r.managed &&
     !expectedNames.has(r.name)&&!markerPattern.test(r.name));
   if(foreignRoles.length)issues.push("Target has "+foreignRoles.length+" unmanaged role(s) outside the selected proposal. Use a freshly created server; no existing roles will be overwritten.");
@@ -72,7 +72,7 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
     issues.push("No trusted template lock found, but target already has custom roles. Refusing to assume it is fresh.");
   const existingRoleNames=names(roles);
   const missingRoles=[],reusedRoles=[];
-  for(const name of template.roles_lowest_to_highest){
+  for(const name of regimentRoleNames(template)){
     const found=existingRoleNames.get(name)||[];
     if(found.length>1)issues.push("Ambiguous existing role: "+name);
     else if(found.length){
@@ -121,7 +121,7 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
     issues.push("Bot needs Manage Channels in this target server.");
   if(val.forums+val.stage>0&&!guild.features?.includes("COMMUNITY"))
     issues.push("Enable Community on the new Discord server before creating Forum/Stage channels.");
-  for(const wanted of template.roles_lowest_to_highest){
+  for(const wanted of regimentRoleNames(template)){
     const found=only(existingRoleNames.get(wanted)||[]);
     if(found && bot?.roles?.highest && found.position>=bot.roles.highest.position)
       issues.push("Bot role must be above existing role "+wanted+".");
@@ -172,7 +172,7 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
     existingRoles.push(created);
     report.createdRoles.push(created.name);
   }
-  for(const name of template.roles_lowest_to_highest){
+  for(const name of regimentRoleNames(template)){
     if(stopForDeadline())return report;
     if(existingRoles.some(r=>r.name===name)){report.reused.push("role/"+name);continue;}
     const created=await guild.roles.create({name,permissions:0n,hoist:false,mentionable:false,reason});
@@ -185,11 +185,11 @@ export async function buildRegimentalGuild(guild,template,onProgress=async()=>{}
   const roleByName=new Map(existingRoles.map(r=>[r.name,r]));
   try{
     const me=await guild.members.fetchMe();
-    const n=template.roles_lowest_to_highest.length;
+    const n=regimentRoleNames(template).length;
     if(me.roles.highest.position<=n){
       report.warnings.push("Move the bot role above generated roles and adjust hierarchy manually. No extra permissions were granted.");
     } else {
-      await guild.roles.setPositions(template.roles_lowest_to_highest.map((name,i)=>({
+      await guild.roles.setPositions(regimentRoleNames(template).map((name,i)=>({
         role:roleByName.get(name).id,position:i+1
       })));
     }
@@ -244,7 +244,7 @@ export async function auditRegimentalGuild(guild,template){
   const live=take(await guild.channels.fetch());
   const categories=new Map(live.filter(x=>x.type===ChannelType.GuildCategory).map(c=>[c.name,c]));
   const roleData=take(await guild.roles.fetch());
-  for(const r of template.roles_lowest_to_highest){
+  for(const r of regimentRoleNames(template)){
     const found=roleData.find(x=>x.name===r);
     if(found?.permissions?.has?.(P.Administrator))issues.push("Unapproved Administrator role: "+r);
   }
