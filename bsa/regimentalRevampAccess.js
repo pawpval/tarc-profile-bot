@@ -135,7 +135,9 @@ export function expectedAccess(t,cat,ch=null){
    const writable=!readOnly||staff.includes(name);
    rolePolicy[name]={ViewChannel:true,ReadMessageHistory:true,
      SendMessages:writable,Connect:true,Speak:true,
-     SendMessagesInThreads:writable};
+     SendMessagesInThreads:writable,
+     ...(channel&&["text","forum"].includes(ch.type)&&staff.includes(name)?
+       {ManageMessages:true,ManageThreads:true}:{})};
  }
  const everyonePolicy={ViewChannel:shouldShow,ReadMessageHistory:shouldShow,
    SendMessages:publicWrite,Connect:publicWrite,Speak:publicWrite,
@@ -189,25 +191,31 @@ export function testAccessMatrix(t){
   command=all.filter(x=>x==="Commanding Officer"||x==="Academy Director"||x==="Director"||x==="Field Marshal");
  const result={personas:{guest,member,trainee,instructor,command},sample:[],warnings:[],issues:[]};
  for(const cat of t.categories_top_to_bottom){
-   const first=cat.channels[0]||null;
-   const row={category:cat.name,channel:first?.name||"(category)",
-     guests:simulateChannelAccess(t,cat,first,guest),
-     members:simulateChannelAccess(t,cat,first,member),
-     trainees:simulateChannelAccess(t,cat,first,trainee),
-     instructors:simulateChannelAccess(t,cat,first,instructor),
-     command:simulateChannelAccess(t,cat,first,command)};
-   result.sample.push(row);
-   const p=expectedAccess(t,cat,first);
-   if(p.privateArea && p.authorized.length===0)
-     result.issues.push("Private category has no mapped authorized role: "+cat.name);
-   if(!p.privateArea && !row.guests.view)
-     result.issues.push("Public category unexpectedly invisible to guest: "+cat.name);
-   if(p.privateArea && row.guests.view)
-     result.issues.push("Guest unexpectedly sees private category: "+cat.name);
-   if(p.privateArea&&!row.command.view)
-     result.issues.push("Command cannot see restricted category: "+cat.name);
-   if(!p.privateArea&&!row.guests.view)
-     result.warnings.push("Public area invisible: "+cat.name);
+   for(const ch of (cat.channels.length?cat.channels:[null])){
+     const row={category:cat.name,channel:ch?.name||"(category)",
+       guests:simulateChannelAccess(t,cat,ch,guest),
+       members:simulateChannelAccess(t,cat,ch,member),
+       trainees:simulateChannelAccess(t,cat,ch,trainee),
+       instructors:simulateChannelAccess(t,cat,ch,instructor),
+       command:simulateChannelAccess(t,cat,ch,command)};
+     result.sample.push(row);
+     const p=expectedAccess(t,cat,ch);
+     const label=cat.name+"/"+(ch?.name||"(category)");
+     if(p.privateArea && p.authorized.length===0)
+       result.issues.push("Private channel has no mapped authorized role: "+label);
+     if(!p.privateArea && !row.guests.view)
+       result.issues.push("Public area unexpectedly invisible to guest: "+label);
+     if(p.privateArea && row.guests.view)
+       result.issues.push("Guest unexpectedly sees private channel: "+label);
+     if(p.privateArea&&!row.command.view)
+       result.issues.push("Command cannot see restricted channel: "+label);
+     if(ch?.type==="voice"&&p.authorized.length&&
+       !p.authorized.some(r=>simulateChannelAccess(t,cat,ch,[r]).connect))
+       result.issues.push("Voice channel has no authorised connect role: "+label);
+     if(ch?.permission_overwrites_template?.authorized_roles?.SendMessages===false
+       &&row.guests.send)
+       result.issues.push("Read-only notice is writable to guests: "+label);
+   }
  }
  if(!trainee.length)result.warnings.push("No matching trainee sample role; verify live assignments.");
  if(!instructor.length)result.warnings.push("No matching instructor sample role; verify live assignments.");
