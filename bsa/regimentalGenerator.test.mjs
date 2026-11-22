@@ -2,7 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {ChannelType,PermissionFlagsBits as P} from "discord.js";
 import {
-  REGIMENT_CODES,getRegimentalPresets,validateRegimentalPreset
+  REGIMENT_CODES,getRegimentalPresets,validateRegimentalPreset,regimentRoleNames
 } from "./regimentalTemplates.js";
 import {
   markerName,preflightRegimentalGuild,buildRegimentalGuild,
@@ -112,16 +112,30 @@ test("all 10 source proposal JSONs are bundled without silently approving them",
  assert.equal(pack.RICA.categories_top_to_bottom.flatMap(c=>c.channels).length,27);
  assert.equal(pack.RA.categories_top_to_bottom.flatMap(c=>c.channels).length,17);
 });
-test("proposal inconsistencies block only unsafe choices: RA duplicate names, undefined access warned",async()=>{
+test("identical RA role strings consolidate; ambiguous non-string role specs still block",async()=>{
  const pack=await getRegimentalPresets();
  for(const code of REGIMENT_CODES.filter(x=>x!=="RA")){
    const v=validateRegimentalPreset(pack[code]);
    assert.deepEqual(v.errors,[],code);
  }
  const ra=validateRegimentalPreset(pack.RA);
- assert.equal(ra.ok,false);
- assert.ok(ra.errors.some(x=>x.includes("Duplicate role names")&&x.includes("Guest")));
- assert.ok(ra.errors.some(x=>x.includes("Headquarters")));
+ assert.equal(ra.ok,true);
+ assert.deepEqual(ra.errors,[]);
+ assert.equal(ra.roleEntries,13);
+ assert.equal(ra.roles,10);
+ assert.deepEqual(ra.duplicateRoleNames,["Guest","RIC | Royal Intelligence Corps","Headquarters"]);
+ assert.ok(ra.warnings.some(x=>x.includes("Identical role-name entries consolidated")));
+ assert.equal(pack.RA.roles_lowest_to_highest.length,13);
+ assert.deepEqual(regimentRoleNames(pack.RA),[
+   "RA | Personnel","Regimental Oversight","Guest","BA | British Army Personnel",
+   "RIC | Royal Intelligence Corps","Moderation Department","Reports Staff",
+   "Appeals Reviewer","Headquarters","Ticket Blacklist"
+ ]);
+ const conflict=structuredClone(pack.RA);
+ conflict.roles_lowest_to_highest.push({name:"Guest",permissions:["Administrator"]});
+ const invalid=validateRegimentalPreset(conflict);
+ assert.equal(invalid.ok,false);
+ assert.ok(invalid.errors.some(x=>x.includes("Unsupported role specification")));
  const rmp=validateRegimentalPreset(pack.RMP);
  assert.ok(rmp.warnings.some(w=>w.includes("provost")&&w.includes("not defined")));
  assert.ok(rmp.warnings.some(w=>w.includes("mixed voice")));
@@ -173,7 +187,7 @@ test("new guild can be any name, but must be clean and allow Manage Roles/Channe
 });
 test("simulated sequential build creates original roles/categories/channels, never extras or repeated objects",async()=>{
  const pack=await getRegimentalPresets();
- for(const code of REGIMENT_CODES.filter(c=>c!=="RA")){
+ for(const code of REGIMENT_CODES){
    const f=fakeGuild();
    const proposal=pack[code],expected=validateRegimentalPreset(proposal);
    const first=await buildRegimentalGuild(f.guild,proposal);
@@ -225,14 +239,30 @@ test("private /bsa-generate preview requires real confirmation; unauthorized but
  await handleRegimentalInteraction(duplicate,env);
  assert.equal(duplicate.events[0][0],"reply");
 });
-test("RA preview flags role conflict and never offers confirmation",async()=>{
+test("RA preview offers confirmation with exactly 10 unique roles, never 13",async()=>{
  const f=fakeGuild(),i=command(f,"RA");
  await handleRegimentalInteraction(i,env);
  const r=response(i);
- assert.match(r.content,/BLOCKED/);
- assert.match(r.content,/Duplicate role names/);
- assert.equal(r.components.length,0);
+ assert.match(r.content,/10 proposed roles/);
+ assert.match(r.content,/Structural preflight passed/);
+ assert.equal(r.components.length,1);
  assert.equal(f.counts().roleCreates,0);
+ const token=r.components[0].toJSON().components[0].custom_id;
+ const b=button(f,token);
+ await handleRegimentalInteraction(b,env);
+ assert.match(response(b).content,/RA build finished/);
+ const roles=[...f.roles.values()].filter(x=>!x.managed&&x.id!==f.guild.id);
+ assert.equal(roles.filter(x=>x.name==="Guest").length,1);
+ assert.equal(roles.filter(x=>x.name==="RIC | Royal Intelligence Corps").length,1);
+ assert.equal(roles.filter(x=>x.name==="Headquarters").length,1);
+ assert.equal(roles.length,11); // Ten unique proposal roles plus builder lock
+ assert.equal(roles.every(x=>!x.permissions.has(P.Administrator)),true);
+ const audit=await auditRegimentalGuild(f.guild,(await getRegimentalPresets()).RA);
+ assert.deepEqual(audit.issues,[]);
+ const again=await buildRegimentalGuild(f.guild,(await getRegimentalPresets()).RA);
+ assert.equal(again.createdRoles.length,0);
+ assert.equal(again.createdChannels.length,0);
+ assert.equal(again.createdCategories.length,0);
 });
 test("guild-specific immediate commands only register on eligible newly-owned guilds, never bulk overwrite",async()=>{
  const f=fakeGuild();
