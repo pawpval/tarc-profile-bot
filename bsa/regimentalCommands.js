@@ -76,7 +76,8 @@ function planHash(template,plan,guildId){
   const obj={code:template.server_code,guildId,templateHash:revisedHash(template),
     issues:plan.issues,claimed:plan.claimed,roleCreates:plan.roleCreates,
     roleEdits:plan.roleEdits,categories:plan.categories,channels:plan.channels,
-    hierarchy:plan.hierarchy,unknownRoles:plan.unknownRoles,orphans:plan.orphans};
+    hierarchy:plan.hierarchy,hierarchyPreflight:plan.hierarchyPreflight,
+    unknownRoles:plan.unknownRoles,orphans:plan.orphans};
   return createHash("sha256").update(JSON.stringify(obj)).digest("hex");
 }
 async function authenticate(i,env,presets){
@@ -117,7 +118,11 @@ function previewText(guild,t,p){
     "**Revised template:** "+p.counts.roles+" roles, "+p.counts.categories+
       " categories, "+p.counts.channels+" channels.",
     "**Roles:** "+sums.createRoles+" create, "+sums.editRoles+" update colours/permissions; "+
-      "reorder entire highest-to-lowest hierarchy.",
+      "Field Marshal goes at the TOP, lowest ranks at the BOTTOM.",
+    "**Hierarchy:** TARC Assistant highest role at position "+p.hierarchyPreflight.botPosition+
+      " (must be above all "+p.hierarchyPreflight.requiredSlots+" regimental ranks). "+
+      (p.hierarchyPreflight.canReorder?"Reordering is permitted.":
+        "Move the bot ABOVE every rank before confirming."),
     "**Categories:** "+sums.createCategories+" create, "+sums.updateCategories+" update.",
     "**Channels:** "+sums.createChannels+" create, "+sums.updateChannels+" edit, "+
       sums.moveChannels+" move, "+sums.renameChannels+" rename, "+
@@ -184,13 +189,16 @@ export async function handleRegimentalInteraction(i,env=process.env){
             "\nNo channels or roles are deleted.",components:[]}).catch(()=>{});
         });
         const audit=await auditRevisedGuild(guild,template);
-        await i.editReply({content:"**"+job.code+" revamp finished.** "+
+        const incomplete=build.errors.length>0||audit.issues.length>0||!build.rolesReordered;
+        await i.editReply({content:"**"+job.code+(incomplete?" REVAMP INCOMPLETE":" revamp VERIFIED")+"** "+
           build.rolesCreated.length+" roles created, "+build.rolesUpdated.length+" updated; "+
           build.categoriesCreated.length+" categories created, "+build.categoriesUpdated.length+" updated; "+
           build.channelsCreated.length+" channels created, "+build.channelsUpdated.length+" edited. "+
-          "Hierarchy reordered: "+(build.rolesReordered?"yes":"no")+
-          ". Operational issues: "+build.errors.length+"; remaining audit issues: "+audit.issues.length+
-          ".\nReview the attachment and test real guest/member/trainee/instructor/command access.",
+          "**Role hierarchy verified: "+(build.rolesReordered?"YES":"NO")+"**. "+
+          "Remaining audit issues: "+audit.issues.length+"."+
+          (build.errors.length?"\n**Errors:**\n"+brief(build.errors,4):"")+
+          (incomplete?"\nDo not assume the rank hierarchy is fixed; review errors and rerun the command.":
+            "\nField Marshal is highest, with lower ranks beneath. Verify in Discord."),
           components:[],files:[attachment({build,audit},
             "bsa-"+job.code.toLowerCase()+"-revamp-result.json")],allowedMentions:{parse:[]}});
       }finally{busy.delete(guild.id);}
