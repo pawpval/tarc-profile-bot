@@ -86,7 +86,19 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot,legacyTemplat
   const foreignRoles=roles.filter(r=>unknownRole(r)&&!wantNames.has(r.name));
   if(!claimed&&foreignRoles.length)
     issues.push("Unclaimed guild contains "+foreignRoles.length+" unknown unmanaged roles. Only preconfigured matching regimental servers or fresh guilds are allowed.");
-  const highest=bot?.roles?.highest?.position||0;
+  const highest=bot?.roles?.highest?.position??0;
+  const botRoleName=bot?.roles?.highest?.name||"TARC Assistant";
+  const requiredHierarchySlots=t.roles_top_to_bottom.length;
+  // Discord's Role.position increases from BOTTOM to TOP. A bot cannot
+  // move roles at or above its own highest role, so a low-position bot
+  // must be blocked BEFORE the first edit, not merely warned afterward.
+  // We also need enough numbered positions below the bot to place every
+  // proposed rank (at least #1 through #N; @everyone always occupies #0).
+  if(!Number.isInteger(highest)||highest<=requiredHierarchySlots)
+    issues.push("ROLE HIERARCHY BLOCKED: Move "+botRoleName+
+      " above ALL "+requiredHierarchySlots+" proposed regimental ranks in Discord Server Settings > Roles "+
+      "(ideally to the very top), then rerun /bsa-generate. "+
+      "The bot cannot reorder roles above itself; nothing will be changed.");
   if(!bot?.permissions?.has?.(P.ManageRoles))issues.push("Bot lacks Manage Roles.");
   if(!bot?.permissions?.has?.(P.ManageChannels))issues.push("Bot lacks Manage Channels.");
   const createRoles=[],editRoles=[],reusedRoles=[];
@@ -196,8 +208,11 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot,legacyTemplat
   // Discord role hierarchy is explicit and top-to-bottom. The highest
   // numbered target position is always Field Marshal. Never try to place a
   // managed bot/application role below proposed ranks.
+  // Highest role must receive the highest integer position. Do NOT
+  // confuse the order of the source array (top first) with Discord's
+  // numeric positions (higher number means higher role).
   const hierarchy=t.roles_top_to_bottom.map((name,index)=>({
-    name,roleId:ids.get(name),targetPosition:t.roles_top_to_bottom.length-index,
+    name,roleId:ids.get(name),targetPosition:requiredHierarchySlots-index,
     currentPosition:roles.find(r=>r.name===name)?.position??null
   }));
   const currentOrder=hierarchy.filter(x=>x.currentPosition!=null);
@@ -205,7 +220,10 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot,legacyTemplat
     i>0&&r.currentPosition>=currentOrder[i-1].currentPosition)||
     currentOrder.length!==hierarchy.length;
   if(currentOrder.some(x=>x.currentPosition>=highest)&&highest)
-    issues.push("Move TARC Assistant above all regimental roles before revamping the hierarchy.");
+    issues.push("ROLE HIERARCHY BLOCKED: "+botRoleName+
+      " is not above every existing regimental role. Drag it ABOVE Field Marshal "+
+      "and all other ranks in Server Settings > Roles, then rerun /bsa-generate. "+
+      "Discord prevents the bot from moving roles above its own.");
   const accessTests=testAccessMatrix(t);
   for(const issue of accessTests.issues)issues.push("Access test: "+issue);
   warnings.push(...accessTests.warnings);
@@ -224,7 +242,11 @@ function evaluatePlan(guild,t,roleCollection,channelCollection,bot,legacyTemplat
     issues:[...new Set(issues)],warnings:[...new Set(warnings)],
     roleCreates:createRoles,roleEdits:editRoles,roleUnchanged:reusedRoles,
     categories:plannedCategories,channels:plannedChannels,
-    hierarchy,needsHierarchy,orphans,unknownRoles:foreignRoles.map(r=>({id:r.id,name:r.name})),
+    hierarchy,needsHierarchy,
+    hierarchyPreflight:{botRole:botRoleName,botPosition:highest,requiredSlots:requiredHierarchySlots,
+      canReorder:highest>requiredHierarchySlots&&
+        !currentOrder.some(x=>x.currentPosition>=highest)},
+    orphans,unknownRoles:foreignRoles.map(r=>({id:r.id,name:r.name})),
     accessTests,summary:{
       createRoles:createRoles.length,editRoles:editRoles.length,
       createCategories:plannedCategories.filter(x=>x.action==="create").length,
@@ -303,16 +325,49 @@ export async function revampRegimentalGuild(guild,t,onProgress=async()=>{},optio
   }
   if(deadline())return report;
   const member=await guild.members.fetchMe();
-  const hierarchy=t.roles_top_to_bottom.map((name,i)=>({
-    role:roleIds.get(name),position:t.roles_top_to_bottom.length-i
-  }));
-  if(member.roles?.highest?.position<=hierarchy.length){
-    report.errors.push("Bot role is too low to guarantee correct hierarchy. Move it ABOVE the new roles and rerun.");
-  }else{
-    const set=await safe("Reorder role hierarchy",()=>guild.roles.setPositions(hierarchy));
-    if(set!==null)report.rolesReordered=true;
+  const botPosition=member.roles?.highest?.position??0;
+  // Recheck after role creation: Discord may shift other roles' positions
+  // as new roles are created, and cached bot positions may be stale.
+  // The complete requested ranking must fit STRICTLY below the bot.
+  const newRankRoles=entries(await guild.roles.fetch());
+  const rankCount=t.roles_top_to_bottom.length;
+  if(botPosition<=rankCount||
+     newRankRoles.some(r=>roleIds.has(r.name)&&t.roles_top_to_bottom.includes(r.name)&&
+       r.position>=botPosition)){
+    report.errors.push("ROLE HIERARCHY NOT APPLIED: Move TARC Assistant ABOVE all regimental roles "+
+      "in Discord Server Settings > Roles, then rerun /bsa-generate. "+
+      "The bot cannot edit roles at or above its highest role.");
+    return report; // Never report a successful revamp with inverted roles.
   }
-  await onProgress("Role colours, permissions and high-to-low hierarchy processed.");
+  const hierarchy=t.roles_top_to_bottom.map((name,i)=>({
+    role:roleIds.get(name),position:rankCount-i
+  }));
+  const set=await safe("Reorder role hierarchy",()=>guild.roles.setPositions(hierarchy));
+  if(set===null){
+    report.errors.push("Role hierarchy update failed. Check Manage Roles and move TARC Assistant "+
+      "above all ranks before rerunning /bsa-generate.");
+    return report;
+  }
+  // Successful API submission does not prove Discord ACTUALLY applied the
+  // positions. Fetch the live state and verify every adjacent pair, including
+  // Field Marshal at the TOP and the last trainee/guest role at the BOTTOM.
+  const verifiedRoles=entries(await guild.roles.fetch());
+  const actualByName=new Map(verifiedRoles.map(r=>[r.name,r]));
+  const actualHierarchy=t.roles_top_to_bottom.map(name=>({
+    name,id:roleIds.get(name),position:actualByName.get(name)?.position??null
+  }));
+  const inversion=actualHierarchy.find((r,i)=>
+    r.position==null || (i>0 && actualHierarchy[i-1].position<=r.position));
+  if(inversion){
+    report.errors.push("DISCORD ROLE ORDER STILL INVERTED/UNVERIFIED after setPositions: "+
+      inversion.name+". No channel permissions or further changes applied. "+
+      "Check bot role hierarchy/Discord API response, then rerun /bsa-generate.");
+    report.roleHierarchyActual=actualHierarchy;
+    return report;
+  }
+  report.rolesReordered=true;
+  report.roleHierarchyActual=actualHierarchy;
+  await onProgress("Verified highest-to-lowest Discord role positions (Field Marshal above all regimental ranks).");
   const current=entries(await guild.channels.fetch());
   const createdOrFoundCats=new Map();
   for(const [i,cat] of t.categories_top_to_bottom.entries()){
