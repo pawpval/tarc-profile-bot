@@ -342,6 +342,13 @@ export async function revampRegimentalGuild(guild,t,onProgress=async()=>{},optio
   report.roleOrderMethod=order.method;
   report.roleOrderWarnings=order.warnings;
   report.roleHierarchyActual=order.actual;
+  report.roleOrderDiagnostics={
+    botDisplayPosition:order.botPosition,
+    botApiRawPosition:order.botRawPosition,
+    plannedApiAssignments:order.plannedAssignments,
+    lastAttempt:order.lastAttempt,
+    verificationMethod:order.method
+  };
   if(!order.verified){
     report.errors.push(...order.errors);
     if(!order.errors.length)
