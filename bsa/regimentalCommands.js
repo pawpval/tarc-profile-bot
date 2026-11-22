@@ -114,6 +114,11 @@ function previewText(guild,t,p){
     "Selected: **"+t.server_name+"** ("+t.server_code+").",
     "Destination: **"+guild.name+"** (ID: "+guild.id+"). Name does not affect authorization.",
     p.counts.roles+" proposed roles • "+p.counts.categories+" categories • "+p.counts.channels+" channels.",
+    p.validation.duplicateRoleNames.length?"**Identical duplicate role names skipped ("+
+      (p.validation.roleEntries-p.validation.roles)+"):** "+
+      p.validation.duplicateRoleNames.join(", ")+
+      ". One of each will be created using common zero-permission defaults. "+
+      "The highest listed occurrence determines hierarchy position.":null,
     "To create: "+p.size.newRoles+" roles, "+p.size.newCategories+
       " categories, "+p.size.newChannels+" channels; "+(p.claimed?"reuse":"create")+" builder lock.",
     p.extraObjects.length?"**Existing unmatched objects (PRESERVED, not deleted or edited):** "+
