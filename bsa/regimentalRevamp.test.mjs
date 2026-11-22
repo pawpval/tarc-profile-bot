@@ -245,3 +245,53 @@ test("existing /bsa-generate remains private, no mutation before confirmation, t
  assert.match(last(b).content,/RA revamp finished/);
  assert.ok(f.counts.channelCreate>0);
 });
+
+
+test("unrelated custom-category channel is NOT repurposed by matching its name",async()=>{
+  const t=(await getRevisedPresets()).OCA,f=makeGuild();
+  f.role("BSA Builder | OCA");
+  const privateCat=f.channel("PERSONAL PROJECT",ChannelType.GuildCategory);
+  const privateChannel=f.channel("academy-announcements",ChannelType.GuildText,privateCat.id);
+  const beforeId=privateChannel.id;
+  const beforeParent=privateChannel.parentId;
+  const plan=await previewRevisedGuild(f.guild,t);
+  assert.equal(plan.ok,true,JSON.stringify(plan.issues));
+  assert.ok(plan.orphans.some(x=>x.id===beforeId));
+  assert.ok(plan.channels.some(x=>x.name==="📣│academy-announcements"&&x.action==="create"));
+  const built=await revampRegimentalGuild(f.guild,t);
+  assert.deepEqual(built.errors,[]);
+  assert.equal(privateChannel.id,beforeId);
+  assert.equal(privateChannel.parentId,beforeParent);
+  assert.equal(privateChannel.name,"academy-announcements");
+  const newMatching=[...f.channels.values()].filter(x=>x.name==="📣│academy-announcements");
+  assert.equal(newMatching.length,1);
+  assert.notEqual(newMatching[0].id,beforeId);
+});
+test("revamp removes stale regimental role access but preserves unrelated integration overwrites",async()=>{
+  const t=(await getRevisedPresets()).RMP,f=makeGuild();
+  const built=await revampRegimentalGuild(f.guild,t);
+  assert.deepEqual(built.errors,[]);
+  const commandCat=[...f.channels.values()].find(c=>c.name==="REGIMENTAL COMMAND");
+  assert.ok(commandCat);
+  const person=[...f.roles.values()].find(r=>r.name==="RMP | Personnel");
+  const botExtra=f.role("External Logger", "#000000",0n,true);
+  const previous=commandCat.permissionOverwrites.cache;
+  previous.set(person.id,{
+    id:person.id,type:OverwriteType.Role,
+    allow:{bitfield:P.ViewChannel},deny:{bitfield:0n}
+  });
+  previous.set(botExtra.id,{
+    id:botExtra.id,type:OverwriteType.Role,
+    allow:{bitfield:P.ViewChannel},deny:{bitfield:0n}
+  });
+  const preview=await previewRevisedGuild(f.guild,t);
+  assert.equal(preview.ok,true,JSON.stringify(preview.issues));
+  assert.ok(preview.categories.some(x=>x.name==="REGIMENTAL COMMAND"&&x.action==="update"));
+  assert.ok(preview.warnings.some(x=>x.includes("third-party")));
+  const revised=await revampRegimentalGuild(f.guild,t);
+  assert.deepEqual(revised.errors,[]);
+  assert.equal(commandCat.permissionOverwrites.cache.has(person.id),false);
+  assert.equal(commandCat.permissionOverwrites.cache.has(botExtra.id),true);
+  const audit=await auditRevisedGuild(f.guild,t);
+  assert.deepEqual(audit.issues,[]);
+});
