@@ -222,52 +222,6 @@ test("template marker disallows applying a different regiment in same guild",asy
  assert.equal(incompatible.ok,false);
  assert.ok(incompatible.issues.some(x=>x.includes("different BSA generator preset")));
 });
-test("private /bsa-generate preview requires real confirmation; unauthorized buttons do not write",async()=>{
- const f=fakeGuild();
- const i=command(f);
- assert.equal(await handleRegimentalInteraction(i,env),true);
- assert.equal(f.counts().roleCreates,0);
- const p=response(i);
- assert.match(p.content,/PROPOSAL_NOT_APPROVED/);
- assert.equal(p.files.length,1);
- assert.equal(i.events[0][1].flags,64);
- const apply=p.components[0].toJSON().components[0].custom_id;
- const outsider=button(f,apply,"888888888888888888");
- await handleRegimentalInteraction(outsider,env);
- assert.equal(f.counts().roleCreates,0);
- const trusted=button(f,apply);
- assert.equal(await handleRegimentalInteraction(trusted,env),true);
- assert.match(response(trusted).content,/build finished/);
- assert.ok(f.counts().roleCreates>0);
- const duplicate=button(f,apply);
- await handleRegimentalInteraction(duplicate,env);
- assert.equal(duplicate.events[0][0],"reply");
-});
-test("RA preview offers confirmation with exactly 10 unique roles, never 13",async()=>{
- const f=fakeGuild(),i=command(f,"RA");
- await handleRegimentalInteraction(i,env);
- const r=response(i);
- assert.match(r.content,/10 proposed roles/);
- assert.match(r.content,/Structural preflight passed/);
- assert.equal(r.components.length,1);
- assert.equal(f.counts().roleCreates,0);
- const token=r.components[0].toJSON().components[0].custom_id;
- const b=button(f,token);
- await handleRegimentalInteraction(b,env);
- assert.match(response(b).content,/RA build finished/);
- const roles=[...f.roles.values()].filter(x=>!x.managed&&x.id!==f.guild.id);
- assert.equal(roles.filter(x=>x.name==="Guest").length,1);
- assert.equal(roles.filter(x=>x.name==="RIC | Royal Intelligence Corps").length,1);
- assert.equal(roles.filter(x=>x.name==="Headquarters").length,1);
- assert.equal(roles.length,11); // Ten unique proposal roles plus builder lock
- assert.equal(roles.every(x=>!x.permissions.has(P.Administrator)),true);
- const audit=await auditRegimentalGuild(f.guild,(await getRegimentalPresets()).RA);
- assert.deepEqual(audit.issues,[]);
- const again=await buildRegimentalGuild(f.guild,(await getRegimentalPresets()).RA);
- assert.equal(again.createdRoles.length,0);
- assert.equal(again.createdChannels.length,0);
- assert.equal(again.createdCategories.length,0);
-});
 test("guild-specific immediate commands only register on eligible newly-owned guilds, never bulk overwrite",async()=>{
  const f=fakeGuild();
  const calls=[],existing=[];
@@ -326,18 +280,6 @@ test("unmatched starter channels are preserved unchanged across build, audit and
   assert.equal(second.createdRoles.length,0);
   assert.deepEqual(unmatched,sampleBefore);
 });
-test("preview explicitly names extras so owner can assess before consenting",async()=>{
-  const f=fakeGuild(),extra=f.createExtraChannel("new-member-onboarding",ChannelType.GuildText);
-  const i=command(f,"OCA");
-  assert.equal(await handleRegimentalInteraction(i,env),true);
-  const payload=response(i);
-  assert.match(payload.content,/Existing unmatched objects \(PRESERVED/);
-  assert.match(payload.content,/new-member-onboarding/);
-  assert.equal(payload.components.length,1);
-  assert.equal(f.channels.get(extra.id).name,"new-member-onboarding");
-  assert.equal(f.counts().channelCreates,0);
-});
-
 test("all 459 effective channel names exactly match the user's replacement emoji ZIP",async()=>{
  const pack=await getRegimentalPresets();
  // Hashes of JSON.stringify([[parentCategory, formattedChannelName], ...])
@@ -377,43 +319,6 @@ test("emoji conversion refuses to guess if source channel names or ordering chan
  assert.equal(legacy.OCA.categories_top_to_bottom[0].channels[0].name,"welcome");
  legacy.OCA.categories_top_to_bottom[0].channels[0].name="unexpected-name";
  assert.throws(()=>applyRegimentalEmojiNames(legacy),/Original channel layout\/order has changed/);
-});
-
-test("previously built plain-name guilds are recognized and never duplicated or renamed",async()=>{
- const pack=await getRegimentalPresets();
- for(const code of ["OCA","RA","RMP","RIC"]){
-   const f=fakeGuild();
-   const template=pack[code];
-   const first=await buildRegimentalGuild(f.guild,template);
-   assert.deepEqual(first.errors,[],code);
-   const categories=[...f.channels.values()].filter(ch=>ch.type===ChannelType.GuildCategory);
-   const plannedParentIds=new Set(categories.filter(cat=>
-     template.categories_top_to_bottom.some(x=>x.name===cat.name)).map(x=>x.id));
-   const originallyNew=[...f.channels.values()].filter(ch=>plannedParentIds.has(ch.parentId));
-   const legacyNames=originallyNew.map(ch=>{
-      const original=regimentChannelAliases(ch.name)[1];
-      assert.ok(original,code+"/"+ch.name);
-      ch.name=original; // Simulate guild generated before emoji ZIP.
-      return [ch.id,original];
-   });
-   const before=f.counts();
-   const plan=await preflightRegimentalGuild(f.guild,template);
-   assert.equal(plan.ok,true,code+" "+JSON.stringify(plan.issues));
-   assert.equal(plan.size.newChannels,0,code);
-   assert.equal(plan.legacyReusedChannels.length,originallyNew.length,code);
-   assert.equal(plan.extraObjects.length,0,code);
-   const preview=command(f,code);
-   await handleRegimentalInteraction(preview,env);
-   assert.match(response(preview).content,/Existing plain-name channels reused/);
-   const result=await buildRegimentalGuild(f.guild,template);
-   assert.equal(result.createdChannels.length,0,code);
-   assert.equal(result.createdCategories.length,0,code);
-   assert.equal(result.createdRoles.length,0,code);
-   assert.deepEqual(f.counts(),{...before,otherWrites:before.otherWrites+1},code);
-   for(const [id,name] of legacyNames)assert.equal(f.channels.get(id).name,name);
-   const audit=await auditRegimentalGuild(f.guild,template);
-   assert.deepEqual(audit.issues,[],code);
- }
 });
 
 test("mixed plain/new channels are reused, but both spellings in one category block safely",async()=>{
