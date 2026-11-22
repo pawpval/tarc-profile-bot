@@ -96,6 +96,21 @@ function makeGuild(){
     }
     return list;
   };
+  // Mirrors discord.js RoleManager#setPosition(role, 1): move that role
+  // to the bottom, shift only the roles below the bot, and preserve IDs.
+  guild.roles.setPosition=async(roleId,position)=>{
+    counts.roleReorder++;
+    const target=roles.get(String(roleId));
+    if(!target||target.id===bot.id||target.position>=bot.position||position!==1)
+      throw Object.assign(new Error("Missing permissions"),{code:50013});
+    const sorted=[...roles.values()].filter(x=>x.id!==TARGET)
+      .sort((a,b)=>a.position-b.position||
+        (BigInt(a.id)<BigInt(b.id)?-1:1));
+    const without=sorted.filter(x=>x.id!==target.id);
+    without.unshift(target);
+    without.forEach((x,i)=>{x.position=i+1;});
+    return target;
+  };
   guild.channels.fetch=async channelId=>
     channelId==null?channels:(channels.get(String(channelId))??null);
   guild.channels.create=async opts=>{
@@ -371,39 +386,30 @@ test("existing inverted OCA roles get reordered highest-to-lowest without recrea
  assert.ok(!audit.issues.some(x=>x.includes("hierarchy")));
 });
 
-test("API success without actual order change is detected, not falsely reported as a fixed revamp",async()=>{
- const t=(await getRevisedPresets()).OCA,f=makeGuild();
- for(const [i,name] of t.roles_top_to_bottom.entries())
-   f.role(name,"#000000",0n,false,i+1); // Intentionally inverted.
- f.role("BSA Builder | OCA");
- f.guild.roles.setPositions=async list=>{
-   f.counts.roleReorder++; // Discord accepted, but did not apply positions.
-   return list;
- };
- const outcome=await revampRegimentalGuild(f.guild,t);
- assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("wrong order after API update")));
- assert.equal(outcome.channelsCreated.length,0);
- assert.equal(outcome.categoriesCreated.length,0);
- const names=new Map(outcome.roleHierarchyActual.map(x=>[x.name,x.position]));
- assert.ok(names.get("Field Marshal")<=names.get("Guest"));
-});
-
-test("role ordering API error halts other changes instead of producing a false success",async()=>{
+test("detects a native setPosition API no-op instead of claiming hierarchy fixed",async()=>{
  const t=(await getRevisedPresets()).OCA,f=makeGuild();
  for(const [i,name] of t.roles_top_to_bottom.entries())
    f.role(name,"#000000",0n,false,i+1);
  f.role("BSA Builder | OCA");
- f.guild.roles.setPositions=async()=>{throw Object.assign(new Error("Missing permissions"),{code:50013})};
- const outcome=await revampRegimentalGuild(f.guild,t);
- assert.equal(outcome.rolesReordered,false);
- assert.ok(outcome.errors.some(x=>x.includes("Discord refused rank")));
- assert.equal(outcome.roleOrderDiagnostics.lastAttempt.type,"single");
- assert.ok(Number.isInteger(outcome.roleOrderDiagnostics.lastAttempt.requestedRaw));
- assert.ok(Number.isInteger(outcome.roleOrderDiagnostics.botApiRawPosition));
- assert.equal(outcome.channelsCreated.length,0);
+ f.guild.roles.setPosition=async()=>{f.counts.roleReorder++;return null;};
+ const result=await revampRegimentalGuild(f.guild,t);
+ assert.equal(result.rolesReordered,false);
+ assert.ok(result.errors.some(x=>x.includes("incorrect role order")));
+ assert.equal(result.channelsCreated.length,0);
+ assert.equal(result.categoriesCreated.length,0);
 });
-
+test("native setPosition failure stops the revamp with exact diagnostics",async()=>{
+ const t=(await getRevisedPresets()).OCA,f=makeGuild();
+ for(const [i,name] of t.roles_top_to_bottom.entries())
+   f.role(name,"#000000",0n,false,i+1);
+ f.role("BSA Builder | OCA");
+ f.guild.roles.setPosition=async()=>{throw Object.assign(new Error("Missing permissions"),{code:50013})};
+ const result=await revampRegimentalGuild(f.guild,t);
+ assert.equal(result.rolesReordered,false);
+ assert.ok(result.errors.some(x=>x.includes("Discord rejected moving")));
+ assert.equal(result.roleOrderDiagnostics.lastAttempt.requestedPosition,1);
+ assert.equal(result.channelsCreated.length,0);
+});
 test("RA: bot at #12 with 14 planned ranks and five yet to be created is NOT blocked",async()=>{
  const t=(await getRevisedPresets()).RA,f=makeGuild();
  f.bot.position=12;
@@ -428,96 +434,59 @@ test("RA: bot at #12 with 14 planned ranks and five yet to be created is NOT blo
  assert.deepEqual(actual,t.roles_top_to_bottom);
 });
 
-test("50013 from bulk role rearrangement retries single ranks and verifies actual OCA order",async()=>{
+test("all role raw positions may be 1 while native bottom-up sorting still works",async()=>{
  const t=(await getRevisedPresets()).OCA,f=makeGuild();
- for(const [i,name] of t.roles_top_to_bottom.entries())
-   f.role(name,"#000000",0n,false,i+1);
+ for(const [i,name] of t.roles_top_to_bottom.entries()){
+   const role=f.role(name,"#000000",0n,false,i+1);
+   role.rawPosition=1;
+ }
  f.role("BSA Builder | OCA");
- const real=f.guild.roles.setPositions;
- f.guild.roles.setPositions=async list=>{
-   if(list.length>1)throw Object.assign(new Error("Bulk 50013"),{code:50013});
-   return real(list);
- };
+ f.bot.rawPosition=1;
+ const preview=await previewRevisedGuild(f.guild,t);
+ assert.equal(preview.ok,true,JSON.stringify(preview.issues));
  const outcome=await revampRegimentalGuild(f.guild,t);
  assert.deepEqual(outcome.errors,[]);
  assert.equal(outcome.rolesReordered,true);
- assert.equal(outcome.roleOrderMethod,"single-raw-fallback");
- assert.ok(outcome.roleOrderWarnings.some(x=>x.includes("50013")));
- const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
+ assert.equal(outcome.roleOrderMethod,"bottom-up-single-role");
+ assert.ok(f.counts.roleReorder>0);
+ const ordered=[...f.roles.values()]
+   .filter(x=>t.roles_top_to_bottom.includes(x.name))
    .sort((a,b)=>b.position-a.position).map(x=>x.name);
- assert.deepEqual(actual,t.roles_top_to_bottom);
+ assert.deepEqual(ordered,t.roles_top_to_bottom);
 });
-
-test("target ranks are permuted within their real role slots, preserving unrelated role positions",async()=>{
+test("reorders regimental ranks without deleting unrelated roles",async()=>{
  const t=(await getRevisedPresets()).OCA,f=makeGuild();
  for(const [i,name] of t.roles_top_to_bottom.entries())
-   f.role(name,"#000000",0n,false,2*i+1); // gaps reserved for other roles
+   f.role(name,"#000000",0n,false,2*i+1);
  f.role("BSA Builder | OCA","#000000",0n,false,200);
- const untouched=f.role("Some Existing External Role","#000000",0n,true,20);
- const before=untouched.position;
- const pre=await previewRevisedGuild(f.guild,t);
- assert.equal(pre.ok,true,JSON.stringify(pre.issues));
- const outcome=await revampRegimentalGuild(f.guild,t);
- assert.deepEqual(outcome.errors,[]);
- assert.equal(untouched.position,before);
- const actual=[...f.roles.values()].filter(r=>t.roles_top_to_bottom.includes(r.name))
+ const extra=f.role("Some Existing External Role","#000000",0n,true,20);
+ const originalId=extra.id;
+ const preview=await previewRevisedGuild(f.guild,t);
+ assert.equal(preview.ok,true,JSON.stringify(preview.issues));
+ const result=await revampRegimentalGuild(f.guild,t);
+ assert.deepEqual(result.errors,[]);
+ assert.equal(f.roles.get(originalId),extra);
+ assert.equal(extra.name,"Some Existing External Role");
+ const ordered=[...f.roles.values()].filter(x=>t.roles_top_to_bottom.includes(x.name))
    .sort((a,b)=>b.position-a.position).map(x=>x.name);
- assert.deepEqual(actual,t.roles_top_to_bottom);
+ assert.deepEqual(ordered,t.roles_top_to_bottom);
 });
-
-
-test("discord.js computed display positions are never sent as raw API role positions",async()=>{
- const names=(await getRevisedPresets()).RA.roles_top_to_bottom;
- const botRole={id:"999000000000000000",name:"TARC Assistant",position:100,
-   rawPosition:16,managed:true};
- const roles=new Map([[botRole.id,botRole]]);
- for(const [i,name] of names.entries()){
-   // Display positions are *different* from raw API positions; sending the
-   // display index (20+) to an endpoint guarded by bot raw #16 gets 50013.
-   const r={id:String(200000000000000000n+BigInt(i)),name,
-     position:20+i,rawPosition:1+i,managed:false};
-   roles.set(r.id,r);
+test("duplicate rawPosition is valid when display hierarchy shows bot above all ranks",async()=>{
+ const t=(await getRevisedPresets()).RA,f=makeGuild();
+ f.bot.rawPosition=1;
+ for(const [i,name] of t.roles_top_to_bottom.entries()){
+   const role=f.role(name,"#000000",0n,false,i+1);
+   role.rawPosition=1;
  }
- const payloads=[];
- const guild={roles:{
-   fetch:async()=>roles,
-   setPositions:async assignments=>{
-     payloads.push(assignments);
-     for(const {role,position} of assignments){
-       if(position>=botRole.rawPosition)
-         throw Object.assign(new Error("Raw position exceeds bot"),{code:50013});
-       const target=roles.get(String(role));
-       target.rawPosition=position;
-       target.position=position;
-     }
-     return assignments;
-   }
- },members:{fetchMe:async()=>({roles:{highest:botRole}})}};
- const before=inspectRankOrder(roles,{roles:{highest:botRole}},names);
- assert.equal(before.ok,true,JSON.stringify(before.issues));
- assert.ok(before.assignments.every(x=>x.position<botRole.rawPosition));
- assert.ok(before.assignments.every(x=>x.position<20),
-   "Every PATCH position must come from rawPosition, never computed .position");
- assert.equal(before.ordered,false);
- const result=await reconcileRankOrder(guild,names);
+ const plan=inspectRankOrder(f.roles,{roles:{highest:f.bot}},t.roles_top_to_bottom);
+ assert.equal(plan.ok,true);
+ assert.equal(plan.rawTies[0].count,t.roles_top_to_bottom.length);
+ assert.equal(plan.ordered,false);
+ const result=await reconcileRankOrder(f.guild,t.roles_top_to_bottom);
  assert.deepEqual(result.errors,[]);
  assert.equal(result.verified,true);
- assert.equal(result.method,"batch-raw");
- assert.equal(result.botRawPosition,16);
- assert.equal(payloads.length,1);
- const sorted=[...roles.values()].filter(x=>x!==botRole).sort((a,b)=>b.position-a.position);
- assert.deepEqual(sorted.map(x=>x.name),names);
-});
-
-test("raw API hierarchy conflict is blocked even if a computed display index appears safe",async()=>{
- const bot={id:"999000000000000001",name:"TARC Assistant",
-   position:100,rawPosition:12,managed:true};
- const t=(await getRevisedPresets()).RA;
- const ranks=t.roles_top_to_bottom.map((name,i)=>({
-   id:String(300000000000000000n+BigInt(i)),
-   name,position:30+i,rawPosition:i+1,managed:false
- }));
- const issues=inspectRankOrder([bot,...ranks],{roles:{highest:bot}},t.roles_top_to_bottom);
- assert.equal(issues.ok,false);
- assert.ok(issues.issues.some(x=>x.includes("raw")||x.includes("API")));
+ assert.equal(result.method,"bottom-up-single-role");
+ const rankList=[...f.roles.values()].filter(x=>t.roles_top_to_bottom.includes(x.name))
+   .sort((a,b)=>b.position-a.position).map(x=>x.name);
+ assert.deepEqual(rankList,t.roles_top_to_bottom);
 });
