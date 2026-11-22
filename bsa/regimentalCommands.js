@@ -3,8 +3,8 @@ import {
   ActionRowBuilder,AttachmentBuilder,ButtonBuilder,ButtonStyle,
   MessageFlags,Routes,SlashCommandBuilder
 } from "discord.js";
-import {REGIMENT_CODES,getRegimentalPresets,regimentTemplateHash} from "./regimentalTemplates.js";
-import {markerName,preflightRegimentalGuild,buildRegimentalGuild,auditRegimentalGuild} from "./regimentalEngine.js";
+import {REVISED_CODES as REGIMENT_CODES,getRevisedPresets,revisedHash} from "./regimentalRevampTemplates.js";
+import {revampLock as markerName,previewRevisedGuild,revampRegimentalGuild,auditRevisedGuild} from "./regimentalRevampEngine.js";
 
 const ID=/^\d{17,20}$/;
 const PRIVATE={flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}};
@@ -73,10 +73,10 @@ function guildCommands(){
   });
 }
 function planHash(template,plan,guildId){
-  const obj={code:template.server_code,guildId,templateHash:regimentTemplateHash(template),
-    claimed:plan.claimed,missingRoles:plan.missingRoles,
-    missingCategories:plan.missingCategories,missingChannels:plan.missingChannels,
-    issues:plan.issues,extraObjects:plan.extraObjects};
+  const obj={code:template.server_code,guildId,templateHash:revisedHash(template),
+    issues:plan.issues,claimed:plan.claimed,roleCreates:plan.roleCreates,
+    roleEdits:plan.roleEdits,categories:plan.categories,channels:plan.channels,
+    hierarchy:plan.hierarchy,unknownRoles:plan.unknownRoles,orphans:plan.orphans};
   return createHash("sha256").update(JSON.stringify(obj)).digest("hex");
 }
 async function authenticate(i,env,presets){
@@ -103,36 +103,34 @@ async function respondError(i,message){
 function buttons(token,code){
   return [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("bsaregi:apply:"+token)
-      .setLabel("Confirm "+code+" build").setStyle(ButtonStyle.Danger),
+      .setLabel("Confirm "+code+" revamp").setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId("bsaregi:cancel:"+token)
       .setLabel("Cancel").setStyle(ButtonStyle.Secondary)
   )];
 }
 function previewText(guild,t,p){
+  const sums=p.summary;
   return [
-    "**BSA regiment generator — PRIVATE PREVIEW**",
+    "**BSA regiment in-place revamp — PRIVATE PREVIEW**",
     "Selected: **"+t.server_name+"** ("+t.server_code+").",
-    "Destination: **"+guild.name+"** (ID: "+guild.id+"). Name does not affect authorization.",
-    p.counts.roles+" proposed roles • "+p.counts.categories+" categories • "+p.counts.channels+" channels.",
-    p.validation.duplicateRoleNames.length?"**Identical duplicate role names skipped ("+
-      (p.validation.roleEntries-p.validation.roles)+"):** "+
-      p.validation.duplicateRoleNames.join(", ")+
-      ". One of each will be created using common zero-permission defaults. "+
-      "The highest listed occurrence determines hierarchy position.":null,
-    "To create: "+p.size.newRoles+" roles, "+p.size.newCategories+
-      " categories, "+p.size.newChannels+" channels; "+(p.claimed?"reuse":"create")+" builder lock.",
-    p.legacyReusedChannels.length?"**Existing plain-name channels reused: "+
-      p.legacyReusedChannels.length+".** They will NOT be renamed, modified or duplicated. "+
-      "Only genuinely new channels use the emoji│name format.":null,
-    p.extraObjects.length?"**Existing unmatched objects (PRESERVED, not deleted or edited):** "+
-      p.extraObjects.slice(0,4).map(x=>x.name).join(", ")+
-      (p.extraObjects.length>4?" (+"+(p.extraObjects.length-4)+" more in JSON)":"")+".":null,
-    p.issues.length?"**BLOCKED ("+p.issues.length+")**\n"+brief(p.issues,6):
-      "**Structural preflight passed.**",
-    "**Source warning:** PROPOSAL_NOT_APPROVED. No exact role colours, channel-role permission lists or integrations are provided. "+
-    "Public sections will be READ-ONLY. Private and mixed sections will deny everyone and receive NO guessed access grants.",
-    "This preview changes nothing. Review the full attached template and report before confirming."
-  ].filter(Boolean).join("\n").slice(0,1920);
+    "Target guild: **"+guild.name+"** ("+guild.id+"). Its name is not a security condition.",
+    "**Revised template:** "+p.counts.roles+" roles, "+p.counts.categories+
+      " categories, "+p.counts.channels+" channels.",
+    "**Roles:** "+sums.createRoles+" create, "+sums.editRoles+" update colours/permissions; "+
+      "reorder entire highest-to-lowest hierarchy.",
+    "**Categories:** "+sums.createCategories+" create, "+sums.updateCategories+" update.",
+    "**Channels:** "+sums.createChannels+" create, "+sums.updateChannels+" edit, "+
+      sums.moveChannels+" move, "+sums.renameChannels+" rename, "+
+      sums.permissionEdits+" channel/category permission edits.",
+    p.orphans.length?"**Orphans kept untouched ("+p.orphans.length+"):** "+
+      p.orphans.slice(0,3).map(x=>x.name).join(", ")+
+      (p.orphans.length>3?" (full list in attachment)":"")+".":null,
+    p.issues.length?"**BLOCKED ("+p.issues.length+")**\n"+brief(p.issues,5):
+      "**Preflight and simulated access tests passed.**",
+    "**Source:** REVISED_PROPOSAL_REQUIRES_PREVIEW. Existing channel IDs, messages and member role assignments are preserved. "+
+      "The revised ZIP's role colours/base permissions and resolved channel overwrites will be applied.",
+    "No changes yet. Review the full private JSON diff before confirming."
+  ].filter(Boolean).join("\n").slice(0,1930);
 }
 
 export async function handleRegimentalInteraction(i,env=process.env){
@@ -141,7 +139,7 @@ export async function handleRegimentalInteraction(i,env=process.env){
   const button=i.isButton?.()&&String(i.customId||"").startsWith("bsaregi:");
   if(!command&&!button)return false;
   try{
-    const presets=await getRegimentalPresets();
+    const presets=await getRevisedPresets();
     const {guild,issue}=await authenticate(i,env,presets);
     if(!guild){await i.reply({content:issue,...PRIVATE});return true;}
     if(button){
@@ -164,36 +162,37 @@ export async function handleRegimentalInteraction(i,env=process.env){
       pending.delete(token);
       await i.deferUpdate();
       const template=presets[job.code];
-      if(!template||regimentTemplateHash(template)!==job.templateHash){
+      if(!template||revisedHash(template)!==job.templateHash){
         await respondError(i,"Proposal changed since preview. Nothing was created. Run /bsa-generate again.");
         return true;
       }
-      const plan=await preflightRegimentalGuild(guild,template);
+      const plan=await previewRevisedGuild(guild,template);
       if(!plan.ok||planHash(template,plan,guild.id)!==job.planHash){
         await respondError(i,"Guild changed since preview or failed revalidation. Nothing was created. Run /bsa-generate again.");
         return true;
       }
       busy.add(guild.id);
       try{
-        await i.editReply({content:"Building "+job.code+" STRUCTURE in this new guild. No deletion or guessed access.",
+        await i.editReply({content:"**Revamping "+job.code+" in place.** Existing role IDs, member assignments, "+
+          "channel IDs and messages will be preserved. No object deletions.",
           components:[],allowedMentions:{parse:[]}});
         let lastProgress=0;
-        const build=await buildRegimentalGuild(guild,template,async msg=>{
+        const build=await revampRegimentalGuild(guild,template,async msg=>{
           if(Date.now()-lastProgress<12000)return;
           lastProgress=Date.now();
-          await i.editReply({content:"**Building "+job.code+"**\n"+msg+
-            "\nExisting server objects remain untouched.",components:[]}).catch(()=>{});
+          await i.editReply({content:"**Revamping "+job.code+"**\n"+msg+
+            "\nNo channels or roles are deleted.",components:[]}).catch(()=>{});
         });
-        const audit=await auditRegimentalGuild(guild,template);
-        await i.editReply({content:"**"+job.code+" build finished.** Created "+
-          build.createdRoles.length+" roles (including lock if needed), "+
-          build.createdCategories.length+" categories and "+
-          build.createdChannels.length+" channels. Operational issues: "+
-          build.errors.length+"; audit issues: "+audit.issues.length+
-          ".\n**Private access is deliberately locked pending approval.** "+
-          "Use /bsa-regiment-audit to review.",
+        const audit=await auditRevisedGuild(guild,template);
+        await i.editReply({content:"**"+job.code+" revamp finished.** "+
+          build.rolesCreated.length+" roles created, "+build.rolesUpdated.length+" updated; "+
+          build.categoriesCreated.length+" categories created, "+build.categoriesUpdated.length+" updated; "+
+          build.channelsCreated.length+" channels created, "+build.channelsUpdated.length+" edited. "+
+          "Hierarchy reordered: "+(build.rolesReordered?"yes":"no")+
+          ". Operational issues: "+build.errors.length+"; remaining audit issues: "+audit.issues.length+
+          ".\nReview the attachment and test real guest/member/trainee/instructor/command access.",
           components:[],files:[attachment({build,audit},
-            "bsa-"+job.code.toLowerCase()+"-build-result.json")],allowedMentions:{parse:[]}});
+            "bsa-"+job.code.toLowerCase()+"-revamp-result.json")],allowedMentions:{parse:[]}});
       }finally{busy.delete(guild.id);}
       return true;
     }
@@ -208,14 +207,12 @@ export async function handleRegimentalInteraction(i,env=process.env){
         return true;
       }
       const code=REGIMENT_CODES.find(c=>markerName(c)===locks[0].name);
-      const report=await auditRegimentalGuild(guild,presets[code]);
-      const body="**"+code+" structural audit (read-only)**\n"+
-        report.found.roles+"/"+report.counts.roles+" roles • "+
-        report.found.categories+"/"+report.counts.categories+" categories • "+
-        report.found.channels+"/"+report.counts.channels+" channels.\n"+
-        (report.issues.length?"**Issues:**\n"+brief(report.issues,6):
-          "**Proposed structural layout present.**")+
-        "\nSource ZIP does not approve final access permissions/role colours/integrations.";
+      const report=await auditRevisedGuild(guild,presets[code]);
+      const body="**"+code+" revised revamp audit (read-only)**\n"+
+        "Expected "+report.roles+" roles and "+report.channels+" channels. "+
+        (report.issues.length?"**Remaining issues:**\n"+brief(report.issues,6):
+          "**Declared colours, hierarchy and channel access policies reconciled.**")+
+        "\nFull role-based guest/member/trainee/instructor/command test matrix attached.";
       await i.editReply({content:body.slice(0,1900),components:[],
         files:[attachment(report,"bsa-"+code.toLowerCase()+"-audit.json")],
         allowedMentions:{parse:[]}});
@@ -227,19 +224,19 @@ export async function handleRegimentalInteraction(i,env=process.env){
       return true;
     }
     const template=presets[code];
-    const plan=await preflightRegimentalGuild(guild,template);
+    const plan=await previewRevisedGuild(guild,template);
     let components=[];
     if(plan.ok&&!busy.has(guild.id)){
       for(const [token,item] of pending)if(item.expiresAt<Date.now())pending.delete(token);
       const token=randomBytes(15).toString("hex");
       pending.set(token,{userId:i.user.id,guildId:guild.id,code,
         planHash:planHash(template,plan,guild.id),
-        templateHash:regimentTemplateHash(template),expiresAt:Date.now()+EXPIRES_MS});
+        templateHash:revisedHash(template),expiresAt:Date.now()+EXPIRES_MS});
       components=buttons(token,code);
     }
     await i.editReply({content:previewText(guild,template,plan),components,
       files:[attachment({kind:"regiment-preview",template,plan,
-        note:"Confirmed generation creates proposal STRUCTURE ONLY, with private channels locked."},
+        note:"Owner-confirmed revamp edits existing role colours/permissions, role hierarchy and channel/category overwrites, preserving IDs/messages/assignments; orphans never deleted."},
         "bsa-"+code.toLowerCase()+"-preview.json")],allowedMentions:{parse:[]}});
     return true;
   }catch(e){
@@ -253,7 +250,7 @@ export async function handleRegimentalInteraction(i,env=process.env){
 // Register guild-specific commands as each new owner-controlled guild is joined,
 // avoiding the global propagation delay. Never bulk-overwrite guild commands.
 export async function registerRegimentalGuildCommands(rest,clientId,guild,env=process.env){
-  const presets=await getRegimentalPresets();
+  const presets=await getRevisedPresets();
   const creds=builderCredentials(env,Object.values(presets).map(p=>p.reference_source.guild_id));
   const fresh=await guild.fetch();
   if(!allowedRegimentalTarget(creds,{inGuild:true,guildId:fresh.id,
