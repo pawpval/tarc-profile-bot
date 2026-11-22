@@ -99,7 +99,14 @@ export function inspectRegimentalGuild(guild,template,existingRoles,existingChan
       const aliases=regimentChannelAliases(ch.name);
       const foundCh=channels.filter(c=>c.type!==ChannelType.GuildCategory &&
         aliases.includes(c.name) && (parent ? identical(c.parentId,parent.id) : false));
-      if(foundCh.length>1){issues.push("Duplicate existing channels: "+key);continue;}
+      if(foundCh.length>1){
+        // Both the old plain and exact emoji name are matching candidates,
+        // not unrelated extras. Report one unambiguous blocker and never pick
+        // or modify either object.
+        for(const candidate of foundCh)matchedIds.add(candidate.id);
+        issues.push("Duplicate existing channels: "+key);
+        continue;
+      }
       if(foundCh.length){
         if(foundCh[0].type!==REGIMENT_TYPES[ch.type])
           issues.push("Existing channel type mismatch: "+key);
