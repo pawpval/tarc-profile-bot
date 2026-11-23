@@ -1,5 +1,5 @@
 name: BSA builder regression tests
-# Also checks verified UKSF rank/branch/permission regression cases.
+# Also checks verified UKSF rank/branch/permission and member-list safe-mode regressions.
 on:
   pull_request:
     paths:
