@@ -7,6 +7,7 @@ import { askTarcAssistant, teachTarcAssistant } from "./tarcAssistant.js";
 import { handleGameInteraction } from "./game/gameSystem.js";
 import { getGlobalGalacticCommands, getGuildGalacticCommands, handleGalacticInteraction, startGalacticScheduler } from "./game/galacticCommands.js";
 import { getServerScanCommand, handleServerScanInteraction } from "./scan/serverScanCommand.js";
+import { getScanRolesCommand, handleScanRolesInteraction } from "./scan/scanRolesCommand.js";
 import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
 import { getBsaFormatCommand, getBsaGuildFormatRegistration, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
 import { getRegimentalCommands, handleRegimentalInteraction, registerRegimentalGuildCommands } from "./bsa/regimentalCommands.js";
@@ -1700,7 +1701,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), getUksfReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), getScanRolesCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), getUksfReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1892,6 +1893,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (await handleRegimentalInteraction(interaction)) return;
   if (await handleBsaFormatInteraction(interaction)) return;
   if (await handleBsaInteraction(interaction)) return;
+  if (await handleScanRolesInteraction(interaction)) return;
   if (await handleServerScanInteraction(interaction)) return;
   if (await handleEmbedInteraction(interaction)) return;
   if (await handleBlacklistInteraction(interaction)) return;
