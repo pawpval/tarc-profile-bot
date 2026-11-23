@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import {REVISED_CODES as REGIMENT_CODES,getRevisedPresets,revisedHash} from "./regimentalRevampTemplates.js";
 import {revampLock as markerName,previewRevisedGuild,revampRegimentalGuild,auditRevisedGuild} from "./regimentalRevampEngine.js";
+import {UKSF_GUILD_ID} from "./uksfVerifiedLayout.js";
 
 const ID=/^\d{17,20}$/;
 const PRIVATE={flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}};
@@ -157,6 +158,15 @@ export async function handleRegimentalInteraction(i,env=process.env){
         await i.reply({content:"Confirmation expired or belongs to another guild. Run /bsa-generate again.",...PRIVATE});
         return true;
       }
+      // The revised UKSF scan supersedes the old generic UKSF template.
+      // Never allow an old stored /bsa-generate confirmation to overwrite it.
+      if(job.code==="UKSF"&&guild.id===UKSF_GUILD_ID){
+        pending.delete(token);
+        await i.update({content:"This verified UKSF guild uses /bsa-uksf-rework. "+
+          "The old generic UKSF generator is disabled here to protect branch identities.",
+          components:[],files:[],allowedMentions:{parse:[]}});
+        return true;
+      }
       if(action==="cancel"){
         pending.delete(token);
         await i.update({content:"Cancelled. No roles or channels changed.",
@@ -232,6 +242,12 @@ export async function handleRegimentalInteraction(i,env=process.env){
     const code=i.options?.getString("server");
     if(!REGIMENT_CODES.includes(code)){
       await respondError(i,"Select one of the ten available regimental templates.");
+      return true;
+    }
+    if(code==="UKSF"&&guild.id===UKSF_GUILD_ID){
+      await respondError(i,"The verified UKSF server now uses /bsa-uksf-rework. "+
+        "The old /bsa-generate UKSF configuration is intentionally blocked here "+
+        "to preserve the approved SAS/SRR overhaul.");
       return true;
     }
     const template=presets[code];
