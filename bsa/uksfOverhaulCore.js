@@ -177,16 +177,22 @@ function sourceMatch(guild,roles,channels,bot,holders){
    issues.push("Verified UKSF original rank identity mismatch: "+name+" ("+id+").");
  }
  const byId=new Map(channels.map(c=>[c.id,c]));
- const channelTypes=[ChannelType.GuildText,ChannelType.GuildVoice,ChannelType.GuildForum,ChannelType.GuildStageVoice];
+ // The verified UKSF scan lists IDs, names and parent categories but DOES
+ // NOT record individual channel types. A forum such as suggestions is not
+ // a text channel. Accept valid text/forum or voice/stage types by the
+ // verified name while always retaining the existing channel's actual type.
+ // Do NOT convert or recreate channels based on an inferred source type.
+ const written=[ChannelType.GuildText,ChannelType.GuildForum];
+ const spoken=[ChannelType.GuildVoice,ChannelType.GuildStageVoice];
  for(const cat of UKSF_CATEGORIES){
   const actual=byId.get(cat.id);
   if(!actual||actual.name!==cat.name||actual.type!==ChannelType.GuildCategory)
    issues.push("Verified category missing/renamed: "+cat.name+" ("+cat.id+").");
   for(const [id,name] of cat.channels){
    const ch=byId.get(id);
-   const expectedType=name.endsWith(" VC")?ChannelType.GuildVoice:ChannelType.GuildText;
-   if(!ch||ch.name!==name||ch.parentId!==cat.id||ch.type!==expectedType)
-    issues.push("Verified channel missing/moved/renamed/type changed: "+name+" ("+id+").");
+   const allowedTypes=name.endsWith(" VC")?spoken:written;
+   if(!ch||ch.name!==name||ch.parentId!==cat.id||!allowedTypes.includes(ch.type))
+    issues.push("Verified channel missing/moved/renamed/unsupported type: "+name+" ("+id+").");
   }
  }
  if(holders.complete && roles.filter(r=>r.name==="Branch | SAS").length>1)

@@ -105,7 +105,8 @@ function fixture({guildId=UKSF_GUILD_ID,memberCount=4}={}){
  for(const cat of UKSF_CATEGORIES){
   mkChannel(cat.name,cat.id,ChannelType.GuildCategory,null);
   for(const [chanId,name] of cat.channels)
-   mkChannel(name,chanId,name.includes(" VC")?ChannelType.GuildVoice:ChannelType.GuildText,cat.id);
+   mkChannel(name,chanId,name==="💡│suggestions"?ChannelType.GuildForum:
+     name.includes(" VC")?ChannelType.GuildVoice:ChannelType.GuildText,cat.id);
  }
  guild.channels.fetch=async idValue=>idValue?channels.get(idValue)??null:channels;
  guild.members.fetch=async()=>members;
@@ -293,4 +294,43 @@ test("exact UKSF guild registration is an upsert, never bulk-overwriting guild s
  const denied=await registerUksfReworkGuildCommand(rest,"444444444444444444",wrong.guild,env());
  assert.equal(denied.registered,false);
  assert.equal(calls.filter(x=>x.verb==="post").length,1);
+});
+
+
+test("Forum suggestions uses its existing verified ID, passes preview and stays Forum after full overhaul",async()=>{
+ const f=fixture();
+ const suggestionsId="1573883899757731910";
+ const forum=f.channels.get(suggestionsId);
+ assert.equal(forum.name,"💡│suggestions");
+ assert.equal(forum.type,ChannelType.GuildForum);
+ const channelBefore=f.snapshotChannelNames();
+ const plan=await snapshotUksfLive(f.guild);
+ assert.equal(plan.ok,true,JSON.stringify(plan.issues));
+ const suggested=plan.channelPlans.find(x=>x.id===suggestionsId);
+ assert.ok(suggested);
+ assert.equal(suggested.name,"💡│suggestions");
+ assert.equal(suggested.action,"update");
+ const run=await executeUksfOverhaul(f.guild,hashUksfPlan(plan),hashUksfPlan);
+ assert.deepEqual(run.errors,[]);
+ assert.equal(run.completed,true);
+ assert.equal(f.channels.get(suggestionsId),forum);
+ assert.equal(forum.type,ChannelType.GuildForum);
+ assert.deepEqual(f.snapshotChannelNames(),channelBefore);
+ const afterward=await snapshotUksfLive(f.guild);
+ assert.equal(afterward.ok,true,JSON.stringify(afterward.issues));
+ assert.equal(afterward.channelPlans.find(x=>x.id===suggestionsId).action,"keep");
+});
+
+test("UKSF scan still blocks mismatched channel identity, parent and incompatible types",async()=>{
+ const f=fixture();
+ const forum=f.channels.get("1573883899757731910");
+ forum.type=ChannelType.GuildVoice;
+ const invalid=await snapshotUksfLive(f.guild);
+ assert.equal(invalid.ok,false);
+ assert.ok(invalid.issues.some(x=>x.includes("suggestions")&&x.includes("unsupported type")));
+ forum.type=ChannelType.GuildForum;
+ forum.name="wrong-name";
+ const renamed=await snapshotUksfLive(f.guild);
+ assert.equal(renamed.ok,false);
+ assert.ok(renamed.issues.some(x=>x.includes("suggestions")));
 });
