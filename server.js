@@ -11,6 +11,9 @@ import { getBsaCommands, handleBsaInteraction } from "./bsa/bsaCommands.js";
 import { getBsaFormatCommand, getBsaGuildFormatRegistration, handleBsaFormatInteraction } from "./bsa/channelFormatCommand.js";
 import { getRegimentalCommands, handleRegimentalInteraction, registerRegimentalGuildCommands } from "./bsa/regimentalCommands.js";
 import { getRtrReworkCommand, handleRtrRoleOnlyInteraction, registerRtrRoleOnlyGuildCommand } from "./bsa/rtrRoleOnlyCommand.js";
+import { getUksfReworkCommand, handleUksfReworkInteraction, registerUksfReworkGuildCommand } from "./bsa/uksfOverhaulCommand.js";
+import { syncUksfBranchTag } from "./bsa/uksfOverhaulCore.js";
+import { UKSF_GUILD_ID } from "./bsa/uksfVerifiedLayout.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -1697,7 +1700,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), getUksfReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1772,6 +1775,19 @@ client.once(Events.ClientReady, async () => {
   } else {
     console.warn("[BSA RTR] Set BSA_RTR_GUILD_ID to the exact existing RTR server ID to enable the role-only command there.");
   }
+
+  // Exact verified UKSF guild, as provided by the owner in the Nov 23 scan.
+  // No global server rebuild and no new Railway guild-ID variable required.
+  const uksfGuild=client.guilds.cache.get(UKSF_GUILD_ID);
+  if(uksfGuild){
+    try{
+      const registered=await registerUksfReworkGuildCommand(regimentRest,CLIENT_ID,uksfGuild);
+      if(registered.registered)console.log("[UKSF REWORK] Scoped command ready in verified UKSF guild.");
+      else console.warn("[UKSF REWORK] Registration blocked:",registered.reason);
+    }catch(e){
+      console.error("[UKSF REWORK] Registration failed; code:",String(e?.code||e?.status||"unknown"));
+    }
+  }
 });
 
 client.on(Events.GuildCreate, async guild => {
@@ -1782,6 +1798,10 @@ client.on(Events.GuildCreate, async guild => {
     if(guild.id===String(process.env.BSA_RTR_GUILD_ID||"")) {
       const rtr=await registerRtrRoleOnlyGuildCommand(rest,CLIENT_ID,guild);
       if(rtr.registered)console.log("[BSA RTR] Scoped role-only command registered after invite.");
+    }
+    if(guild.id===UKSF_GUILD_ID) {
+      const uksf=await registerUksfReworkGuildCommand(rest,CLIENT_ID,guild);
+      if(uksf.registered)console.log("[UKSF REWORK] Scoped command registered after invite.");
     }
   } catch(e) {
     console.error("[BSA REGIMENT] New guild registration failed; code:",
@@ -1854,7 +1874,20 @@ client.on(Events.MessageCreate, async message => {
   }
 });
 
+// UKSF role identity: when leadership assigns a confirmed SAS/SRR rank,
+// give its persistent tag. Never automatically promote/switch/delete a rank.
+client.on(Events.GuildMemberUpdate, async (before,after) => {
+  if(after.guild?.id!==UKSF_GUILD_ID)return;
+  try{
+    const status=await syncUksfBranchTag(before,after);
+    if(status?.conflict)console.warn("[UKSF BRANCH] Manual review:",status.conflict);
+  }catch(e){
+    console.error("[UKSF BRANCH] Sync rejected:",String(e?.code||e?.status||"unknown"));
+  }
+});
+
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleUksfReworkInteraction(interaction)) return;
   if (await handleRtrRoleOnlyInteraction(interaction)) return;
   if (await handleRegimentalInteraction(interaction)) return;
   if (await handleBsaFormatInteraction(interaction)) return;
