@@ -4,10 +4,11 @@ import { serverScanConfiguration } from "./serverScanCommand.js";
 
 export function getScanRolesCommand() {
   const command = new SlashCommandBuilder()
-    .setName("scan-roles")
-    .setDescription("Owner: export every role name and ID in this server")
+    .setName("scan")
+    .setDescription("Export server configuration")
+    .addSubcommand(sub => sub.setName("roles").setDescription("Owner: export all role names and IDs"))
     .setDMPermission(false)
-    .setDefaultMemberPermissions(0n)
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON();
   command.integration_types = [0];
   command.contexts = [0];
@@ -15,7 +16,7 @@ export function getScanRolesCommand() {
 }
 
 export async function handleScanRolesInteraction(interaction, config = serverScanConfiguration()) {
-  if (!interaction.isChatInputCommand?.() || interaction.commandName !== "scan-roles") return false;
+  if (!interaction.isChatInputCommand?.() || (interaction.commandName !== "scan" || interaction.options?.getSubcommand?.(false) !== "roles")) return false;
   const privateOptions = { flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } };
   if (!interaction.guildId) {
     await interaction.reply({ content: "This command only works in a server.", ...privateOptions });
