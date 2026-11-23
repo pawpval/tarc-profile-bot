@@ -1728,9 +1728,9 @@ client.once(Events.ClientReady, async () => {
   // Discord's global-command propagation. POST upserts only this single
   // command in the exact configured BSA guild. It neither bulk-overwrites
   // existing guild commands nor touches the protected main TARC guild.
-  // Register /scan-roles directly in BSA for immediate availability (no global propagation wait).
+  // Register /scan roles directly in BSA for immediate availability (no global propagation wait).
   const bsaRolesGuildId = String(process.env.BSA_GUILD_ID || "").trim();
-  if (/^\\d{17,20}$/.test(bsaRolesGuildId) &&
+  if (/^\d{17,20}$/.test(bsaRolesGuildId) &&
       bsaRolesGuildId !== String(process.env.TARC_MAIN_GUILD_ID || GUILD_ID)) {
     try {
       const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
