@@ -8,7 +8,7 @@ import {
 } from "./uksfVerifiedLayout.js";
 import {
  inspectUksfOverhaul,snapshotUksfLive,executeUksfOverhaul,
- expectedUksfOverwrites,simulateUksfAccess,syncUksfBranchTag
+ fetchVerifiedUksfMembers,expectedUksfOverwrites,simulateUksfAccess,syncUksfBranchTag
 } from "./uksfOverhaulCore.js";
 import {
  handleUksfReworkInteraction,hashUksfPlan,uksfCredentials,
@@ -237,7 +237,7 @@ test("UKSF command preview/confirm edits ONLY verified guild roles and overwrite
  assert.deepEqual(f.counts,totals,"Second run should not make writes");
  assert.deepEqual([...f.members.values()].map(m=>[m.id,[...m.roles.cache.keys()]]),membersBefore);
 });
-test("different guild ID, invalid source layout, and incomplete member enumeration block all writes",async()=>{
+test("wrong guild and channel identity block writes; partial member lists use safe mode",async()=>{
  const f=fixture(),wrong=fixture({guildId:"666666666666666666"});
  const interactionWrong=interaction(wrong);
  await handleUksfReworkInteraction(interactionWrong,env());
@@ -251,8 +251,15 @@ test("different guild ID, invalid source layout, and incomplete member enumerati
  source.parentId=UKSF_CATEGORIES[0].id;
  f.guild.memberCount=10; // Member list only has four
  const counts=await snapshotUksfLive(f.guild);
- assert.equal(counts.ok,false);
- assert.ok(counts.issues.some(x=>x.includes("Complete member/role assignment")));
+ assert.equal(counts.ok,true,JSON.stringify(counts.issues));
+ assert.equal(counts.holderVerification.complete,false);
+ assert.equal(counts.holderVerification.fetched,4);
+ assert.equal(counts.roleRenames.length,0);
+ assert.equal(counts.memberTags.length,0);
+ assert.equal(counts.roleCreates.length,8);
+ assert.ok(counts.warnings.some(x=>x.includes("safe-mode")));
+ assert.ok(counts.preservedLegacy.some(x=>x.name==="Novice Operator"&&x.holders===null));
+ assert.equal(f.counts.createRole,0,"Preview must remain read only");
 });
 test("live branch tag sync adds verified rank tag, never swaps or removes a rank on promotion",async()=>{
  const f=fixture();
@@ -333,4 +340,102 @@ test("UKSF scan still blocks mismatched channel identity, parent and incompatibl
  const renamed=await snapshotUksfLive(f.guild);
  assert.equal(renamed.ok,false);
  assert.ok(renamed.issues.some(x=>x.includes("suggestions")));
+});
+
+
+test("partial member roster permits owner-confirmed safe UKSF overhaul without renaming or promoting any existing member",async()=>{
+ const f=fixture(),originalNames=f.snapshotChannelNames();
+ f.guild.memberCount=100; // Only four member records can be confirmed
+ const previousRoles=new Map([...f.roles.values()].map(r=>[r.id,r.name]));
+ const beforeMembers=[...f.members.values()].map(m=>[m.id,[...m.roles.cache.keys()]]);
+ const command=interaction(f);
+ await handleUksfReworkInteraction(command,env());
+ const preview=last(command);
+ assert.match(preview.content,/SAFE MODE/);
+ assert.match(preview.content,/INCOMPLETE/);
+ assert.equal(preview.components.length,1);
+ assert.equal(f.counts.createRole,0);
+ const token=preview.components[0].toJSON().components[0].custom_id;
+ await handleUksfReworkInteraction(button(f,token),env());
+ const after=await snapshotUksfLive(f.guild);
+ assert.equal(after.ok,true,JSON.stringify(after.issues));
+ assert.equal(after.roleRenames.length,0);
+ assert.equal(after.roleCreates.length,0);
+ assert.equal(f.counts.renameRole,0);
+ assert.equal(f.counts.memberAdd,0);
+ assert.equal(f.counts.memberRemove,0);
+ assert.equal(f.counts.createRole,8,"Six new functional ranks and two tags must be separate");
+ assert.deepEqual([...f.members.values()].map(m=>[m.id,[...m.roles.cache.keys()]]),beforeMembers);
+ assert.deepEqual(f.snapshotChannelNames(),originalNames);
+ for(const [id,oldName] of previousRoles) assert.equal(f.roles.get(id)?.name,oldName,
+   "All legacy and existing role IDs/names must survive safe mode");
+ const rereun=interaction(f);
+ await handleUksfReworkInteraction(rereun,env());
+ assert.match(last(rereun).content,/0 new ranks, 0 safe legacy ID renames, 0 zero-privilege branch tags/);
+});
+
+test("REST member pagination verifies full list even when guild memberCount is stale",async()=>{
+ const f=fixture();
+ f.guild.memberCount=10; // gateway's count is stale; REST is authoritative
+ const pages=[];
+ f.guild.members.list=async({limit,after})=>{
+  pages.push({limit,after:after??null});
+  return f.members;
+ };
+ const verified=await fetchVerifiedUksfMembers(f.guild);
+ assert.equal(verified.complete,true);
+ assert.equal(verified.method,"rest-list-paginated");
+ assert.equal(verified.fetched,4);
+ assert.equal(verified.reportedCountDiffers,true);
+ assert.equal(verified.byRole[UKSF_RENAME_CANDIDATES[0].id],1);
+ const plan=await snapshotUksfLive(f.guild);
+ assert.equal(plan.ok,true);
+ assert.equal(plan.holderVerification.complete,true);
+ assert.ok(plan.roleRenames.some(r=>r.from==="Operator II"));
+ assert.equal(pages.length,2);
+});
+
+test("REST member-list pagination traverses multiple batches with a verifiable terminal page",async()=>{
+ const f=fixture();
+ f.guild.memberCount=1001;
+ const many=Array.from({length:1001},(_,i)=>({
+  id:String(700000000000000000n+BigInt(i+1)),
+  roles:{cache:new Map()}
+ }));
+ const calls=[];
+ f.guild.members.list=async({limit,after})=>{
+  calls.push({limit,after});
+  const rows=after?many.filter(x=>BigInt(x.id)>BigInt(after)):many;
+  return new Map(rows.slice(0,limit).map(m=>[m.id,m]));
+ };
+ const actual=await fetchVerifiedUksfMembers(f.guild);
+ assert.equal(actual.complete,true);
+ assert.equal(actual.fetched,1001);
+ assert.equal(actual.method,"rest-list-paginated");
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].limit,1000);
+ assert.equal(calls[1].after,many[999].id);
+});
+
+test("REST failure and gateway timeout trigger safe mode without treating a partial cache as empty roles",async()=>{
+ const f=fixture();
+ f.guild.memberCount=80;
+ f.guild.members.list=async()=>{throw Object.assign(new Error("Missing intent"),{code:50001})};
+ f.guild.members.fetch=async()=>{throw Object.assign(new Error("Gateway timed out"),{code:"GuildMembersTimeout"})};
+ const outcome=await snapshotUksfLive(f.guild);
+ assert.equal(outcome.ok,true,JSON.stringify(outcome.issues));
+ assert.equal(outcome.holderVerification.complete,false);
+ assert.equal(outcome.holderVerification.method,"unverified");
+ assert.match(outcome.holderVerification.error,/REST member listing failed/);
+ assert.equal(outcome.roleRenames.length,0);
+ assert.equal(outcome.memberTags.length,0);
+ assert.equal(outcome.roleCreates.length,8);
+ assert.equal(f.counts.renameRole,0);
+});
+
+test("REST member verification cannot silently classify roles when member role payloads are missing",async()=>{
+ const f=fixture();
+ f.guild.members.list=async()=>new Map([["100",{id:"100"}]]);
+ const snapshot=await fetchVerifiedUksfMembers(f.guild);
+ assert.equal(snapshot.complete,false);
 });
