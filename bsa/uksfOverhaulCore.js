@@ -124,7 +124,13 @@ export function expectedUksfOverwrites(tier,roleIds,existing,options={}){
   desired.push(roleRow(id,grant,deny));
  }
  const keepIds=new Set(desired.map(r=>r.id));
- const knownIds=new Set([...controlledIds,...roleIds.values()]);
+ const protectedExternalIds=new Set([
+  UKSF_PROTECTED_ROLES["RIC | Royal Intelligence Corps"],
+  UKSF_PROTECTED_ROLES["Regimental Oversight"],
+  UKSF_BOT_ROLE_ID,UKSF_BUILDER_ID
+ ]);
+ const knownIds=new Set([...controlledIds,...roleIds.values()]
+  .filter(id=>!protectedExternalIds.has(id)));
  // Explicit old local rank overwrites are replaced, but third-party bot,
  // human and RIC/oversight overrides remain in place.
  const preserved=actualRows(existing).filter(r=>
@@ -178,8 +184,9 @@ function sourceMatch(guild,roles,channels,bot,holders){
    issues.push("Verified category missing/renamed: "+cat.name+" ("+cat.id+").");
   for(const [id,name] of cat.channels){
    const ch=byId.get(id);
-   if(!ch||ch.name!==name||ch.parentId!==cat.id||!channelTypes.includes(ch.type))
-    issues.push("Verified channel missing/moved/renamed: "+name+" ("+id+").");
+   const expectedType=name.endsWith(" VC")?ChannelType.GuildVoice:ChannelType.GuildText;
+   if(!ch||ch.name!==name||ch.parentId!==cat.id||ch.type!==expectedType)
+    issues.push("Verified channel missing/moved/renamed/type changed: "+name+" ("+id+").");
   }
  }
  if(holders.complete && roles.filter(r=>r.name==="Branch | SAS").length>1)
