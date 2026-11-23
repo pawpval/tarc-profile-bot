@@ -74,8 +74,10 @@ function liveHolderSnapshot(members,memberCount,{completeByRest=false,method="ga
  const full=[...unique.values()];
  // A terminating REST listMembers page proves every cursor was traversed.
  // Gateway counts may be stale; require the advertised count in gateway mode.
- const complete=completeByRest||(
-  Number.isInteger(memberCount)&&full.length>=memberCount);
+ const hasRoleData=full.every(m=>m?.roles?.cache!=null);
+ const complete=hasRoleData&&
+  !(completeByRest&&full.length===0&&Number(memberCount)>0)&&
+  (completeByRest||(Number.isInteger(memberCount)&&full.length>=memberCount));
  const byRole={},roleMembers={};
  if(complete)for(const member of full){
   for(const role of arr(member.roles?.cache)){
@@ -254,9 +256,9 @@ function sourceMatch(guild,roles,channels,bot,holders){
     issues.push("Verified channel missing/moved/renamed/unsupported type: "+name+" ("+id+").");
   }
  }
- if(holders.complete && roles.filter(r=>r.name==="Branch | SAS").length>1)
+ if(roles.filter(r=>r.name==="Branch | SAS").length>1)
   issues.push("Multiple Branch | SAS roles exist.");
- if(holders.complete && roles.filter(r=>r.name==="Branch | SRR").length>1)
+ if(roles.filter(r=>r.name==="Branch | SRR").length>1)
   issues.push("Multiple Branch | SRR roles exist.");
  return [...new Set(issues)];
 }
