@@ -20,7 +20,11 @@ const managed=r=>Boolean(r?.managed||r?.tags?.botId||r?.tags?.integrationId);
 const categoryMap=new Map(UKSF_CATEGORIES.map(c=>[c.id,c]));
 const allChannelIds=new Set(UKSF_CATEGORIES.flatMap(c=>c.channels.map(ch=>ch[0])));
 const baseAuthorized={
- public:[],
+ // Public information remains readable by everyone, while designated
+ // recruitment/command staff may publish announcements and rules.
+ public:["Recruitment Officer","Operations Officer","Senior Operations Officer",
+  "Regimental Sergeant Major","Head of Operations","Executive Officer",
+  "Commanding Officer",...UKSF_HQ],
  general:["UKSF | Personnel",...UKSF_RANKS_TOP,...UKSF_HQ],
  trainee:["Special Training Course","Recruitment Officer","Operations Sergeant",
    "Operations Officer","Senior Operations Officer","Regimental Sergeant Major",
@@ -417,10 +421,11 @@ export async function executeUksfOverhaul(guild,expectedHash,hashPlan,onProgress
   const r=rolesNow.find(x=>x.name===name);
   const target=rolePermissionPlan(r,name);
   if(asBits(r.permissions)===target)continue;
+  const previous=bits(r.permissions);
   const changed=await safe("Update permissions for "+name,
    ()=>r.edit({permissions:target,reason}));
   if(!changed)return report;
-  report.permissionsUpdated.push({id:r.id,name,from:bits(r.permissions),to:String(target)});
+  report.permissionsUpdated.push({id:r.id,name,from:previous,to:String(target)});
  }
  await onProgress("UKSF ranks/branch tags ready; verifying hierarchy.");
  const rankSort=await reconcileRankOrder(guild,UKSF_RANKS_TOP);
