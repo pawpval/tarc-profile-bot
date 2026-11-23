@@ -209,7 +209,7 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
    candidate=candidateByTarget.get(name);
    const legacy=candidate?roles.find(x=>x.id===candidate.id):null;
    const holdersCount=legacy?(holders.byRole[legacy.id]??0):0;
-   if(legacy?.name===candidate.from &&holders.complete&&holdersCount===0&&!managed(legacy)){
+   if(candidate&&legacy?.name===candidate.from &&holders.complete&&holdersCount===0&&!managed(legacy)){
     r=legacy;
     action="rename";
     roleRenames.push({id:r.id,from:r.name,to:name,holders:0,
