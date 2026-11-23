@@ -68,18 +68,77 @@ function actualRows(channel){
   allow:asBits(x.allow),deny:asBits(x.deny)
  }));
 }
-function liveHolderSnapshot(members,memberCount){
+function liveHolderSnapshot(members,memberCount,{completeByRest=false,method="gateway-fetch",error=null}={}){
  const people=arr(members);
- const complete=Number.isInteger(memberCount)&&people.length>=memberCount;
+ const unique=new Map(people.filter(m=>m?.id).map(m=>[String(m.id),m]));
+ const full=[...unique.values()];
+ // A terminating REST listMembers page proves every cursor was traversed.
+ // Gateway counts may be stale; require the advertised count in gateway mode.
+ const hasRoleData=full.every(m=>m?.roles?.cache!=null);
+ const complete=hasRoleData&&
+  !(completeByRest&&full.length===0&&Number(memberCount)>0)&&
+  (completeByRest||(Number.isInteger(memberCount)&&full.length>=memberCount));
  const byRole={},roleMembers={};
- if(complete)for(const member of people){
+ if(complete)for(const member of full){
   for(const role of arr(member.roles?.cache)){
    byRole[role.id]=(byRole[role.id]||0)+1;
    (roleMembers[role.id]??=[]).push(String(member.id));
   }
  }
- return {complete,fetched:people.length,expected:memberCount??null,byRole,
-  roleMembers,memberIds:complete?people.map(m=>String(m.id)).sort():[]};
+ return {complete,fetched:full.length,expected:memberCount??null,byRole,
+  roleMembers,memberIds:complete?full.map(m=>String(m.id)).sort():[],
+  method,error,reportedCountDiffers:complete&&Number.isInteger(memberCount)&&
+   full.length!==memberCount};
+}
+
+/**
+ * Use paginated Discord REST member listings, with a verified final page.
+ * If REST or gateway listing is incomplete, never rename existing legacy
+ * role IDs or assign SAS/SRR branch tags. Other safe operations remain usable.
+ */
+export async function fetchVerifiedUksfMembers(guild){
+ const expected=guild.memberCount??null;
+ let restError=null,restPartial=[];
+ if(typeof guild.members.list==="function"){
+  const seen=new Map();
+  let after=null;
+  try{
+   for(let pageNo=0;pageNo<50;pageNo++){
+    const opts={limit:1000,...(after?{after}:{})};
+    const page=arr(await guild.members.list(opts));
+    if(page.length>1000)throw Error("Discord returned oversized member page");
+    for(const member of page){
+     if(!member?.id)throw Error("Member page contains a record without Discord ID");
+     seen.set(String(member.id),member);
+    }
+    if(page.length<1000){
+     return liveHolderSnapshot([...seen.values()],expected,{
+      completeByRest:true,method:"rest-list-paginated"
+     });
+    }
+    const lastId=page.map(m=>String(m.id)).reduce((a,b)=>
+      BigInt(a)>BigInt(b)?a:b);
+    if(after!=null&&BigInt(lastId)<=BigInt(after))
+      throw Error("Discord member pagination cursor failed to advance");
+    after=lastId;
+   }
+   restError="REST member listing reached the 50-page safety limit";
+  }catch(e){restError="REST member listing failed (code "+code(e)+")";}
+  restPartial=[...seen.values()];
+ }
+ try{
+  const members=arr(await guild.members.fetch());
+  const gateway=liveHolderSnapshot(members,expected,{method:"gateway-fetch",
+   error:restError});
+  if(gateway.complete)return gateway;
+  return {...gateway,error:restError??
+   ("Gateway returned "+gateway.fetched+" of "+String(expected??"unknown")+" members")};
+ }catch(e){
+  return liveHolderSnapshot(restPartial,expected,{
+   method:"unverified",error:[restError,"Gateway fetch failed (code "+code(e)+")"]
+    .filter(Boolean).join("; ")
+  });
+ }
 }
 function roleByExact(roles,name){
  const match=roles.filter(r=>r.name===name);
@@ -158,7 +217,9 @@ function sourceMatch(guild,roles,channels,bot,holders){
  const issues=[];
  if(guild.id!==UKSF_GUILD_ID || guild.id===UKSF_RTR_EXCLUDED)
   issues.push("UKSF verified guild ID mismatch. Nothing will be changed.");
- if(!holders.complete)issues.push("Complete member/role assignment data is unavailable. Role reuse and branch identity cannot be verified.");
+ // Incomplete member data is handled by safe-mode migration: no legacy
+ // role ID renaming and no branch-tag assignment. It must not block
+ // creating separately named roles or updating reviewed channel access.
  if(!bot?.permissions?.has?.(P.ManageRoles))
   issues.push("TARC Assistant requires Manage Roles to update the UKSF roles.");
  if(!bot?.permissions?.has?.(P.ManageChannels))
@@ -195,9 +256,9 @@ function sourceMatch(guild,roles,channels,bot,holders){
     issues.push("Verified channel missing/moved/renamed/unsupported type: "+name+" ("+id+").");
   }
  }
- if(holders.complete && roles.filter(r=>r.name==="Branch | SAS").length>1)
+ if(roles.filter(r=>r.name==="Branch | SAS").length>1)
   issues.push("Multiple Branch | SAS roles exist.");
- if(holders.complete && roles.filter(r=>r.name==="Branch | SRR").length>1)
+ if(roles.filter(r=>r.name==="Branch | SRR").length>1)
   issues.push("Multiple Branch | SRR roles exist.");
  return [...new Set(issues)];
 }
@@ -205,6 +266,10 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
  holders={complete:false,byRole:{},roleMembers:{},memberIds:[]}){
  const roles=arr(roleCollection),channels=arr(channelCollection),issues=sourceMatch(guild,roles,channels,bot,holders);
  const map=[],roleCreates=[],roleRenames=[],rolePermissionEdits=[],preservedLegacy=[],alerts=[];
+ if(!holders.complete)
+  alerts.push("Member verification unavailable: safe-mode only. All legacy IDs "+
+   "and existing assignments are preserved; no legacy role renames or "+
+   "automatic SAS/SRR branch tags. Manual member review will be needed.");
  const roleMap=new Map([...Object.entries(UKSF_PROTECTED_ROLES)]);
  const candidateByTarget=new Map(UKSF_RENAME_CANDIDATES.map(x=>[x.to,x]));
  for(const name of [...UKSF_RANKS_TOP,...UKSF_BRANCHES]){
@@ -214,7 +279,8 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
   if(!r){
    candidate=candidateByTarget.get(name);
    const legacy=candidate?roles.find(x=>x.id===candidate.id):null;
-   const holdersCount=legacy?(holders.byRole[legacy.id]??0):0;
+   const holdersCount=legacy?
+    (holders.complete?(holders.byRole[legacy.id]??0):null):0;
    if(candidate&&legacy?.name===candidate.from &&holders.complete&&holdersCount===0&&!managed(legacy)){
     r=legacy;
     action="rename";
@@ -223,7 +289,9 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
    }else{
     action="create";
     roleCreates.push({name,permissions:"0",reason:candidate?
-      (legacy?.name===candidate.from?"Legacy role has existing members; preserve it":
+      (legacy?.name===candidate.from?
+       (holders.complete?"Legacy role has existing members; preserve it":
+        "Member roster unavailable: preserve old role without assuming empty"):
         "Legacy candidate is unavailable or already repurposed"):"New persistent branch identity tag"});
     if(candidate&&legacy?.name===candidate.from)
      preservedLegacy.push({id:legacy.id,name:legacy.name,holders:holdersCount,
@@ -346,7 +414,10 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
   rolePermissionEdits,preservedLegacy,memberTags,memberTagConflicts,
   roleOrderTopToBottom:[...UKSF_RANKS_TOP],needsOrder,
   categoryPlans,channelPlans,blockedLeaks,otherChannels,otherCategories,
-  holderVerification:{complete:holders.complete,fetched:holders.fetched,expected:holders.expected},
+  holderVerification:{complete:holders.complete,fetched:holders.fetched,
+   expected:holders.expected,method:holders.method,
+   reportedCountDiffers:holders.reportedCountDiffers??false,
+   error:holders.error??null},
   roleSnapshot:roles.filter(x=>x.id!==guild.id).map(x=>({
    id:x.id,name:x.name,position:x.position,permissions:bits(x.permissions),managed:managed(x),
    members:holders.complete?(holders.byRole[x.id]??0):null
@@ -370,13 +441,7 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
 export async function snapshotUksfLive(guild){
  const [roles,channels,bot]=await Promise.all([
   guild.roles.fetch(),guild.channels.fetch(),guild.members.fetchMe()]);
- let holders={complete:false,fetched:0,expected:guild.memberCount??null,byRole:{},roleMembers:{},memberIds:[]};
- try{
-  const members=await guild.members.fetch();
-  holders=liveHolderSnapshot(members,guild.memberCount);
- }catch(e){
-  holders.error=code(e);
- }
+ const holders=await fetchVerifiedUksfMembers(guild);
  const plan=inspectUksfOverhaul(guild,roles,channels,bot,holders);
  plan.memberError=holders.error??null;
  return plan;
@@ -464,8 +529,20 @@ export async function executeUksfOverhaul(guild,expectedHash,hashPlan,onProgress
  // verified and explicitly named SAS or SRR rank. Never reclassify a person
  // just because a legacy role was renamed or because they hold shared command.
  const byMember=new Map();
- const currentMembers=arr(await guild.members.fetch());
- for(const m of currentMembers)byMember.set(String(m.id),m);
+ if(current.memberTags.length){
+  // Fetch only the verified SAS/SRR rank holders; do not demand another
+  // full guild enumeration after roles have been created.
+  for(const memberId of new Set(current.memberTags.map(m=>m.memberId))){
+   const member=await safe("Fetch branch member "+memberId,
+    ()=>guild.members.fetch(memberId));
+   if(!member)return report;
+   if(!member?.roles?.cache){
+    report.errors.push("Discord did not return role assignments for "+memberId);
+    return report;
+   }
+   byMember.set(String(member.id),member);
+  }
+ }
  for(const entry of current.memberTags){
   const member=byMember.get(entry.memberId);
   const currentRoles=new Set(arr(member?.roles?.cache).map(r=>r.id));
