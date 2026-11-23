@@ -127,8 +127,7 @@ function fixture({guildId=UKSF_GUILD_ID,memberCount=4}={}){
  addMember("100",["Novice Operator","UKSF | Personnel"]);
  addMember("101",["Operator","UKSF | Personnel"]);
  addMember("102",["Instructor","UKSF | Personnel"]);
- addMember("103",["SRR | Special Reconnaissance Regiment"].filter(x=>
-  [...roles.values()].some(r=>r.name===x)).length?["Operator II"]:["Operator II"]);
+ addMember("103",["Special Training Course"]);
  const snapshotChannelNames=()=>[...channels.values()].map(c=>[c.id,c.name,c.parentId,c.type]);
  return {guild,roles,channels,members,counts,mkRole,addMember,bot,snapshotChannelNames};
 }
