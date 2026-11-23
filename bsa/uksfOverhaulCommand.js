@@ -54,6 +54,7 @@ export function hashUksfPlan(plan){
   guildId:plan.guildId,roleSnapshot:plan.roleSnapshot,
   channelSnapshot:plan.channelSnapshot,memberSnapshot:plan.memberSnapshot,
   roleMappings:plan.roleMappings,memberTags:plan.memberTags,
+  holderVerification:plan.holderVerification,memberError:plan.memberError,
   categoryPlans:plan.categoryPlans,channelPlans:plan.channelPlans
  })).digest("hex");
 }
@@ -73,7 +74,13 @@ function preview(guild,p){
     s.newTags+" zero-privilege branch tags, "+s.permissions+" rank permission corrections.",
   "**Channel permissions:** "+s.categories+" existing categories and "+s.channels+
     " existing channels need overwrite updates. No channel creation, rename or deletion.",
-  "**Member migrations:** "+s.membersToTag+" already-verified SAS/SRR rank holders to tag; "+
+  "**Member roster:** "+(p.holderVerification.complete?
+    "Verified via "+p.holderVerification.method+
+      (p.holderVerification.reportedCountDiffers?" (reported count was stale)":"")+"."
+    :"INCOMPLETE ("+p.holderVerification.fetched+"/"+
+      String(p.holderVerification.expected??"unknown")+" returned, "+p.holderVerification.method+
+      "). SAFE MODE: no legacy ID renames, no assumed zero-holder roles and no SAS/SRR auto-tags."),
+  "**Member migrations:** "+s.membersToTag+" verified SAS/SRR holders eligible for tags; "+
     s.memberTagConflicts+" branch conflicts need manual review. No primary rank changed.",
   "**Preserved:** "+s.preservedOldRoles+" legacy roles (some may have holders), protected HQ/oversight, "+
     "all channel IDs/messages/webhooks and non-UKSF roles.",
