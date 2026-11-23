@@ -219,7 +219,7 @@ export function inspectUksfOverhaul(guild,roleCollection,channelCollection,bot,
     roleCreates.push({name,permissions:"0",reason:candidate?
       (legacy?.name===candidate.from?"Legacy role has existing members; preserve it":
         "Legacy candidate is unavailable or already repurposed"):"New persistent branch identity tag"});
-    if(legacy?.name===candidate.from)
+    if(candidate&&legacy?.name===candidate.from)
      preservedLegacy.push({id:legacy.id,name:legacy.name,holders:holdersCount,
        members:holders.roleMembers[legacy.id]??[],reason:"Unverified for new rank: manual migration required"});
    }
