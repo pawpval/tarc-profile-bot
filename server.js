@@ -1701,7 +1701,7 @@ client.once(Events.ClientReady, async () => {
     // Global/User Install commands must be one authoritative set.
     // Bulk overwrite prevents a restart from leaving /ask registered while one
     // of the game commands silently fails or becomes stale.
-    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), getScanRolesCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), getUksfReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
+    const globalCommands = [getGlobalAskCommand(), getGlobalTeachCommand(), getServerScanCommand(), ...getBsaCommands(), getBsaFormatCommand(), ...getRegimentalCommands(), getRtrReworkCommand(), getUksfReworkCommand(), ...getGlobalGameCommands(), ...getBlacklistCommands()];
     const registeredGlobalCommands = await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: globalCommands }
@@ -1728,6 +1728,25 @@ client.once(Events.ClientReady, async () => {
   // Discord's global-command propagation. POST upserts only this single
   // command in the exact configured BSA guild. It neither bulk-overwrites
   // existing guild commands nor touches the protected main TARC guild.
+  // Register /scan-roles directly in BSA for immediate availability (no global propagation wait).
+  const bsaRolesGuildId = String(process.env.BSA_GUILD_ID || "").trim();
+  if (/^\\d{17,20}$/.test(bsaRolesGuildId) &&
+      bsaRolesGuildId !== String(process.env.TARC_MAIN_GUILD_ID || GUILD_ID)) {
+    try {
+      const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+      const command = getScanRolesCommand();
+      delete command.integration_types;
+      delete command.contexts;
+      delete command.dm_permission;
+      await rest.post(Routes.applicationGuildCommands(CLIENT_ID, bsaRolesGuildId), { body: command });
+      console.log("[SCAN ROLES] BSA guild command registered.");
+    } catch (error) {
+      console.error("[SCAN ROLES] Guild registration failed:", String(error?.code || error?.status || "unknown"));
+    }
+  } else {
+    console.warn("[SCAN ROLES] BSA guild registration skipped: BSA_GUILD_ID missing or protected.");
+  }
+
   const bsaFormatRegistration = getBsaGuildFormatRegistration();
   if (bsaFormatRegistration) {
     try {
