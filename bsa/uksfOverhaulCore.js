@@ -440,12 +440,15 @@ export async function executeUksfOverhaul(guild,expectedHash,hashPlan,onProgress
  if(!rankSort.verified){
   report.errors.push(...rankSort.errors);return report;
  }
- // Branch tags have NO authority. Keep them below the functional rank chain.
- for(const name of UKSF_BRANCHES){
-  const id=roleIds.get(name);
-  if(!id)continue;
-  const r=arr(await guild.roles.fetch()).find(x=>x.id===id);
-  if(r?.position!=null &&r.position>1){
+ // Branch tags have NO authority. Keep them in the bottom two positions.
+ // Both orders are equivalent; once there, don't keep flipping them on reruns.
+ const tagRoles=arr(await guild.roles.fetch()).filter(x=>
+  UKSF_BRANCHES.includes(x.name));
+ const tagPositions=tagRoles.map(x=>x.position).sort((a,b)=>a-b);
+ if(tagPositions.length===2&&(tagPositions[0]!==1||tagPositions[1]!==2)){
+  for(const name of UKSF_BRANCHES){
+   const id=roleIds.get(name);
+   if(!id)continue;
    const moved=await safe("Move non-hierarchical tag "+name,
     ()=>guild.roles.setPosition(id,1));
    if(!moved)return report;
