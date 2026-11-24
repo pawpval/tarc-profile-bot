@@ -65,3 +65,35 @@ test('member leaving between scan and write is skipped',async()=>{
  const {ranker}=harness(u=>u.pathname.endsWith('/roles')?rolePage:{groupMemberships:u.searchParams.has('filter')?[]:[member()]});
  assert.equal((await ranker.cycle({write:true})).assigned,0);
 });
+
+test('built-in member omitted from role catalogue is verified and assigned',async()=>{
+ const builtin=`groups/${GROUP}/roles/12884901889`;
+ let ranked=false;
+ const {calls,ranker}=harness((u,init)=>{
+  if(u.pathname.endsWith('/roles'))return rolePage;
+  if(u.pathname.endsWith('/roles/12884901889'))return {path:builtin,displayName:'member',rank:1};
+  if(init.method==='POST'){ranked=true;return member([ROLE]);}
+  return {groupMemberships:[ranked?member([ROLE]):{...member(),role:builtin}]};
+ });
+ assert.equal((await ranker.cycle({write:true})).assigned,1);
+ assert.equal(calls.filter(c=>c.init.method==='POST').length,1);
+ assert.equal((await ranker.cycle({write:true})).assigned,0);
+});
+
+test('unknown singular custom role remains protected after lookup',async()=>{
+ const unknown=`groups/${GROUP}/roles/777`;
+ const {calls,ranker}=harness(u=>u.pathname.endsWith('/roles')?rolePage:
+  u.pathname.endsWith('/roles/777')?{path:unknown,displayName:'Officer',rank:3}:
+  {groupMemberships:[{...member(),role:unknown}]});
+ assert.equal((await ranker.cycle({write:true})).assigned,0);
+ assert.ok(calls.every(c=>c.init.method==='GET'));
+});
+
+test('verified built-in membership ranked during scan is protected',async()=>{
+ const builtin=`groups/${GROUP}/roles/12884901889`;
+ const {calls,ranker}=harness(u=>u.pathname.endsWith('/roles')?rolePage:
+  u.pathname.endsWith('/roles/12884901889')?{path:builtin,displayName:'member',rank:1}:
+  {groupMemberships:[u.searchParams.has('filter')?member([other]):{...member(),role:builtin}]});
+ assert.equal((await ranker.cycle({write:true})).assigned,0);
+ assert.ok(calls.every(c=>c.init.method==='GET'));
+});
