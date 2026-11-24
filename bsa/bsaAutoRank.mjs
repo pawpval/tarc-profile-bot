@@ -50,10 +50,10 @@ export function createRanker({key, fetchFn = fetch, sleep = ms => new Promise(r 
     // Roblox's built-in member role is not a custom rank. No other role is ignored.
     const baseRoles = new Set(roles.filter(r => /^member$/i.test(r.displayName || '') && r.rank <= 1 && r.path !== ROLE).map(r => r.path));
     if (roles.some(r => r.rank > 0 && r.rank < target.rank && !baseRoles.has(r.path))) throw new RankError('TARGET_NOT_FIRST_CUSTOM_RANK');
-    return {baseRoles, targetRank: target.rank};
+    return {baseRoles, knownRoles: new Set(roles.map(r => r.path)), targetRank: target.rank};
   }
   async function cycle({write = false, cursor = ''} = {}) {
-    const {baseRoles, targetRank} = await validateRoles();
+    const {baseRoles, knownRoles, targetRank} = await validateRoles();
     const result = {scanned: 0, eligible: 0, assigned: 0, skipped: 0, missingRoles: 0, targetRank, nextCursor: ''};
     const seen = new Set(); let token = cursor;
     for (let pageNo = 0; pageNo < 5; pageNo++) {
@@ -64,6 +64,18 @@ export function createRanker({key, fetchFn = fetch, sleep = ms => new Promise(r 
       for (const member of page.groupMemberships) {
         result.scanned++;
         if (!Array.isArray(member.roles)) result.missingRoles++;
+        // Roblox omits its built-in member role from ListGroupRoles, but still
+        // returns it in the deprecated singular membership.role field. Resolve
+        // that exact role instead of mistaking it for an assigned custom rank.
+        if (Array.isArray(member.roles) && member.roles.length === 0 &&
+            typeof member.role === 'string' &&
+            new RegExp(`^groups/${GROUP}/roles/\\d+$`).test(member.role) &&
+            !knownRoles.has(member.role)) {
+          const role = await request(`/roles/${member.role.split('/').at(-1)}`);
+          knownRoles.add(member.role);
+          if (role.path === member.role && /^member$/i.test(role.displayName || '') &&
+              role.rank === 1 && role.path !== ROLE) baseRoles.add(role.path);
+        }
         if (!eligible(member, baseRoles)) { result.skipped++; continue; }
         result.eligible++;
         if (!write) continue;
