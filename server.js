@@ -1,3 +1,4 @@
+import { startBsaAutoRank } from "./bsa/bsaAutoRank.mjs";
 import { getBlacklistCommands, handleBlacklistInteraction, blacklistSnapshot } from "./blacklistManager.js";
 import { handleWorldInteraction } from "./game/worldSystem.js";
 import { getChannelFormatCommands, handleChannelFormatInteraction } from "./channelFormatter.js";
@@ -36,6 +37,8 @@ import {
 } from "discord.js";
 
 const app = express();
+// Independent scheduler; failure cannot interrupt Discord startup or commands.
+startBsaAutoRank();
 
 // ==================== ENV ====================
 const PORT = Number(process.env.PORT || 8080);
